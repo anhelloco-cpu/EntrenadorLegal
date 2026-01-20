@@ -15,29 +15,23 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# --- CONFIGURACIÓN DE PÁGINA ---
+# --- 1. CONFIGURACIÓN VISUAL (ESTILO ORIGINAL) ---
 st.set_page_config(page_title="Entrenador Legal TITÁN v7.1", page_icon="🧠", layout="wide")
-
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
+    .stButton>button:hover {transform: scale(1.02);}
     .narrative-box {
-        background-color: #f0f4f8; 
+        background-color: #e8f5e9; 
         padding: 25px; 
         border-radius: 12px; 
-        border-left: 8px solid #1e3a8a; 
+        border-left: 6px solid #2e7d32; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 25px;
-        font-family: 'serif';
-        font-size: 1.1em;
-        line-height: 1.6;
+        font-family: 'Georgia', serif;
+        font-size: 1.15em;
     }
-    .status-card {
-        background-color: #ffffff;
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #d1d5db;
-        text-align: center;
-    }
+    .status-bar {font-weight: bold; color: #2e86c1;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -49,27 +43,31 @@ def load_dl_model():
 
 nn_model = load_dl_model()
 
-# --- MOTOR LÓGICO ---
+# --- 2. CEREBRO LÓGICO (ESTRUCTURA ORIGINAL + DEEP LEARNING) ---
 class LegalEngineTITAN:
     def __init__(self):
-        self.chunks = []
+        self.chunks = []           
         self.chunk_embeddings = None
-        self.mastery_tracker = {}
+        self.mastery_tracker = {}  
         self.failed_indices = set()
+        self.mistakes_log = []
         self.feedback_history = []
         self.current_data = None
         self.current_chunk_idx = -1
         self.entity = ""
-        self.level = "Profesional"
+        self.level = "Profesional" 
+        self.simulacro_mode = False
         self.model = None
-        self.last_failed_embedding = None
+        self.current_temperature = 0.2 
+        self.last_failed_embedding = None 
 
     def configure_api(self, key):
         try:
             genai.configure(api_key=key)
             self.model = genai.GenerativeModel('gemini-1.5-flash')
-            return True
-        except: return False
+            return True, "Conectado"
+        except Exception as e:
+            return False, str(e)
 
     def process_law(self, text, append=False):
         text = text.replace('\r', '')
@@ -80,53 +78,91 @@ class LegalEngineTITAN:
             self.chunks = new_chunks
             self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.failed_indices = set()
+            self.mistakes_log = []
+            if DL_AVAILABLE and nn_model:
+                with st.spinner("🧠 Generando Mapa Neuronal..."):
+                    self.chunk_embeddings = nn_model.encode(self.chunks)
         else:
-            start = len(self.chunks)
+            start_idx = len(self.chunks)
             self.chunks.extend(new_chunks)
-            for i in range(len(new_chunks)): self.mastery_tracker[start+i] = 0
-            
-        if DL_AVAILABLE and nn_model:
-            with st.spinner("🧠 Generando Mapa Neuronal de la Norma..."):
+            for i in range(len(new_chunks)):
+                self.mastery_tracker[start_idx + i] = 0 
+            if DL_AVAILABLE and nn_model:
                 self.chunk_embeddings = nn_model.encode(self.chunks)
         return len(new_chunks)
 
+    def get_stats(self):
+        if not self.chunks: return 0, 0, 0
+        total_chunks = len(self.chunks)
+        goal_score = total_chunks * 3 
+        current_score = sum([min(v, 3) for v in self.mastery_tracker.values()])
+        percentage = int((current_score / goal_score) * 100) if goal_score > 0 else 0
+        return min(percentage, 100), len(self.failed_indices), total_chunks
+
+    def get_calibration_prompt(self):
+        if not self.feedback_history: return "Modo: Estándar."
+        counts = Counter(self.feedback_history)
+        instructions = []
+        instructions.append("🛡️ ANTI-RECORTE: Prohibido 'Solo A' si la norma dice 'A y B'.")
+        if counts['desconectado'] > 0: instructions.append("🔗 ANTI-SPOILER: No regales el dato clave.")
+        if counts['sesgo_longitud'] > 0: instructions.append("🛑 FORMATO VISUAL: Opciones del mismo largo.")
+        if counts['respuesta_obvia'] > 0: instructions.append("💀 DIFICULTAD: Trampas de pertinencia agresivas.")
+        if counts['pregunta_facil'] > 0: instructions.append("⚠️ DETALLE: Respuesta basada en datos minúsculos.")
+        if counts['repetitivo'] > 0: self.current_temperature = 0.7; instructions.append("🔄 VARIEDAD: Cambia nombres y cargos.")
+        if counts['alucinacion'] > 0: self.current_temperature = 0.0; instructions.append("⛔ FUENTE CERRADA: Usa solo el texto.")
+        return "\n".join(instructions)
+
     def generate_case(self):
-        # Selección inteligente por Deep Learning
+        if not self.chunks: return {"error": "⚠️ Carga una norma primero."}
+        
         idx = -1
-        if self.last_failed_embedding is not None and self.chunk_embeddings is not None:
+        # --- LÓGICA NEURONAL ---
+        if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
-            candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker[i] < 3]
+            candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 3]
             candidatos.sort(key=lambda x: x[1], reverse=True)
             if candidatos: idx = candidatos[0][0]
 
         if idx == -1:
-            pending = [i for i, v in self.mastery_tracker.items() if v < 3]
-            idx = random.choice(pending) if pending else random.choice(range(len(self.chunks)))
-
+            if self.simulacro_mode: idx = random.choice(range(len(self.chunks)))
+            elif self.failed_indices: idx = random.choice(list(self.failed_indices)) if random.random() < 0.6 else random.choice(range(len(self.chunks)))
+            else:
+                pending = [k for k,v in self.mastery_tracker.items() if v < 3]
+                idx = random.choice(pending) if pending else random.choice(range(len(self.chunks)))
+        
         self.current_chunk_idx = idx
-        chunk = self.chunks[idx]
+        text_chunk = self.chunks[idx]
         
-        # Construcción del Prompt con todas las reglas acumuladas
-        calibracion = "\n".join(self.feedback_history)
-        
+        # --- DEFINICIÓN DE NIVEL ---
+        l_msg = ""
+        if self.level == "Asistencial": l_msg = "BÁSICO: Pasos y definiciones."
+        elif self.level == "Técnico": l_msg = "TÉCNICO: Procesos."
+        elif self.level == "Profesional": l_msg = "PROFESIONAL: Análisis y Criterio complejo."
+        elif self.level == "Asesor": l_msg = "ASESOR: Estrategia y Riesgo."
+
+        # --- ANCLAJE DE ENTIDAD ---
+        contexto_entidad = f"LA HISTORIA DEBE OCURRIR OBLIGATORIAMENTE EN: {self.entity.upper()}." if self.entity else "Escenario institucional genérico."
+
         prompt = f"""
-        ACTÚA COMO UN EXPERTO JURISTA PARA EL CARGO: {self.level.upper()}.
-        ENTIDAD DEL CASO: {self.entity if self.entity else 'Estado Colombiano'}.
+        ACTÚA COMO UN EXPERTO JURISTA CNSC. NIVEL: {self.level.upper()}.
+        ESCENARIO: {contexto_entidad}
+        TEXTO NORMATIVO: "{text_chunk[:6000]}"
         
-        TEXTO BASE: "{chunk}"
+        REGLAS:
+        1. TRAMPA DE PERTINENCIA: Opciones incorrectas son leyes reales pero inaplicables AQUÍ.
+        2. ANTI-SPOILER: No reveles el dato clave en la pregunta.
+        3. INTEGRIDAD: Respuesta correcta completa, no resumida.
+        4. NIVEL {self.level}: {l_msg}
         
-        INSTRUCCIONES:
-        1. Crea un caso situacional donde las opciones incorrectas sean leyes reales pero INAPLICABLES a este hecho específico (Trampa de Pertinencia).
-        2. NO menciones el dato clave en el enunciado (Anti-Spoiler).
-        3. No recortes la norma en la respuesta correcta (Integridad).
-        4. NIVEL {self.level}: Requiere análisis de alta complejidad, no definiciones simples.
+        AJUSTES: {self.get_calibration_prompt()}
         
-        {calibracion}
-        
-        Responde estrictamente en JSON:
+        FORMATO JSON:
         {{
-            "narrativa": "Caso detallado...",
+            "narrativa_caso": "Caso detallado en {self.entity if self.entity else 'la entidad'}...",
             "preguntas": [
+                {{"enunciado": "...", "opciones": {{"A": "...", "B": "...", "C": "..."}}, "respuesta": "A", "explicacion": "..."}},
+                {{"enunciado": "...", "opciones": {{"A": "...", "B": "...", "C": "..."}}, "respuesta": "A", "explicacion": "..."}},
+                {{"enunciado": "...", "opciones": {{"A": "...", "B": "...", "C": "..."}}, "respuesta": "A", "explicacion": "..."}},
                 {{"enunciado": "...", "opciones": {{"A": "...", "B": "...", "C": "..."}}, "respuesta": "A", "explicacion": "..."}}
             ]
         }}
@@ -135,84 +171,90 @@ class LegalEngineTITAN:
         try:
             res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
             return json.loads(res.text)
-        except: return None
+        except: return {"error": "Fallo en IA"}
 
-# --- APP ---
+# --- 3. INICIALIZACIÓN ---
 if 'engine' not in st.session_state: st.session_state.engine = LegalEngineTITAN()
+if 'page' not in st.session_state: st.session_state.page = 'setup'
 if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
+if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
+# --- 4. INTERFAZ (RESTURADA) ---
 with st.sidebar:
-    st.title("⚖️ TITÁN v7.1")
-    st.info("🧠 Deep Learning " + ("Activo" if DL_AVAILABLE else "No detectado"))
+    st.title("⚙️ Panel TITÁN v7.1")
+    if DL_AVAILABLE: st.success("🧠 Deep Learning: ON")
     
     key = st.text_input("Gemini API Key:", type="password")
-    if key: engine.configure_api(key)
+    if key and not engine.model: engine.configure_api(key)
     
     st.divider()
     engine.level = st.selectbox("Nivel del Cargo:", ["Asistencial", "Técnico", "Profesional", "Asesor"], index=2)
     engine.entity = st.text_input("Entidad (Escenario):", placeholder="Ej: Fiscalía General")
     
-    norma = st.text_area("Cargar Texto de la Norma:", height=200)
-    if st.button("🚀 Cargar e Iniciar"):
-        if engine.process_law(norma):
-            st.session_state.data = None
-            st.rerun()
+    txt_input = st.text_area("Cargar Norma:", height=200)
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🚀 INICIAR NUEVO", type="primary"):
+            if engine.process_law(txt_input):
+                st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+    with col2:
+        if st.button("➕ AGREGAR"):
+            if engine.process_law(txt_input, True): st.success("Agregado.")
 
-# --- ÁREA DE ESTUDIO ---
-if engine.chunks:
-    if 'data' not in st.session_state or st.session_state.data is None:
-        with st.spinner("🧠 La IA está analizando la ley y diseñando el caso..."):
-            st.session_state.data = engine.generate_case()
-            st.session_state.q_idx = 0
-            st.session_state.answered = False
+    st.divider()
+    if st.button("🗑️ Borrar Calibración"):
+        engine.feedback_history = []
+        st.toast("Memoria limpia.")
 
-    data = st.session_state.data
-    if data:
-        # Progreso
-        done = sum([min(v, 3) for v in engine.mastery_tracker.values()])
-        total = len(engine.chunks) * 3
-        st.progress(done/total)
-        st.write(f"📊 Dominio: {int((done/total)*100)}% | Nivel: {engine.level}")
+    if engine.chunks:
+        save_data = json.dumps({"chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices), "log": engine.mistakes_log, "feed": engine.feedback_history, "entity": engine.entity})
+        st.download_button("Descargar Progreso", save_data, "progreso.json")
 
-        st.markdown(f"<div class='narrative-box'><b>CONTEXTO INSTITUCIONAL: {engine.entity if engine.entity else 'GENERAL'}</b><br>{data['narrativa']}</div>", unsafe_allow_html=True)
-        
-        q = data['preguntas'][st.session_state.q_idx]
-        st.subheader(f"Pregunta {st.session_state.q_idx + 1}")
-        st.write(q['enunciado'])
-        
-        with st.form(key=f"q_{st.session_state.q_idx}"):
-            ans = st.radio("Seleccione la opción correcta:", [f"{k}) {v}" for k, v in q['opciones'].items()], index=None)
-            submit = st.form_submit_button("Validar Respuesta")
-            
-            if submit and ans:
-                letter = ans[0]
-                if letter == q['respuesta']:
-                    st.success("✅ ¡CORRECTO!")
-                    engine.last_failed_embedding = None
-                else:
-                    st.error(f"❌ INCORRECTO. La respuesta era la {q['respuesta']}")
-                    if DL_AVAILABLE and engine.chunk_embeddings is not None:
-                        engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
-                
-                st.info(f"💡 EXPLICACIÓN: {q['explicacion']}")
-                st.session_state.answered = True
+# --- 5. JUEGO (RESTAURADO) ---
+if st.session_state.page == 'game':
+    perc, fails, total = engine.get_stats()
+    st.markdown(f"<div style='background:#eee; padding:10px; border-radius:8px;'><b>DOMINIO: {perc}%</b> | <b>BLOQUES: {total}</b> | <b>REPASOS: {fails}</b></div>", unsafe_allow_html=True)
+    st.progress(perc/100)
 
-        if st.session_state.answered:
+    if not st.session_state.current_data:
+        with st.spinner("🧠 Neurona analizando debilidades y diseñando caso..."):
+            data = engine.generate_case()
+            if "error" in data: st.error("Fallo IA"); st.stop()
+            st.session_state.current_data = data; st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
+
+    data = st.session_state.current_data
+    st.markdown(f"<div class='narrative-box'><h4>📜 Caso: {engine.entity if engine.entity else 'General'}</h4>{data['narrativa_caso']}</div>", unsafe_allow_html=True)
+
+    q = data['preguntas'][st.session_state.q_idx]
+    st.subheader(f"Pregunta {st.session_state.q_idx + 1}")
+    st.write(q['enunciado'])
+    
+    with st.form(key=f"q_{st.session_state.q_idx}"):
+        sel = st.radio("Opciones:", [f"{k}) {v}" for k,v in q['opciones'].items()], index=None)
+        if st.form_submit_button("Validar Respuesta") and sel:
+            if sel[0] == q['respuesta']:
+                st.success("✅ ¡CORRECTO!")
+                if engine.current_chunk_idx in engine.failed_indices: engine.failed_indices.remove(engine.current_chunk_idx)
+                engine.last_failed_embedding = None
+            else:
+                st.error(f"❌ INCORRECTO. Era {q['respuesta']}")
+                engine.failed_indices.add(engine.current_chunk_idx)
+                if DL_AVAILABLE and engine.chunk_embeddings is not None:
+                    engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
+            st.info(f"💡 {q['explicacion']}"); st.session_state.answered = True
+
+    if st.session_state.answered:
+        col_nav, col_rep = st.columns(2)
+        with col_nav:
             if st.button("⏭️ Siguiente"):
-                if st.session_state.q_idx < len(data['preguntas']) - 1:
-                    st.session_state.q_idx += 1
-                    st.session_state.answered = False
-                    st.rerun()
-                else:
-                    engine.mastery_tracker[engine.current_chunk_idx] += 1
-                    st.session_state.data = None
-                    st.rerun()
-                    
-        with st.expander("🛠️ Calibrar dificultad"):
-            if st.button("⚠️ Más difícil (Trampas de pertinencia)"):
-                engine.feedback_history.append("Incrementa la sutileza de los distractores.")
-                st.toast("Ajuste guardado para el próximo caso.")
-else:
-    st.title("Bienvenido a TITÁN v7.1")
-    st.write("Carga una norma en el panel izquierdo para comenzar tu entrenamiento neuronal.")
+                if st.session_state.q_idx < 3: st.session_state.q_idx += 1; st.session_state.answered = False; st.rerun()
+                else: engine.mastery_tracker[engine.current_chunk_idx] += 1; st.session_state.current_data = None; st.rerun()
+        with col_rep:
+            with st.expander("📢 Reportar Fallo"):
+                report = st.selectbox("Error:", ["Spoiler", "Obvio", "Incompleto"])
+                if st.button("Calibrar"):
+                    engine.feedback_history.append(report); st.toast("Ajustado.")
+
+elif st.session_state.page == 'setup':
+    st.title("🧠 Entrenador TITÁN v7.1")
