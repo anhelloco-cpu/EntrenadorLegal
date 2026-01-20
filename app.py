@@ -16,7 +16,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CLASE MOTOR (CEREBRO v3.9 - STRICT SOURCE) ---
+# --- CLASE MOTOR (CEREBRO v4.0 - FUENTE CERRADA ESTRICTA) ---
 class LegalEnginePRO:
     def __init__(self):
         self.chunks = []
@@ -31,7 +31,8 @@ class LegalEnginePRO:
         self.entity = ""
         self.simulacro_mode = False
         self.model = None
-        self.current_temperature = 0.3 
+        # Temperatura muy baja por defecto para evitar alucinaciones
+        self.current_temperature = 0.1 
 
     def configure_api(self, key):
         try:
@@ -48,7 +49,8 @@ class LegalEnginePRO:
         text = text.replace('\r', '')
         if len(text) < 100: return 0
         new_chunks = []
-        step = 4000 # Bloques un poco más grandes para tener más contexto
+        # Bloques grandes (5000 chars) para asegurar contexto completo
+        step = 5000 
         for i in range(0, len(text), step):
             new_chunks.append(text[i:i+step])
             
@@ -74,25 +76,21 @@ class LegalEnginePRO:
         return min(percent, 100), fails
 
     def get_learning_context(self):
-        if not self.feedback_history: return "Modo: Estándar."
+        if not self.feedback_history: return "Modo: Estricto."
         counts = Counter(self.feedback_history)
         instructions = []
         
-        # --- CALIBRACIÓN INTELIGENTE v3.9 ---
+        # --- LÓGICA DE CALIBRACIÓN v4.0 ---
         if counts['alucinacion'] > 0:
-            self.current_temperature = 0.1 # BAJAMOS temperatura (más estricto)
-            instructions.append("⛔ CANDADO DE FUENTE ACTIVADO: El usuario reportó invención de normas. Usa SOLO lo que está en el texto entre comillas. Si no está ahí, no existe.")
-        elif counts['repetitivo'] > 0:
-            self.current_temperature = 0.8 # SUBIMOS temperatura (más variedad)
-            instructions.append("⚠️ VARIEDAD NARRATIVA: Cambia nombres, géneros y contextos fácticos. Evita los clichés.")
-        else:
-            self.current_temperature = 0.4 # Equilibrio
+            self.current_temperature = 0.0 # CERO creatividad (Robot estricto)
+            instructions.append("⛔ CANDADO ACTIVADO: El usuario reportó invención. REGLA SUPREMA: Si la respuesta no está LITERALMENTE en el texto, no hagas la pregunta.")
+        
+        if counts['repetitivo'] > 0:
+            self.current_temperature = 0.5
+            instructions.append("⚠️ Usa el mismo texto normativo pero cambia la situación fáctica (nombres/lugares) para dar variedad.")
             
         if counts['pregunta_facil'] > 0: 
-            instructions.append("⚠️ DIFICULTAD: Genera 'cascaritas'. Opciones incorrectas deben parecer verdaderas cambiando solo una palabra clave.")
-        
-        if counts['caso_simple'] > 0: 
-            instructions.append("⚠️ COMPLEJIDAD: El caso debe tener al menos dos fechas o dos actores en conflicto.")
+            instructions.append("⚠️ DIFICULTAD: Las opciones falsas deben ser jurídicamente viables pero incorrectas por un detalle sutil del texto.")
 
         return "\n".join(instructions)
 
@@ -123,7 +121,6 @@ class LegalEnginePRO:
         # SELECCIÓN
         if self.simulacro_mode:
             current_idx = random.choice(range(len(self.chunks)))
-            prompt_modifier = "MODO SIMULACRO: Evalúa integración de conceptos."
         else:
             if self.failed_indices and random.random() < 0.4:
                 current_idx = random.choice(list(self.failed_indices))
@@ -141,35 +138,42 @@ class LegalEnginePRO:
         
         contexto_entidad = ""
         if self.entity.strip():
-            contexto_entidad = f"Ambienta el caso en: **{self.entity.upper()}** (Solo en cargos y contexto, la norma es la fuente única)."
+            contexto_entidad = f"CONTEXTO: {self.entity.upper()} (Úsalo solo para dar ambiente, NO para inventar normas)."
 
-        # --- PROMPT CORREGIDO (Sin inyección forzada) ---
+        # --- PROMPT v4.0: NOTARIO ESTRICTO ---
         prompt = f"""
-        Actúa como experto de la Comisión Nacional del Servicio Civil (CNSC).
-        Diseña una prueba de juicio situacional basada EXCLUSIVAMENTE en el texto provisto.
+        ACTÚA COMO UN EXAMINADOR ESTRICTO TIPO 'FUENTE CERRADA'.
+        
+        TU ÚNICA FUENTE DE VERDAD ES EL SIGUIENTE TEXTO.
+        OLVIDA CUALQUIER OTRA LEY O CONOCIMIENTO EXTERNO QUE TENGAS.
+        SI ALGO NO ESTÁ EN EL TEXTO, NO EXISTE.
 
-        TEXTO NORMATIVO FUENTE: 
-        "{active_text[:5000]}"...
+        === TEXTO SAGRADO (LEER DETENIDAMENTE) ===
+        "{active_text}"
+        ==========================================
 
-        === INSTRUCCIONES DE DISEÑO ===
+        OBJETIVO: Crear un caso situacional basado 100% en el texto anterior.
+
+        INSTRUCCIONES DE DISEÑO:
         1. **FOCO:** {lente_actual}.
-        2. **ENTIDAD:** {contexto_entidad}
-        3. **FUENTE CERRADA (CRÍTICO):** La respuesta correcta DEBE estar justificada explícitamente en el "TEXTO NORMATIVO FUENTE". No traigas leyes externas.
-        4. **VARIEDAD:** Usa nombres y situaciones diversas que encajen lógicamente con el tema del texto (Ej: si es contratación, usa contratistas; si es disciplinario, usa funcionarios).
+        2. **AMBIENTACIÓN:** {contexto_entidad}
+        3. **VALIDACIÓN OBLIGATORIA:** Para cada pregunta, debes ser capaz de subrayar la frase del texto que da la respuesta. Si no puedes subrayarla, borra la pregunta.
+        4. **ANTI-ALUCINACIÓN:** No preguntes sobre temas generales (Constitución, CPACA) a menos que el "TEXTO SAGRADO" los mencione explícitamente.
+        5. **ESTILO:** El caso debe aplicar la norma del texto a una situación con personajes ficticios (Juan, María, el Director, etc.).
 
-        === DIFICULTAD ===
-        * Las opciones incorrectas deben ser verosímiles.
-        * Cambia plazos, autoridades competentes o verbos rectores para crear las opciones falsas.
-        * Todas las opciones misma longitud visual.
-
-        === FEEDBACK USUARIO ===
+        FEEDBACK DE CALIBRACIÓN:
         {self.get_learning_context()}
 
-        Responde SOLO JSON:
+        FORMATO JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "Historia detallada...",
+            "narrativa_caso": "Historia que aplica el texto...",
             "preguntas": [
-                {{ "enunciado": "...", "opciones": {{ "A": "..", "B": "..", "C": ".." }}, "respuesta": "A", "explicacion": "Cita textual o parafraseo de la norma..." }}
+                {{ 
+                    "enunciado": "Pregunta...", 
+                    "opciones": {{ "A": "..", "B": "..", "C": ".." }}, 
+                    "respuesta": "A", 
+                    "explicacion": "CORRECTA PORQUE EL TEXTO DICE LITERALMENTE: '...[citar fragmento del texto aquí]...'" 
+                }}
             ]
         }}
         """
@@ -248,10 +252,10 @@ with st.sidebar:
 # --- PÁGINA JUEGO ---
 if st.session_state.page == 'game':
     perc, fails = engine.get_progress_stats()
-    st.progress(perc/100, f"Dominio: {perc}% | Repasos: {fails} | Modo: {'SIMULACRO' if engine.simulacro_mode else 'ESTUDIO'}")
+    st.progress(perc/100, f"Dominio: {perc}% | Pendientes: {fails} | Modo: {'SIMULACRO' if engine.simulacro_mode else 'ESTUDIO'}")
 
     if 'current_data' not in st.session_state or st.session_state.current_data is None:
-        with st.spinner("⚖️ Analizando texto..."):
+        with st.spinner("⚖️ Analizando texto estricto..."):
             data = engine.generate_adaptive_case()
             if "error" in data:
                 st.error(data['error'])
@@ -307,8 +311,8 @@ if st.session_state.page == 'game':
                     reason = st.selectbox("Error:", ["alucinacion", "repetitivo", "pregunta_facil", "caso_simple", "error_estructural"])
                     if st.button("Enviar"):
                         engine.feedback_history.append(reason)
-                        st.toast("Ajustando algoritmo...", icon="🧠")
+                        st.toast("Calibrando restricciones...", icon="🔒")
 
 elif st.session_state.page == 'setup':
-    st.title("🏛️ Entrenador Legal PRO v3.9")
-    st.info("👈 Pega tu norma para comenzar.")
+    st.title("🏛️ Entrenador Legal PRO v4.0")
+    st.info("👈 Pega tu norma. El sistema ignorará cualquier conocimiento externo.")
