@@ -7,19 +7,20 @@ import re
 from collections import Counter
 
 # --- 1. CONFIGURACIÓN VISUAL ROBUSTA ---
-st.set_page_config(page_title="Entrenador Legal TITÁN v5.4", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="Entrenador Legal TITÁN v5.7", page_icon="⚖️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
     .stButton>button:hover {transform: scale(1.02);}
     .narrative-box {
-        background-color: #f8f9fa; 
+        background-color: #fff3e0; 
         padding: 25px; 
         border-radius: 12px; 
-        border-left: 6px solid #1f618d; 
+        border-left: 6px solid #e67e22; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 25px;
         font-family: 'Georgia', serif;
+        font-size: 1.15em;
     }
     .question-card {
         background-color: #ffffff;
@@ -32,7 +33,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CEREBRO LÓGICO (TITÁN VINCULADO v5.4) ---
+# --- 2. CEREBRO LÓGICO (TITÁN SIN SPOILERS v5.7) ---
 class LegalEngineTITAN:
     def __init__(self):
         # Memoria de Contenidos
@@ -105,11 +106,11 @@ class LegalEngineTITAN:
         counts = Counter(self.feedback_history)
         instructions = []
         
-        # --- CALIBRACIÓN ESTRICTA (v5.4) ---
+        # --- CALIBRACIÓN SIN SPOILERS (v5.7) ---
         
-        # 1. DESCONEXIÓN (El problema principal)
+        # 1. DESCONEXIÓN (EL SPOILER)
         if counts['desconectado'] > 0:
-            instructions.append("🔗 ERROR CRÍTICO DETECTADO: El usuario reportó preguntas teóricas. AHORA ES OBLIGATORIO: Cada pregunta debe mencionar explícitamente el NOMBRE del personaje (ej: 'Pedro') o la FECHA del caso. Si preguntas '¿Qué es una falta?', FALLAS. Debes preguntar: '¿Qué tipo de falta cometió PEDRO?'.")
+            instructions.append("🔗 REGLA DE ORO 'CERO PISTAS': La pregunta NO puede mencionar la condición que hace legal/ilegal el acto. MAL: '¿Es válido dado que estaba enfermo?'. BIEN: '¿Fue válida la decisión administrativa comunicada el martes?'. (El usuario debe buscar en el texto que el martes estaba enfermo).")
 
         # 2. TAMAÑO
         if counts['sesgo_longitud'] > 0:
@@ -121,7 +122,7 @@ class LegalEngineTITAN:
         
         # 4. FACILISMO
         if counts['pregunta_facil'] > 0:
-            instructions.append("⚠️ TRAMPA DE DETALLE: La respuesta correcta debe depender de un dato pequeño escondido en el texto.")
+            instructions.append("⚠️ TRAMPA DE DETALLE: La respuesta correcta debe depender de un dato pequeño escondido en el texto (una fecha, un cargo).")
             
         # 5. REPETICIÓN
         if counts['repetitivo'] > 0:
@@ -179,7 +180,7 @@ class LegalEngineTITAN:
         
         calibracion_activa = self.get_calibration_prompt()
 
-        # --- PROMPT V5.4 (VINCULACIÓN OBLIGATORIA) ---
+        # --- PROMPT V5.7 (ANTI-SPOILER) ---
         prompt = f"""
         ACTÚA COMO UN EXPERTO DISEÑADOR DE PRUEBAS CNSC (FUENTE CERRADA).
         
@@ -190,11 +191,17 @@ class LegalEngineTITAN:
         
         MISIÓN: Crear un CASO SITUACIONAL con 4 PREGUNTAS.
         
-        REGLA DE ORO (VINCULACIÓN):
-        Cada pregunta debe estar IMPOSIBILITADA de responderse sin leer el caso.
-        * PROHIBIDO: "¿Cuál es la sanción por X?" (Genérica).
-        * OBLIGATORIO: "¿Cuál es la sanción aplicable a **[NOMBRE PERSONAJE]** dado que los hechos ocurrieron el **[FECHA ESPECÍFICA]**?" (Vinculada).
+        REGLA DE ORO (MISTERIO - NO SPOILERS):
+        La pregunta debe cuestionar la validez de un acto, PERO NO PUEDE REVELAR EL DATO CLAVE.
         
+        * EJEMPLO MALO (Regala la respuesta): 
+          "¿Es válido el despido de Pedro considerando que estaba en vacaciones?"
+          (Mal, porque el usuario ya sabe que estaba en vacaciones sin leer).
+          
+        * EJEMPLO BUENO (Obliga a leer): 
+          "Analizando la situación administrativa de Pedro para la fecha del despido, ¿fue procedente la actuación?"
+          (Bien. El usuario debe leer la historia, buscar la fecha, ver qué hacía Pedro ese día, y concluir: "Ah, estaba en vacaciones").
+
         INSTRUCCIONES:
         1. **FOCO:** {lente_actual}. {contexto}.
         2. **FUENTE CERRADA:** Todo debe salir del texto provisto.
@@ -205,11 +212,11 @@ class LegalEngineTITAN:
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "Narración detallada con fechas, nombres y situaciones...",
+            "narrativa_caso": "Narración detallada con fechas, nombres y situaciones ocultas...",
             "preguntas": [
                 {{
-                    "enunciado": "Pregunta que menciona explícitamente a los personajes...",
-                    "opciones": {{ "A": "Opción 1", "B": "Opción 2", "C": "Opción 3" }},
+                    "enunciado": "Pregunta neutra sobre la validez de la conducta de [PERSONAJE]...",
+                    "opciones": {{ "A": "Juicio + Razón", "B": "Juicio + Razón", "C": "Juicio + Razón" }},
                     "respuesta": "A",
                     "explicacion": "..."
                 }},
@@ -309,7 +316,7 @@ if st.session_state.page == 'game':
     st.progress(perc/100)
 
     if not st.session_state.current_data:
-        with st.spinner("⚖️ Diseñando caso complejo (Vinculando hechos)..."):
+        with st.spinner("⚖️ Diseñando caso (Ocultando pistas en la narrativa)..."):
             data = engine.generate_case()
             if "error" in data:
                 st.error(data['error'])
@@ -375,8 +382,8 @@ if st.session_state.page == 'game':
             with col_rep:
                 with st.expander("📢 Calibrar IA (REPORTAR FALLO)"):
                     reasons = {
-                        "Se responde SIN leer el caso (Teórica)": "desconectado",
-                        "Respuesta muy Obvia (Regalada)": "respuesta_obvia",
+                        "La pregunta regala el dato clave (Spoiler)": "desconectado",
+                        "Respuesta muy Obvia": "respuesta_obvia",
                         "Opciones de diferente largo": "sesgo_longitud",
                         "Pregunta muy Fácil": "pregunta_facil",
                         "Repetitivo": "repetitivo",
@@ -385,7 +392,7 @@ if st.session_state.page == 'game':
                     selected_reason = st.selectbox("¿Qué falló?", list(reasons.keys()))
                     if st.button("Enviar y Ajustar"):
                         engine.feedback_history.append(reasons[selected_reason])
-                        st.toast("Ajuste recibido. Obligando vinculación al texto...", icon="🔗")
+                        st.toast("Regla Anti-Spoiler activada.", icon="🤐")
 
 elif st.session_state.page == 'setup':
-    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v5.4</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v5.7</h1>", unsafe_allow_html=True)
