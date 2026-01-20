@@ -7,7 +7,7 @@ import re
 from collections import Counter
 
 # --- 1. CONFIGURACIÓN VISUAL ROBUSTA ---
-st.set_page_config(page_title="Entrenador Legal TITÁN v5.3", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="Entrenador Legal TITÁN v5.4", page_icon="⚖️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -32,7 +32,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CEREBRO LÓGICO (TITÁN CANDADO v5.3) ---
+# --- 2. CEREBRO LÓGICO (TITÁN VINCULADO v5.4) ---
 class LegalEngineTITAN:
     def __init__(self):
         # Memoria de Contenidos
@@ -99,39 +99,39 @@ class LegalEngineTITAN:
         return percentage, pending_reviews, total_chunks
 
     def get_calibration_prompt(self):
-        """Genera instrucciones AGRESIVAS basadas en el feedback."""
+        """Genera instrucciones basadas en el feedback."""
         if not self.feedback_history: return "Modo: Estándar."
         
         counts = Counter(self.feedback_history)
         instructions = []
         
-        # --- CALIBRACIÓN AGRESIVA (CANDADO DE LECTURA v5.3) ---
+        # --- CALIBRACIÓN ESTRICTA (v5.4) ---
         
-        # 1. DESCONEXIÓN (Lo que detectaste)
+        # 1. DESCONEXIÓN (El problema principal)
         if counts['desconectado'] > 0:
-            instructions.append("🔗 CANDADO DE LECTURA EXTREMO: Si el usuario puede responder SIN leer el caso, FALLAS. La pregunta DEBE obligatoriamente mencionar una variable única del relato (ej: 'Dado que la falta ocurrió un domingo...', 'Considerando que María es provisional...'). Prohibido preguntar definiciones teóricas.")
+            instructions.append("🔗 ERROR CRÍTICO DETECTADO: El usuario reportó preguntas teóricas. AHORA ES OBLIGATORIO: Cada pregunta debe mencionar explícitamente el NOMBRE del personaje (ej: 'Pedro') o la FECHA del caso. Si preguntas '¿Qué es una falta?', FALLAS. Debes preguntar: '¿Qué tipo de falta cometió PEDRO?'.")
 
         # 2. TAMAÑO
         if counts['sesgo_longitud'] > 0:
-            instructions.append("🛑 ALERTA DE FORMATO: Las opciones A, B y C deben tener EXACTAMENTE la misma cantidad de palabras (+/- 2 palabras).")
+            instructions.append("🛑 FORMATO VISUAL: Las opciones A, B y C deben tener EXACTAMENTE el mismo número de palabras (+/- 2).")
 
-        # 3. RESPUESTA OBVIA
+        # 3. OBVIEDAD
         if counts['respuesta_obvia'] > 0:
-            instructions.append("💀 DIFICULTAD TÉCNICA: Los distractores deben ser trampas sutiles (cambiar un número, un plazo o una palabra). No pongas opciones absurdas.")
+            instructions.append("💀 DIFICULTAD TÉCNICA: Los distractores deben ser trampas sutiles. Prohibido opciones absurdas.")
         
         # 4. FACILISMO
         if counts['pregunta_facil'] > 0:
-            instructions.append("⚠️ EXIGENCIA DE LECTURA: La respuesta correcta DEBE estar escondida en un detalle pequeño del texto.")
+            instructions.append("⚠️ TRAMPA DE DETALLE: La respuesta correcta debe depender de un dato pequeño escondido en el texto.")
             
         # 5. REPETICIÓN
         if counts['repetitivo'] > 0:
             self.current_temperature = 0.7 
-            instructions.append("🔄 VARIEDAD: Genera una situación fáctica RADICALMENTE DIFERENTE.")
+            instructions.append("🔄 VARIEDAD TOTAL: Cambia nombres, cargos y la situación problema.")
         
         # 6. ALUCINACIÓN
         if counts['alucinacion'] > 0:
             self.current_temperature = 0.0 
-            instructions.append("⛔ SOLO HECHOS DEL TEXTO: Si la norma no lo dice, no lo preguntes.")
+            instructions.append("⛔ FUENTE CERRADA: Usa SOLO lo que está escrito en el texto.")
 
         return "\n".join(instructions)
 
@@ -179,7 +179,7 @@ class LegalEngineTITAN:
         
         calibracion_activa = self.get_calibration_prompt()
 
-        # --- PROMPT MEJORADO v5.3 (CANDADO DE LECTURA) ---
+        # --- PROMPT V5.4 (VINCULACIÓN OBLIGATORIA) ---
         prompt = f"""
         ACTÚA COMO UN EXPERTO DISEÑADOR DE PRUEBAS CNSC (FUENTE CERRADA).
         
@@ -188,16 +188,16 @@ class LegalEngineTITAN:
         "{text_chunk[:6000]}"
         ---------------------------------------------------------
         
-        MISIÓN: Crear un CASO SITUACIONAL con 4 PREGUNTAS TIPO SELECCIÓN MÚLTIPLE.
+        MISIÓN: Crear un CASO SITUACIONAL con 4 PREGUNTAS.
         
-        REGLA DE ORO (CANDADO DE LECTURA):
-        La pregunta DEBE obligar al usuario a leer los detalles del caso.
-        * MAL: "¿Cuál es el plazo de apelación?" (Esto es teórico, se responde sin leer).
-        * BIEN: "Dado que la notificación fue el **viernes 15**, ¿cuándo vence el plazo de **Pedro**?" (Esto obliga a leer).
+        REGLA DE ORO (VINCULACIÓN):
+        Cada pregunta debe estar IMPOSIBILITADA de responderse sin leer el caso.
+        * PROHIBIDO: "¿Cuál es la sanción por X?" (Genérica).
+        * OBLIGATORIO: "¿Cuál es la sanción aplicable a **[NOMBRE PERSONAJE]** dado que los hechos ocurrieron el **[FECHA ESPECÍFICA]**?" (Vinculada).
         
         INSTRUCCIONES:
         1. **FOCO:** {lente_actual}. {contexto}.
-        2. **FUENTE CERRADA:** Respalda todo en el texto.
+        2. **FUENTE CERRADA:** Todo debe salir del texto provisto.
         3. **ANTI-SESGO:** Opciones A, B, C del mismo largo visual.
         
         !!! INSTRUCCIONES DE CALIBRACIÓN !!!
@@ -208,7 +208,7 @@ class LegalEngineTITAN:
             "narrativa_caso": "Narración detallada con fechas, nombres y situaciones...",
             "preguntas": [
                 {{
-                    "enunciado": "Pregunta vinculada a los hechos...",
+                    "enunciado": "Pregunta que menciona explícitamente a los personajes...",
                     "opciones": {{ "A": "Opción 1", "B": "Opción 2", "C": "Opción 3" }},
                     "respuesta": "A",
                     "explicacion": "..."
@@ -309,7 +309,7 @@ if st.session_state.page == 'game':
     st.progress(perc/100)
 
     if not st.session_state.current_data:
-        with st.spinner("⚖️ Diseñando caso complejo..."):
+        with st.spinner("⚖️ Diseñando caso complejo (Vinculando hechos)..."):
             data = engine.generate_case()
             if "error" in data:
                 st.error(data['error'])
@@ -385,7 +385,7 @@ if st.session_state.page == 'game':
                     selected_reason = st.selectbox("¿Qué falló?", list(reasons.keys()))
                     if st.button("Enviar y Ajustar"):
                         engine.feedback_history.append(reasons[selected_reason])
-                        st.toast("Modo Estricto Activado. El próximo caso será más dependiente.", icon="🔥")
+                        st.toast("Ajuste recibido. Obligando vinculación al texto...", icon="🔗")
 
 elif st.session_state.page == 'setup':
-    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v5.3</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v5.4</h1>", unsafe_allow_html=True)
