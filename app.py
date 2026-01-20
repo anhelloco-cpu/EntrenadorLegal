@@ -6,17 +6,26 @@ import time
 import re
 from collections import Counter
 
+# --- NUEVAS LIBRERÍAS DE DEEP LEARNING ---
+try:
+    from sentence_transformers import SentenceTransformer
+    from sklearn.metrics.pairwise import cosine_similarity
+    import numpy as np
+    DL_AVAILABLE = True
+except ImportError:
+    DL_AVAILABLE = False
+
 # --- 1. CONFIGURACIÓN VISUAL ROBUSTA ---
-st.set_page_config(page_title="Entrenador Legal TITÁN v6.4", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="Entrenador Legal TITÁN v7.0 (Neuronal)", page_icon="🧠", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
     .stButton>button:hover {transform: scale(1.02);}
     .narrative-box {
-        background-color: #e8f5e9; 
+        background-color: #e0f7fa; 
         padding: 25px; 
         border-radius: 12px; 
-        border-left: 6px solid #2e7d32; 
+        border-left: 6px solid #006064; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 25px;
         font-family: 'Georgia', serif;
@@ -33,10 +42,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CEREBRO LÓGICO (TITÁN CASUÍSTICO v6.4) ---
+# --- CACHÉ DEL MODELO NEURONAL (Para que no cargue lento cada vez) ---
+@st.cache_resource
+def load_embedding_model():
+    if DL_AVAILABLE:
+        # Modelo pequeño y rápido, ideal para Streamlit Cloud
+        return SentenceTransformer('all-MiniLM-L6-v2')
+    return None
+
+dl_model = load_embedding_model()
+
+# --- 2. CEREBRO LÓGICO (TITÁN NEURONAL v7.0) ---
 class LegalEngineTITAN:
     def __init__(self):
         self.chunks = []           
+        self.chunk_embeddings = None # Aquí guardamos las matemáticas del texto
         self.chunk_origins = {}    
         self.mastery_tracker = {}  
         self.failed_indices = set()
@@ -49,6 +69,7 @@ class LegalEngineTITAN:
         self.simulacro_mode = False
         self.model = None
         self.current_temperature = 0.2 
+        self.last_failed_embedding = None # Para recordar el "tema" del último error
 
     def configure_api(self, key):
         try:
@@ -75,12 +96,20 @@ class LegalEngineTITAN:
             self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.failed_indices = set()
             self.mistakes_log = []
+            # --- DEEP LEARNING: VECTORIZACIÓN ---
+            if dl_model:
+                with st.spinner("🧠 Neurona Activada: Comprendiendo el significado de la norma..."):
+                    self.chunk_embeddings = dl_model.encode(self.chunks)
         else:
             start_index = len(self.chunks)
             self.chunks.extend(new_chunks)
             for i in range(len(new_chunks)):
                 real_idx = start_index + i
                 self.mastery_tracker[real_idx] = 0 
+            # Recalcular todos los vectores si se agrega texto (simplificado)
+            if dl_model:
+                 with st.spinner("🧠 Neurona Activada: Re-indexando conocimiento..."):
+                    self.chunk_embeddings = dl_model.encode(self.chunks)
         
         return len(new_chunks)
 
@@ -88,12 +117,9 @@ class LegalEngineTITAN:
         if not self.chunks: return 0, 0, 0
         total_chunks = len(self.chunks)
         goal_score = total_chunks * 3 
-        
-        # --- FIX v6.3: TOPE MATEMÁTICO ---
         current_score = sum([min(v, 3) for v in self.mastery_tracker.values()])
         percentage = int((current_score / goal_score) * 100) if goal_score > 0 else 0
         percentage = min(percentage, 100)
-        
         pending_reviews = len(self.failed_indices)
         return percentage, pending_reviews, total_chunks
 
@@ -147,22 +173,52 @@ class LegalEngineTITAN:
     def generate_case(self):
         if not self.chunks: return {"error": "⚠️ Carga una norma primero."}
         
+        idx = -1
+        selection_reason = "Aleatorio"
+
+        # --- LÓGICA DE SELECCIÓN DEEP LEARNING ---
         if self.simulacro_mode:
-            idx = random.choice(range(len(self.chunks)))
+             idx = random.choice(range(len(self.chunks)))
         else:
-            if self.failed_indices:
-                if random.random() < 0.6: idx = random.choice(list(self.failed_indices))
+            # 1. Si hay un error previo guardado y tenemos vectores, buscamos algo parecido (Radar de Debilidades)
+            if self.last_failed_embedding is not None and self.chunk_embeddings is not None and len(self.failed_indices) == 0:
+                # Calcular similitud entre el error pasado y todos los bloques
+                similitudes = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
+                # Ignoramos los que ya dominamos (mastery >= 3)
+                candidatos = []
+                for i, score in enumerate(similitudes):
+                    if self.mastery_tracker.get(i, 0) < 3:
+                        candidatos.append((i, score))
+                
+                # Ordenamos por los más parecidos
+                candidatos.sort(key=lambda x: x[1], reverse=True)
+                
+                # Tomamos uno de los 3 más parecidos semánticamente
+                if candidatos:
+                    top_3 = candidatos[:3]
+                    idx = random.choice(top_3)[0]
+                    selection_reason = "Deep Learning: Tema Relacionado a tu último fallo"
+            
+            # 2. Si no aplicó lo anterior, lógica clásica v6.4
+            if idx == -1:
+                if self.failed_indices:
+                    if random.random() < 0.6: 
+                        idx = random.choice(list(self.failed_indices))
+                        selection_reason = "Repaso de Error Directo"
+                    else:
+                        pending = [k for k,v in self.mastery_tracker.items() if v < 3]
+                        idx = random.choice(pending) if pending else random.choice(range(len(self.chunks)))
                 else:
                     pending = [k for k,v in self.mastery_tracker.items() if v < 3]
                     idx = random.choice(pending) if pending else random.choice(range(len(self.chunks)))
-            else:
-                pending = [k for k,v in self.mastery_tracker.items() if v < 3]
-                idx = random.choice(pending) if pending else random.choice(range(len(self.chunks)))
         
         self.current_chunk_idx = idx
         text_chunk = self.chunks[idx]
         current_level = self.mastery_tracker.get(idx, 0)
         
+        # Guardamos el mensaje de por qué se eligió (para debug visual)
+        self.selection_reason = selection_reason
+
         lentes = ["NIVEL 1: CONCEPTUAL", "NIVEL 2: PROCEDIMENTAL", "NIVEL 3: SANCIONATORIO", "NIVEL 4: SITUACIONAL"]
         lente_actual = lentes[min(current_level, 3)]
         contexto = f"CONTEXTO: {self.entity.upper()}" if self.entity else ""
@@ -173,13 +229,12 @@ class LegalEngineTITAN:
         elif self.level == "Técnico":
             instruction_level = "NIVEL TÉCNICO: Preguntas sobre aplicación de procesos."
         elif self.level == "Profesional":
-            instruction_level = "NIVEL PROFESIONAL (ALTA COMPLEJIDAD): Preguntas de ANÁLISIS y CRITERIO. Prohibido definiciones. Evalúa interpretación."
+            instruction_level = "NIVEL PROFESIONAL (ALTA COMPLEJIDAD): Preguntas de ANÁLISIS y CRITERIO. Prohibido definiciones."
         elif self.level == "Asesor":
             instruction_level = "NIVEL ASESOR: Preguntas de ESTRATEGIA y RIESGO."
 
         calibracion_activa = self.get_calibration_prompt()
 
-        # --- PROMPT V6.4 (TRAMPA DE PERTINENCIA) ---
         prompt = f"""
         ACTÚA COMO UN EXPERTO DISEÑADOR DE PRUEBAS CNSC PARA EL NIVEL: **{self.level.upper()}**.
         
@@ -194,16 +249,13 @@ class LegalEngineTITAN:
         {instruction_level}
         
         REGLA DE ORO (LA TRAMPA DE PERTINENCIA):
-        Las opciones incorrectas (Distractores) NO pueden ser disparates ni mentiras evidentes.
-        * Deben ser AFIRMACIONES JURÍDICAMENTE CIERTAS en general, pero que **NO APLICAN** a este caso específico.
-        * EJEMPLO: Si el caso es de una embarazada, la opción incorrecta podría decir: "Se puede despedir con indemnización" (Esto es verdad para otros trabajadores, pero FALSO para este caso).
-        * El usuario debe fallar porque eligió una norma real que no encaja con los hechos.
+        Las opciones incorrectas deben ser AFIRMACIONES JURÍDICAMENTE CIERTAS pero que NO APLICAN al caso.
         
-        OTRAS REGLAS:
+        REGLAS BASE:
         1. **INTEGRIDAD:** No recortes requisitos.
-        2. **ANTI-SPOILER:** No regales el dato clave en la pregunta.
-        3. **VINCULACIÓN:** "Analizando la conducta de [PERSONAJE] en la fecha [FECHA]...".
-        4. **ANTI-SESGO:** Opciones A, B, C del mismo largo visual.
+        2. **ANTI-SPOILER:** No regales el dato clave.
+        3. **VINCULACIÓN:** Analiza la conducta de [PERSONAJE].
+        4. **ANTI-SESGO:** Opciones del mismo largo visual.
         
         !!! AJUSTES DEL USUARIO !!!
         {calibracion_activa}
@@ -214,9 +266,9 @@ class LegalEngineTITAN:
             "preguntas": [
                 {{
                     "enunciado": "Pregunta de nivel {self.level}...",
-                    "opciones": {{ "A": "Opción cierta pero inaplicable", "B": "Opción CORRECTA para el caso", "C": "Opción cierta pero irrelevante" }},
+                    "opciones": {{ "A": "Opción cierta pero inaplicable", "B": "Opción CORRECTA", "C": "Opción cierta pero irrelevante" }},
                     "respuesta": "B",
-                    "explicacion": "Explicar por qué la B es la única que aplica a los hechos, aunque A y C suenen lógicas."
+                    "explicacion": "Explicar la pertinencia..."
                 }},
                 ... (Total 4 preguntas)
             ]
@@ -246,10 +298,14 @@ engine = st.session_state.engine
 # --- 4. INTERFAZ ---
 with st.sidebar:
     st.title("⚙️ Panel de Control")
+    if not DL_AVAILABLE:
+        st.warning("⚠️ Deep Learning no activo. Instala 'sentence-transformers'.")
+    else:
+        st.success("🧠 Deep Learning: ACTIVADO")
+
     key = ""
     if "GEMINI_KEY" in st.secrets:
         key = st.secrets["GEMINI_KEY"]
-        st.success("🔑 Licencia Activa")
     else:
         key = st.text_input("Ingresa tu API Key:", type="password")
     
@@ -283,18 +339,10 @@ with st.sidebar:
             if c: st.success(f"+{c} Bloques.")
             
     st.divider()
-    
     if st.button("🗑️ Borrar Historial Calibración"):
         engine.feedback_history = []
         st.toast("Memoria limpia.", icon="🧼")
     
-    st.divider()
-    if st.button("🔥 MODO SIMULACRO", disabled=not engine.chunks):
-        engine.simulacro_mode = True
-        st.session_state.current_data = None
-        st.session_state.page = 'game'
-        st.rerun()
-        
     st.divider()
     if engine.chunks:
         save_data = json.dumps({"chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices), "log": engine.mistakes_log, "feed": engine.feedback_history, "entity": engine.entity})
@@ -316,8 +364,6 @@ with st.sidebar:
 # --- 5. JUEGO ---
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
-    
-    # --- BARRA DE PROGRESO SEGURA ---
     safe_perc = min(float(perc) / 100.0, 1.0)
     
     st.markdown(f"""
@@ -335,8 +381,17 @@ if st.session_state.page == 'game':
     except:
         st.progress(1.0) 
 
+    # --- INDICADOR DE INTELIGENCIA ARTIFICIAL (NUEVO) ---
+    reason = getattr(engine, 'selection_reason', 'Aleatorio')
+    if "Deep Learning" in reason:
+        st.caption(f"🤖 **Motor Neuronal:** {reason}")
+
     if not st.session_state.current_data:
-        with st.spinner(f"⚖️ Diseñando trampa jurídica nivel {engine.level.upper()}..."):
+        msg = "⚖️ Diseñando caso..."
+        if DL_AVAILABLE and engine.last_failed_embedding is not None:
+            msg = "🧠 Neurona buscando tus debilidades semánticas..."
+            
+        with st.spinner(msg):
             data = engine.generate_case()
             if "error" in data:
                 st.error(data['error'])
@@ -374,10 +429,16 @@ if st.session_state.page == 'game':
                     if letter == correct:
                         st.success("✅ ¡CORRECTO!")
                         if engine.current_chunk_idx in engine.failed_indices: engine.failed_indices.remove(engine.current_chunk_idx)
+                        # Si acierta, borramos la "memoria del error" para que avance
+                        engine.last_failed_embedding = None 
                     else:
                         st.error(f"❌ INCORRECTO. Era la {correct}.")
                         engine.failed_indices.add(engine.current_chunk_idx)
                         engine.mistakes_log.append({"pregunta": q['enunciado'], "error": letter, "correcta": correct})
+                        # --- DEEP LEARNING: GUARDAMOS LA HUELLA DEL ERROR ---
+                        if DL_AVAILABLE and engine.chunk_embeddings is not None:
+                            engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
+                            
                     st.info(f"💡 {q['explicacion']}")
                     st.session_state.answered = True
 
@@ -419,4 +480,4 @@ if st.session_state.page == 'game':
                         else: st.toast("Ajuste Acumulado.", icon="✅")
 
 elif st.session_state.page == 'setup':
-    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v6.4</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>🧠 Entrenador TITÁN v7.0 (Neuronal)</h1>", unsafe_allow_html=True)
