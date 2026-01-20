@@ -7,7 +7,7 @@ import re
 from collections import Counter
 
 # --- 1. CONFIGURACIÓN VISUAL ROBUSTA ---
-st.set_page_config(page_title="Entrenador Legal TITÁN v6.2", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="Entrenador Legal TITÁN v6.3", page_icon="⚖️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -33,27 +33,20 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CEREBRO LÓGICO (TITÁN JERÁRQUICO v6.2) ---
+# --- 2. CEREBRO LÓGICO (TITÁN ESTABLE v6.3) ---
 class LegalEngineTITAN:
     def __init__(self):
-        # Memoria de Contenidos
         self.chunks = []           
         self.chunk_origins = {}    
-        
-        # Memoria de Progreso 
         self.mastery_tracker = {}  
         self.failed_indices = set()
         self.mistakes_log = []
         self.feedback_history = []
-        
-        # Estado Actual
         self.current_data = None
         self.current_chunk_idx = -1
         self.entity = ""
-        self.level = "Profesional" # Por defecto
+        self.level = "Profesional" 
         self.simulacro_mode = False
-        
-        # Configuración IA
         self.model = None
         self.current_temperature = 0.2 
 
@@ -95,20 +88,25 @@ class LegalEngineTITAN:
         if not self.chunks: return 0, 0, 0
         total_chunks = len(self.chunks)
         goal_score = total_chunks * 3 
-        current_score = sum(self.mastery_tracker.values())
+        
+        # --- FIX v6.3: TOPE MATEMÁTICO ---
+        # Limitamos el aporte de cada bloque a un máximo de 3 puntos.
+        # Si repasaste 10 veces, solo cuentan 3 para la barra de progreso.
+        current_score = sum([min(v, 3) for v in self.mastery_tracker.values()])
+        
         percentage = int((current_score / goal_score) * 100) if goal_score > 0 else 0
+        # Doble seguridad: Si por alguna razón sigue pasando 100, lo forzamos a 100.
+        percentage = min(percentage, 100)
+        
         pending_reviews = len(self.failed_indices)
         return percentage, pending_reviews, total_chunks
 
     def get_calibration_prompt(self):
-        """Genera instrucciones basadas en el feedback ACUMULADO."""
         if not self.feedback_history: return "Modo: Estándar."
-        
         counts = Counter(self.feedback_history)
         instructions = []
         
-        # --- CALIBRACIÓN ACUMULATIVA ---
-        instructions.append("🛡️ ANTI-RECORTE: Si el texto dice 'A y B' (Ej: Constitución y Ley), es PROHIBIDO generar una respuesta correcta que diga 'Solo A'.")
+        instructions.append("🛡️ ANTI-RECORTE: Si el texto dice 'A y B', es PROHIBIDO generar una respuesta que diga 'Solo A'.")
 
         if counts['desconectado'] > 0:
             instructions.append("🔗 ANTI-SPOILER: La pregunta NO puede regalar el dato clave. El usuario debe buscarlo en la historia.")
@@ -153,7 +151,6 @@ class LegalEngineTITAN:
     def generate_case(self):
         if not self.chunks: return {"error": "⚠️ Carga una norma primero."}
         
-        # Selección de bloque
         if self.simulacro_mode:
             idx = random.choice(range(len(self.chunks)))
         else:
@@ -174,20 +171,18 @@ class LegalEngineTITAN:
         lente_actual = lentes[min(current_level, 3)]
         contexto = f"CONTEXTO: {self.entity.upper()}" if self.entity else ""
         
-        # --- DEFINICIÓN DE COMPLEJIDAD POR NIVEL (EL CEREBRO DEL TITÁN) ---
         instruction_level = ""
         if self.level == "Asistencial":
-            instruction_level = "NIVEL BÁSICO/EJECUCIÓN: Preguntas sobre pasos, plazos exactos y definiciones literales. El foco es 'Saber Hacer'."
+            instruction_level = "NIVEL BÁSICO/EJECUCIÓN: Preguntas sobre pasos y definiciones literales."
         elif self.level == "Técnico":
-            instruction_level = "NIVEL TÉCNICO/SOPORTE: Preguntas sobre aplicación de procesos y manejo de excepciones simples."
+            instruction_level = "NIVEL TÉCNICO: Preguntas sobre aplicación de procesos."
         elif self.level == "Profesional":
-            instruction_level = "NIVEL PROFESIONAL (DIFICULTAD ALTA): Preguntas de ANÁLISIS y CRITERIO. Prohibido preguntar definiciones. Debes plantear conflictos donde el usuario deba interpretar la norma para resolver un problema complejo. Evalúa 'Saber Entender'."
+            instruction_level = "NIVEL PROFESIONAL: Preguntas de ANÁLISIS y CRITERIO. Prohibido definiciones. Evalúa interpretación compleja."
         elif self.level == "Asesor":
-            instruction_level = "NIVEL ASESOR (DIFICULTAD EXTREMA): Preguntas de ESTRATEGIA, RIESGO y TOMA DE DECISIONES. El caso debe tener vacíos o contradicciones aparentes que el usuario debe resolver con principios."
+            instruction_level = "NIVEL ASESOR: Preguntas de ESTRATEGIA y RIESGO. El caso debe tener vacíos que resolver con principios."
 
         calibracion_activa = self.get_calibration_prompt()
 
-        # --- PROMPT V6.2 (JERÁRQUICO) ---
         prompt = f"""
         ACTÚA COMO UN EXPERTO DISEÑADOR DE PRUEBAS CNSC PARA EL NIVEL: **{self.level.upper()}**.
         
@@ -201,14 +196,10 @@ class LegalEngineTITAN:
         INSTRUCCIÓN DE NIVEL ({self.level.upper()}):
         {instruction_level}
         
-        REGLAS DE ORO (TODOS LOS NIVELES):
-        1. **INTEGRIDAD:** No recortes requisitos (Si es A y B, es A y B).
-        2. **ANTI-SPOILER:** La pregunta NO puede regalar el dato clave (Ej: no digas "dado que estaba enfermo").
+        REGLAS DE ORO:
+        1. **INTEGRIDAD:** No recortes requisitos.
+        2. **ANTI-SPOILER:** No regales el dato clave en la pregunta.
         3. **VINCULACIÓN:** "Analizando la conducta de [PERSONAJE] en la fecha [FECHA]...".
-        
-        INSTRUCCIONES:
-        1. **FOCO:** {lente_actual}. {contexto}.
-        2. **ANTI-SESGO:** Opciones A, B, C del mismo largo visual.
         
         !!! AJUSTES DEL USUARIO !!!
         {calibracion_activa}
@@ -264,10 +255,9 @@ with st.sidebar:
     
     st.divider()
     
-    # --- SELECTOR DE NIVEL (LA JOYA DE LA v6.2) ---
     st.markdown("### 🎯 Nivel del Cargo")
     niveles = ["Asistencial", "Técnico", "Profesional", "Asesor"]
-    engine.level = st.selectbox("Selecciona tu Nivel:", niveles, index=2) # Default Profesional
+    engine.level = st.selectbox("Selecciona tu Nivel:", niveles, index=2)
     st.info(f"Modo activado: **{engine.level}**")
     
     st.divider()
@@ -322,15 +312,25 @@ with st.sidebar:
 # --- 5. JUEGO ---
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
+    
+    # --- BARRA DE PROGRESO SEGURA ---
+    # Convertimos a float entre 0.0 y 1.0 para st.progress
+    safe_perc = min(float(perc) / 100.0, 1.0)
+    
     st.markdown(f"""
     <div style='display:flex; justify-content:space-between; align-items:center; background:#eee; padding:10px; border-radius:8px;'>
         <span class='status-bar'>{'🔥 SIMULACRO' if engine.simulacro_mode else '📚 ESTUDIO'}</span>
         <span class='status-bar'>NIVEL: {engine.level.upper()}</span>
         <span class='status-bar'>DOMINIO: {perc}%</span>
+        <span class='status-bar'>BLOQUES: {total}</span>
         <span class='status-bar' style='color:red'>REPASOS: {fails}</span>
     </div>
     """, unsafe_allow_html=True)
-    st.progress(perc/100)
+    
+    try:
+        st.progress(safe_perc)
+    except:
+        st.progress(1.0) # Fallback por si acaso
 
     if not st.session_state.current_data:
         with st.spinner(f"⚖️ Diseñando caso nivel {engine.level.upper()}..."):
@@ -403,7 +403,7 @@ if st.session_state.page == 'game':
                         "Pregunta con Spoiler (Regala el dato)": "desconectado",
                         "Respuesta muy Obvia": "respuesta_obvia",
                         "Opciones de diferente largo": "sesgo_longitud",
-                        "Pregunta muy Fácil (Para el Nivel)": "pregunta_facil",
+                        "Pregunta muy Fácil": "pregunta_facil",
                         "Repetitivo": "repetitivo"
                     }
                     selected_reason = st.selectbox("¿Qué falló?", list(reasons.keys()))
@@ -416,4 +416,4 @@ if st.session_state.page == 'game':
                         else: st.toast("Ajuste Acumulado.", icon="✅")
 
 elif st.session_state.page == 'setup':
-    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v6.2</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v6.3</h1>", unsafe_allow_html=True)
