@@ -7,16 +7,16 @@ import re
 from collections import Counter
 
 # --- 1. CONFIGURACIÓN VISUAL ROBUSTA ---
-st.set_page_config(page_title="Entrenador Legal TITÁN v5.7", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="Entrenador Legal TITÁN v6.0", page_icon="⚖️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
     .stButton>button:hover {transform: scale(1.02);}
     .narrative-box {
-        background-color: #fff3e0; 
+        background-color: #e3f2fd; 
         padding: 25px; 
         border-radius: 12px; 
-        border-left: 6px solid #e67e22; 
+        border-left: 6px solid #1565c0; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 25px;
         font-family: 'Georgia', serif;
@@ -33,7 +33,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CEREBRO LÓGICO (TITÁN SIN SPOILERS v5.7) ---
+# --- 2. CEREBRO LÓGICO (TITÁN PRECISIÓN v6.0) ---
 class LegalEngineTITAN:
     def __init__(self):
         # Memoria de Contenidos
@@ -106,30 +106,33 @@ class LegalEngineTITAN:
         counts = Counter(self.feedback_history)
         instructions = []
         
-        # --- CALIBRACIÓN SIN SPOILERS (v5.7) ---
+        # --- CALIBRACIÓN DE PRECISIÓN (v6.0) ---
         
-        # 1. DESCONEXIÓN (EL SPOILER)
-        if counts['desconectado'] > 0:
-            instructions.append("🔗 REGLA DE ORO 'CERO PISTAS': La pregunta NO puede mencionar la condición que hace legal/ilegal el acto. MAL: '¿Es válido dado que estaba enfermo?'. BIEN: '¿Fue válida la decisión administrativa comunicada el martes?'. (El usuario debe buscar en el texto que el martes estaba enfermo).")
+        # 1. ERROR DE RECORTE (Lo que te pasó)
+        instructions.append("🛡️ ANTI-RECORTE: Si el texto dice 'A y B' (Ej: Constitución y Ley), es PROHIBIDO generar una respuesta correcta que diga 'Solo A'. Debes incluir TODOS los elementos taxativos de la norma.")
 
-        # 2. TAMAÑO
+        # 2. DESCONEXIÓN
+        if counts['desconectado'] > 0:
+            instructions.append("🔗 ANTI-SPOILER: La pregunta NO puede regalar el dato clave. El usuario debe buscarlo en la historia.")
+
+        # 3. TAMAÑO
         if counts['sesgo_longitud'] > 0:
             instructions.append("🛑 FORMATO VISUAL: Las opciones A, B y C deben tener EXACTAMENTE el mismo número de palabras (+/- 2).")
 
-        # 3. OBVIEDAD
+        # 4. OBVIEDAD
         if counts['respuesta_obvia'] > 0:
             instructions.append("💀 DIFICULTAD TÉCNICA: Los distractores deben ser trampas sutiles. Prohibido opciones absurdas.")
         
-        # 4. FACILISMO
+        # 5. FACILISMO
         if counts['pregunta_facil'] > 0:
-            instructions.append("⚠️ TRAMPA DE DETALLE: La respuesta correcta debe depender de un dato pequeño escondido en el texto (una fecha, un cargo).")
+            instructions.append("⚠️ TRAMPA DE DETALLE: La respuesta correcta debe depender de un dato pequeño escondido en el texto.")
             
-        # 5. REPETICIÓN
+        # 6. REPETICIÓN
         if counts['repetitivo'] > 0:
             self.current_temperature = 0.7 
             instructions.append("🔄 VARIEDAD TOTAL: Cambia nombres, cargos y la situación problema.")
         
-        # 6. ALUCINACIÓN
+        # 7. ALUCINACIÓN
         if counts['alucinacion'] > 0:
             self.current_temperature = 0.0 
             instructions.append("⛔ FUENTE CERRADA: Usa SOLO lo que está escrito en el texto.")
@@ -180,9 +183,9 @@ class LegalEngineTITAN:
         
         calibracion_activa = self.get_calibration_prompt()
 
-        # --- PROMPT V5.7 (ANTI-SPOILER) ---
+        # --- PROMPT V6.0 (PRECISIÓN TOTAL) ---
         prompt = f"""
-        ACTÚA COMO UN EXPERTO DISEÑADOR DE PRUEBAS CNSC (FUENTE CERRADA).
+        ACTÚA COMO UN EXPERTO JURISTA Y DISEÑADOR DE PRUEBAS CNSC.
         
         TEXTO FUENTE:
         ---------------------------------------------------------
@@ -191,21 +194,18 @@ class LegalEngineTITAN:
         
         MISIÓN: Crear un CASO SITUACIONAL con 4 PREGUNTAS.
         
-        REGLA DE ORO (MISTERIO - NO SPOILERS):
-        La pregunta debe cuestionar la validez de un acto, PERO NO PUEDE REVELAR EL DATO CLAVE.
+        REGLA DE INTEGRIDAD (NO RECORTAR LA NORMA):
+        * Si el texto dice que se responde por "Constitución y Ley", la respuesta correcta DEBE decir "Constitución y Ley".
+        * ESTÁ PROHIBIDO poner como correcta una opción incompleta (Ej: "Solo Constitución") si el texto exige más requisitos.
+        * NO USES la palabra "SOLO" o "ÚNICAMENTE" en la respuesta correcta a menos que el texto lo diga literalmente.
         
-        * EJEMPLO MALO (Regala la respuesta): 
-          "¿Es válido el despido de Pedro considerando que estaba en vacaciones?"
-          (Mal, porque el usuario ya sabe que estaba en vacaciones sin leer).
-          
-        * EJEMPLO BUENO (Obliga a leer): 
-          "Analizando la situación administrativa de Pedro para la fecha del despido, ¿fue procedente la actuación?"
-          (Bien. El usuario debe leer la historia, buscar la fecha, ver qué hacía Pedro ese día, y concluir: "Ah, estaba en vacaciones").
-
+        REGLA DE MISTERIO (ANTI-SPOILER):
+        La pregunta NO puede revelar el dato clave.
+        * BIEN: "Analizando la situación de Pedro en la fecha de los hechos, ¿actuó correctamente?" (El usuario debe buscar la fecha y el hecho).
+        
         INSTRUCCIONES:
         1. **FOCO:** {lente_actual}. {contexto}.
-        2. **FUENTE CERRADA:** Todo debe salir del texto provisto.
-        3. **ANTI-SESGO:** Opciones A, B, C del mismo largo visual.
+        2. **ANTI-SESGO:** Opciones A, B, C del mismo largo visual.
         
         !!! INSTRUCCIONES DE CALIBRACIÓN !!!
         {calibracion_activa}
@@ -218,7 +218,7 @@ class LegalEngineTITAN:
                     "enunciado": "Pregunta neutra sobre la validez de la conducta de [PERSONAJE]...",
                     "opciones": {{ "A": "Juicio + Razón", "B": "Juicio + Razón", "C": "Juicio + Razón" }},
                     "respuesta": "A",
-                    "explicacion": "..."
+                    "explicacion": "Cita textual del fragmento que demuestra que la respuesta está completa..."
                 }},
                 ... (Total 4 preguntas)
             ]
@@ -316,7 +316,7 @@ if st.session_state.page == 'game':
     st.progress(perc/100)
 
     if not st.session_state.current_data:
-        with st.spinner("⚖️ Diseñando caso (Ocultando pistas en la narrativa)..."):
+        with st.spinner("⚖️ Diseñando caso (Verificando integridad jurídica)..."):
             data = engine.generate_case()
             if "error" in data:
                 st.error(data['error'])
@@ -382,17 +382,21 @@ if st.session_state.page == 'game':
             with col_rep:
                 with st.expander("📢 Calibrar IA (REPORTAR FALLO)"):
                     reasons = {
-                        "La pregunta regala el dato clave (Spoiler)": "desconectado",
+                        "Respuesta Incompleta (Faltó parte de la norma)": "alucinacion",
+                        "Pregunta con Spoiler (Regala el dato)": "desconectado",
                         "Respuesta muy Obvia": "respuesta_obvia",
                         "Opciones de diferente largo": "sesgo_longitud",
                         "Pregunta muy Fácil": "pregunta_facil",
-                        "Repetitivo": "repetitivo",
-                        "Alucinación (Inventó Norma)": "alucinacion"
+                        "Repetitivo": "repetitivo"
                     }
                     selected_reason = st.selectbox("¿Qué falló?", list(reasons.keys()))
+                    
                     if st.button("Enviar y Ajustar"):
-                        engine.feedback_history.append(reasons[selected_reason])
-                        st.toast("Regla Anti-Spoiler activada.", icon="🤐")
+                        code = reasons[selected_reason]
+                        engine.feedback_history.append(code)
+                        if code == "alucinacion": st.toast("Filtro de Integridad Activado.", icon="🛡️")
+                        elif code == "desconectado": st.toast("Candado Anti-Spoiler Ajustado.", icon="🤐")
+                        else: st.toast("Ajuste Recibido.", icon="✅")
 
 elif st.session_state.page == 'setup':
-    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v5.7</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v6.0</h1>", unsafe_allow_html=True)
