@@ -7,16 +7,16 @@ import re
 from collections import Counter
 
 # --- 1. CONFIGURACIÓN VISUAL ROBUSTA ---
-st.set_page_config(page_title="Entrenador Legal TITÁN v6.3", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="Entrenador Legal TITÁN v6.4", page_icon="⚖️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
     .stButton>button:hover {transform: scale(1.02);}
     .narrative-box {
-        background-color: #f3e5f5; 
+        background-color: #e8f5e9; 
         padding: 25px; 
         border-radius: 12px; 
-        border-left: 6px solid #8e24aa; 
+        border-left: 6px solid #2e7d32; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 25px;
         font-family: 'Georgia', serif;
@@ -33,7 +33,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CEREBRO LÓGICO (TITÁN ESTABLE v6.3) ---
+# --- 2. CEREBRO LÓGICO (TITÁN CASUÍSTICO v6.4) ---
 class LegalEngineTITAN:
     def __init__(self):
         self.chunks = []           
@@ -90,12 +90,8 @@ class LegalEngineTITAN:
         goal_score = total_chunks * 3 
         
         # --- FIX v6.3: TOPE MATEMÁTICO ---
-        # Limitamos el aporte de cada bloque a un máximo de 3 puntos.
-        # Si repasaste 10 veces, solo cuentan 3 para la barra de progreso.
         current_score = sum([min(v, 3) for v in self.mastery_tracker.values()])
-        
         percentage = int((current_score / goal_score) * 100) if goal_score > 0 else 0
-        # Doble seguridad: Si por alguna razón sigue pasando 100, lo forzamos a 100.
         percentage = min(percentage, 100)
         
         pending_reviews = len(self.failed_indices)
@@ -173,16 +169,17 @@ class LegalEngineTITAN:
         
         instruction_level = ""
         if self.level == "Asistencial":
-            instruction_level = "NIVEL BÁSICO/EJECUCIÓN: Preguntas sobre pasos y definiciones literales."
+            instruction_level = "NIVEL BÁSICO: Preguntas sobre pasos y definiciones literales."
         elif self.level == "Técnico":
             instruction_level = "NIVEL TÉCNICO: Preguntas sobre aplicación de procesos."
         elif self.level == "Profesional":
-            instruction_level = "NIVEL PROFESIONAL: Preguntas de ANÁLISIS y CRITERIO. Prohibido definiciones. Evalúa interpretación compleja."
+            instruction_level = "NIVEL PROFESIONAL (ALTA COMPLEJIDAD): Preguntas de ANÁLISIS y CRITERIO. Prohibido definiciones. Evalúa interpretación."
         elif self.level == "Asesor":
-            instruction_level = "NIVEL ASESOR: Preguntas de ESTRATEGIA y RIESGO. El caso debe tener vacíos que resolver con principios."
+            instruction_level = "NIVEL ASESOR: Preguntas de ESTRATEGIA y RIESGO."
 
         calibracion_activa = self.get_calibration_prompt()
 
+        # --- PROMPT V6.4 (TRAMPA DE PERTINENCIA) ---
         prompt = f"""
         ACTÚA COMO UN EXPERTO DISEÑADOR DE PRUEBAS CNSC PARA EL NIVEL: **{self.level.upper()}**.
         
@@ -196,10 +193,17 @@ class LegalEngineTITAN:
         INSTRUCCIÓN DE NIVEL ({self.level.upper()}):
         {instruction_level}
         
-        REGLAS DE ORO:
+        REGLA DE ORO (LA TRAMPA DE PERTINENCIA):
+        Las opciones incorrectas (Distractores) NO pueden ser disparates ni mentiras evidentes.
+        * Deben ser AFIRMACIONES JURÍDICAMENTE CIERTAS en general, pero que **NO APLICAN** a este caso específico.
+        * EJEMPLO: Si el caso es de una embarazada, la opción incorrecta podría decir: "Se puede despedir con indemnización" (Esto es verdad para otros trabajadores, pero FALSO para este caso).
+        * El usuario debe fallar porque eligió una norma real que no encaja con los hechos.
+        
+        OTRAS REGLAS:
         1. **INTEGRIDAD:** No recortes requisitos.
         2. **ANTI-SPOILER:** No regales el dato clave en la pregunta.
         3. **VINCULACIÓN:** "Analizando la conducta de [PERSONAJE] en la fecha [FECHA]...".
+        4. **ANTI-SESGO:** Opciones A, B, C del mismo largo visual.
         
         !!! AJUSTES DEL USUARIO !!!
         {calibracion_activa}
@@ -210,9 +214,9 @@ class LegalEngineTITAN:
             "preguntas": [
                 {{
                     "enunciado": "Pregunta de nivel {self.level}...",
-                    "opciones": {{ "A": "...", "B": "...", "C": "..." }},
-                    "respuesta": "A",
-                    "explicacion": "..."
+                    "opciones": {{ "A": "Opción cierta pero inaplicable", "B": "Opción CORRECTA para el caso", "C": "Opción cierta pero irrelevante" }},
+                    "respuesta": "B",
+                    "explicacion": "Explicar por qué la B es la única que aplica a los hechos, aunque A y C suenen lógicas."
                 }},
                 ... (Total 4 preguntas)
             ]
@@ -314,7 +318,6 @@ if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
     
     # --- BARRA DE PROGRESO SEGURA ---
-    # Convertimos a float entre 0.0 y 1.0 para st.progress
     safe_perc = min(float(perc) / 100.0, 1.0)
     
     st.markdown(f"""
@@ -330,10 +333,10 @@ if st.session_state.page == 'game':
     try:
         st.progress(safe_perc)
     except:
-        st.progress(1.0) # Fallback por si acaso
+        st.progress(1.0) 
 
     if not st.session_state.current_data:
-        with st.spinner(f"⚖️ Diseñando caso nivel {engine.level.upper()}..."):
+        with st.spinner(f"⚖️ Diseñando trampa jurídica nivel {engine.level.upper()}..."):
             data = engine.generate_case()
             if "error" in data:
                 st.error(data['error'])
@@ -403,7 +406,7 @@ if st.session_state.page == 'game':
                         "Pregunta con Spoiler (Regala el dato)": "desconectado",
                         "Respuesta muy Obvia": "respuesta_obvia",
                         "Opciones de diferente largo": "sesgo_longitud",
-                        "Pregunta muy Fácil": "pregunta_facil",
+                        "Pregunta muy Fácil (Para el Nivel)": "pregunta_facil",
                         "Repetitivo": "repetitivo"
                     }
                     selected_reason = st.selectbox("¿Qué falló?", list(reasons.keys()))
@@ -416,4 +419,4 @@ if st.session_state.page == 'game':
                         else: st.toast("Ajuste Acumulado.", icon="✅")
 
 elif st.session_state.page == 'setup':
-    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v6.3</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v6.4</h1>", unsafe_allow_html=True)
