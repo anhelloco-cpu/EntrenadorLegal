@@ -7,16 +7,16 @@ import re
 from collections import Counter
 
 # --- 1. CONFIGURACIÓN VISUAL ROBUSTA ---
-st.set_page_config(page_title="Entrenador Legal TITÁN v6.0", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="Entrenador Legal TITÁN v6.2", page_icon="⚖️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
     .stButton>button:hover {transform: scale(1.02);}
     .narrative-box {
-        background-color: #e3f2fd; 
+        background-color: #f3e5f5; 
         padding: 25px; 
         border-radius: 12px; 
-        border-left: 6px solid #1565c0; 
+        border-left: 6px solid #8e24aa; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 25px;
         font-family: 'Georgia', serif;
@@ -33,7 +33,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CEREBRO LÓGICO (TITÁN PRECISIÓN v6.0) ---
+# --- 2. CEREBRO LÓGICO (TITÁN JERÁRQUICO v6.2) ---
 class LegalEngineTITAN:
     def __init__(self):
         # Memoria de Contenidos
@@ -50,6 +50,7 @@ class LegalEngineTITAN:
         self.current_data = None
         self.current_chunk_idx = -1
         self.entity = ""
+        self.level = "Profesional" # Por defecto
         self.simulacro_mode = False
         
         # Configuración IA
@@ -100,39 +101,31 @@ class LegalEngineTITAN:
         return percentage, pending_reviews, total_chunks
 
     def get_calibration_prompt(self):
-        """Genera instrucciones basadas en el feedback."""
+        """Genera instrucciones basadas en el feedback ACUMULADO."""
         if not self.feedback_history: return "Modo: Estándar."
         
         counts = Counter(self.feedback_history)
         instructions = []
         
-        # --- CALIBRACIÓN DE PRECISIÓN (v6.0) ---
-        
-        # 1. ERROR DE RECORTE (Lo que te pasó)
-        instructions.append("🛡️ ANTI-RECORTE: Si el texto dice 'A y B' (Ej: Constitución y Ley), es PROHIBIDO generar una respuesta correcta que diga 'Solo A'. Debes incluir TODOS los elementos taxativos de la norma.")
+        # --- CALIBRACIÓN ACUMULATIVA ---
+        instructions.append("🛡️ ANTI-RECORTE: Si el texto dice 'A y B' (Ej: Constitución y Ley), es PROHIBIDO generar una respuesta correcta que diga 'Solo A'.")
 
-        # 2. DESCONEXIÓN
         if counts['desconectado'] > 0:
             instructions.append("🔗 ANTI-SPOILER: La pregunta NO puede regalar el dato clave. El usuario debe buscarlo en la historia.")
 
-        # 3. TAMAÑO
         if counts['sesgo_longitud'] > 0:
             instructions.append("🛑 FORMATO VISUAL: Las opciones A, B y C deben tener EXACTAMENTE el mismo número de palabras (+/- 2).")
 
-        # 4. OBVIEDAD
         if counts['respuesta_obvia'] > 0:
             instructions.append("💀 DIFICULTAD TÉCNICA: Los distractores deben ser trampas sutiles. Prohibido opciones absurdas.")
         
-        # 5. FACILISMO
         if counts['pregunta_facil'] > 0:
             instructions.append("⚠️ TRAMPA DE DETALLE: La respuesta correcta debe depender de un dato pequeño escondido en el texto.")
             
-        # 6. REPETICIÓN
         if counts['repetitivo'] > 0:
             self.current_temperature = 0.7 
             instructions.append("🔄 VARIEDAD TOTAL: Cambia nombres, cargos y la situación problema.")
         
-        # 7. ALUCINACIÓN
         if counts['alucinacion'] > 0:
             self.current_temperature = 0.0 
             instructions.append("⛔ FUENTE CERRADA: Usa SOLO lo que está escrito en el texto.")
@@ -181,33 +174,43 @@ class LegalEngineTITAN:
         lente_actual = lentes[min(current_level, 3)]
         contexto = f"CONTEXTO: {self.entity.upper()}" if self.entity else ""
         
+        # --- DEFINICIÓN DE COMPLEJIDAD POR NIVEL (EL CEREBRO DEL TITÁN) ---
+        instruction_level = ""
+        if self.level == "Asistencial":
+            instruction_level = "NIVEL BÁSICO/EJECUCIÓN: Preguntas sobre pasos, plazos exactos y definiciones literales. El foco es 'Saber Hacer'."
+        elif self.level == "Técnico":
+            instruction_level = "NIVEL TÉCNICO/SOPORTE: Preguntas sobre aplicación de procesos y manejo de excepciones simples."
+        elif self.level == "Profesional":
+            instruction_level = "NIVEL PROFESIONAL (DIFICULTAD ALTA): Preguntas de ANÁLISIS y CRITERIO. Prohibido preguntar definiciones. Debes plantear conflictos donde el usuario deba interpretar la norma para resolver un problema complejo. Evalúa 'Saber Entender'."
+        elif self.level == "Asesor":
+            instruction_level = "NIVEL ASESOR (DIFICULTAD EXTREMA): Preguntas de ESTRATEGIA, RIESGO y TOMA DE DECISIONES. El caso debe tener vacíos o contradicciones aparentes que el usuario debe resolver con principios."
+
         calibracion_activa = self.get_calibration_prompt()
 
-        # --- PROMPT V6.0 (PRECISIÓN TOTAL) ---
+        # --- PROMPT V6.2 (JERÁRQUICO) ---
         prompt = f"""
-        ACTÚA COMO UN EXPERTO JURISTA Y DISEÑADOR DE PRUEBAS CNSC.
+        ACTÚA COMO UN EXPERTO DISEÑADOR DE PRUEBAS CNSC PARA EL NIVEL: **{self.level.upper()}**.
         
         TEXTO FUENTE:
         ---------------------------------------------------------
         "{text_chunk[:6000]}"
         ---------------------------------------------------------
         
-        MISIÓN: Crear un CASO SITUACIONAL con 4 PREGUNTAS.
+        MISIÓN: Crear un CASO SITUACIONAL con 4 PREGUNTAS ajustadas al nivel **{self.level}**.
         
-        REGLA DE INTEGRIDAD (NO RECORTAR LA NORMA):
-        * Si el texto dice que se responde por "Constitución y Ley", la respuesta correcta DEBE decir "Constitución y Ley".
-        * ESTÁ PROHIBIDO poner como correcta una opción incompleta (Ej: "Solo Constitución") si el texto exige más requisitos.
-        * NO USES la palabra "SOLO" o "ÚNICAMENTE" en la respuesta correcta a menos que el texto lo diga literalmente.
+        INSTRUCCIÓN DE NIVEL ({self.level.upper()}):
+        {instruction_level}
         
-        REGLA DE MISTERIO (ANTI-SPOILER):
-        La pregunta NO puede revelar el dato clave.
-        * BIEN: "Analizando la situación de Pedro en la fecha de los hechos, ¿actuó correctamente?" (El usuario debe buscar la fecha y el hecho).
+        REGLAS DE ORO (TODOS LOS NIVELES):
+        1. **INTEGRIDAD:** No recortes requisitos (Si es A y B, es A y B).
+        2. **ANTI-SPOILER:** La pregunta NO puede regalar el dato clave (Ej: no digas "dado que estaba enfermo").
+        3. **VINCULACIÓN:** "Analizando la conducta de [PERSONAJE] en la fecha [FECHA]...".
         
         INSTRUCCIONES:
         1. **FOCO:** {lente_actual}. {contexto}.
         2. **ANTI-SESGO:** Opciones A, B, C del mismo largo visual.
         
-        !!! INSTRUCCIONES DE CALIBRACIÓN !!!
+        !!! AJUSTES DEL USUARIO !!!
         {calibracion_activa}
         
         FORMATO JSON OBLIGATORIO:
@@ -215,10 +218,10 @@ class LegalEngineTITAN:
             "narrativa_caso": "Narración detallada con fechas, nombres y situaciones ocultas...",
             "preguntas": [
                 {{
-                    "enunciado": "Pregunta neutra sobre la validez de la conducta de [PERSONAJE]...",
-                    "opciones": {{ "A": "Juicio + Razón", "B": "Juicio + Razón", "C": "Juicio + Razón" }},
+                    "enunciado": "Pregunta de nivel {self.level}...",
+                    "opciones": {{ "A": "...", "B": "...", "C": "..." }},
                     "respuesta": "A",
-                    "explicacion": "Cita textual del fragmento que demuestra que la respuesta está completa..."
+                    "explicacion": "..."
                 }},
                 ... (Total 4 preguntas)
             ]
@@ -260,6 +263,14 @@ with st.sidebar:
         if not ok: st.error(msg)
     
     st.divider()
+    
+    # --- SELECTOR DE NIVEL (LA JOYA DE LA v6.2) ---
+    st.markdown("### 🎯 Nivel del Cargo")
+    niveles = ["Asistencial", "Técnico", "Profesional", "Asesor"]
+    engine.level = st.selectbox("Selecciona tu Nivel:", niveles, index=2) # Default Profesional
+    st.info(f"Modo activado: **{engine.level}**")
+    
+    st.divider()
     engine.entity = st.text_input("Entidad:", placeholder="Ej: Fiscalía...")
     txt_input = st.text_area("Texto de la Norma:", height=200)
     
@@ -277,6 +288,12 @@ with st.sidebar:
             c = engine.process_law(txt_input, append=True)
             if c: st.success(f"+{c} Bloques.")
             
+    st.divider()
+    
+    if st.button("🗑️ Borrar Historial Calibración"):
+        engine.feedback_history = []
+        st.toast("Memoria limpia.", icon="🧼")
+    
     st.divider()
     if st.button("🔥 MODO SIMULACRO", disabled=not engine.chunks):
         engine.simulacro_mode = True
@@ -308,15 +325,15 @@ if st.session_state.page == 'game':
     st.markdown(f"""
     <div style='display:flex; justify-content:space-between; align-items:center; background:#eee; padding:10px; border-radius:8px;'>
         <span class='status-bar'>{'🔥 SIMULACRO' if engine.simulacro_mode else '📚 ESTUDIO'}</span>
+        <span class='status-bar'>NIVEL: {engine.level.upper()}</span>
         <span class='status-bar'>DOMINIO: {perc}%</span>
-        <span class='status-bar'>BLOQUES: {total}</span>
         <span class='status-bar' style='color:red'>REPASOS: {fails}</span>
     </div>
     """, unsafe_allow_html=True)
     st.progress(perc/100)
 
     if not st.session_state.current_data:
-        with st.spinner("⚖️ Diseñando caso (Verificando integridad jurídica)..."):
+        with st.spinner(f"⚖️ Diseñando caso nivel {engine.level.upper()}..."):
             data = engine.generate_case()
             if "error" in data:
                 st.error(data['error'])
@@ -333,7 +350,7 @@ if st.session_state.page == 'game':
 
     st.markdown(f"""
     <div class="narrative-box">
-        <h4>📜 Caso Situacional</h4>
+        <h4>📜 Caso Situacional ({engine.level})</h4>
         <p style="font-size:1.1em; line-height:1.6;">{data.get('narrativa_caso', 'Error narrativo.')}</p>
     </div>
     """, unsafe_allow_html=True)
@@ -382,11 +399,11 @@ if st.session_state.page == 'game':
             with col_rep:
                 with st.expander("📢 Calibrar IA (REPORTAR FALLO)"):
                     reasons = {
-                        "Respuesta Incompleta (Faltó parte de la norma)": "alucinacion",
+                        "Respuesta Incompleta (Recortó la norma)": "alucinacion",
                         "Pregunta con Spoiler (Regala el dato)": "desconectado",
                         "Respuesta muy Obvia": "respuesta_obvia",
                         "Opciones de diferente largo": "sesgo_longitud",
-                        "Pregunta muy Fácil": "pregunta_facil",
+                        "Pregunta muy Fácil (Para el Nivel)": "pregunta_facil",
                         "Repetitivo": "repetitivo"
                     }
                     selected_reason = st.selectbox("¿Qué falló?", list(reasons.keys()))
@@ -396,7 +413,7 @@ if st.session_state.page == 'game':
                         engine.feedback_history.append(code)
                         if code == "alucinacion": st.toast("Filtro de Integridad Activado.", icon="🛡️")
                         elif code == "desconectado": st.toast("Candado Anti-Spoiler Ajustado.", icon="🤐")
-                        else: st.toast("Ajuste Recibido.", icon="✅")
+                        else: st.toast("Ajuste Acumulado.", icon="✅")
 
 elif st.session_state.page == 'setup':
-    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v6.0</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>🏛️ Entrenador Legal TITÁN v6.2</h1>", unsafe_allow_html=True)
