@@ -5,21 +5,33 @@ import random
 import time
 import re
 from collections import Counter
-from io import StringIO
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Entrenador Legal PRO", page_icon="⚖️", layout="wide")
-
-# --- ESTILOS CSS ---
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 5px;}
+    .stButton>button {width: 100%; border-radius: 5px; font-weight: bold;}
     .success-box {padding: 10px; background-color: #d4edda; color: #155724; border-radius: 5px; margin-bottom: 10px;}
-    .error-box {padding: 10px; background-color: #f8d7da; color: #721c24; border-radius: 5px; margin-bottom: 10px;}
+    .report-box {border: 2px solid #ff4b4b; padding: 10px; border-radius: 5px;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- CLASE DEL MOTOR (CEREBRO v3.6) ---
+# --- INYECCIÓN DE VARIEDAD (LISTAS DE PYTHON) ---
+# Estas listas fuerzan a la IA a salir de su zona de confort
+ROLES = [
+    "un Celador", "la Secretaria General", "el Alcalde", "un Contratista de obra", 
+    "un Veedor Ciudadano", "un Juez de Paz", "un Policía de tránsito", "un Inspector de Obra", 
+    "la Tesorera", "un Concejal opositor", "el Almacenista", "un Conductor de la entidad"
+]
+SITUACIONES = [
+    "una licitación declarada desierta", "la pérdida misteriosa de un disco duro", 
+    "un regalo navideño costoso dejado en el escritorio", "una insinuación de acoso laboral", 
+    "un vencimiento de términos ocurrido ayer", "una firma que parece falsificada", 
+    "una orden verbal ilegal del superior", "una incapacidad médica presuntamente falsa",
+    "un hallazgo fiscal de la Contraloría", "una tutela por derecho de petición"
+]
+
+# --- CLASE MOTOR (CEREBRO v3.8) ---
 class LegalEnginePRO:
     def __init__(self):
         self.chunks = []
@@ -34,11 +46,14 @@ class LegalEnginePRO:
         self.entity = ""
         self.simulacro_mode = False
         self.model = None
+        # NUEVO: Temperatura dinámica para romper la repetición
+        self.current_temperature = 0.3 
 
     def configure_api(self, key):
         try:
             genai.configure(api_key=key)
             models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            # Preferir modelo Flash por velocidad y cuota
             selected = next((m for m in models if 'gemini-1.5-flash' in m.lower()), None)
             if not selected: selected = next((m for m in models if 'flash' in m.lower()), models[0])
             self.model = genai.GenerativeModel(selected)
@@ -76,30 +91,47 @@ class LegalEnginePRO:
         return min(percent, 100), fails
 
     def get_learning_context(self):
-        if not self.feedback_history: return "Nivel inicial."
+        if not self.feedback_history: return "Nivel Estándar."
         counts = Counter(self.feedback_history)
         instructions = []
-        if counts['repetitivo'] > 0: instructions.append("⚠️ VARIEDAD: Cambia nombres y situaciones drásticamente.")
-        if counts['caso_simple'] > 0: instructions.append("⚠️ Aumenta complejidad de HECHOS.")
-        if counts['pregunta_facil'] > 0: instructions.append("⚠️ Genera distractores difíciles.")
-        if counts['desconectado'] > 0: instructions.append("⚠️ Respuesta basada estrictamente en hechos.")
-        if counts['alucinacion'] > 0: instructions.append("⚠️ ALERTA: NO inventes normas.")
-        if counts['error_estructural'] > 0: instructions.append("⚠️ ESTRUCTURA: Solo respuestas A, B, C.")
-        if counts['sesgo_longitud'] > 0: instructions.append("⚠️ ANTI-SESGO: Iguala longitud de opciones.")
+        
+        # --- LÓGICA DE CALIBRACIÓN AGRESIVA ---
+        if counts['repetitivo'] > 0:
+            self.current_temperature = 0.9 # MÁXIMA CREATIVIDAD
+            instructions.append("⚠️ CRÍTICO - ANTI-REPETICIÓN: El usuario reportó casos repetidos. GENERA UN ESCENARIO BIZARRO, ATÍPICO Y COMPLEJO. No uses los nombres ni situaciones de siempre.")
+        else:
+            self.current_temperature = 0.4 # Temperatura normal
+            
+        if counts['pregunta_facil'] > 0: 
+            instructions.append("⚠️ MODO CASCARITA: Las opciones incorrectas deben ser SEMÁNTICAMENTE CASI IDÉNTICAS a la correcta. Cambia solo una palabra clave (ej: 'Dolo' por 'Culpa Grave').")
+        
+        if counts['caso_simple'] > 0: 
+            instructions.append("⚠️ COMPLEJIDAD: Involucra mínimo 3 actores y 2 fechas contradictorias en el relato.")
+        
+        if counts['alucinacion'] > 0: instructions.append("⚠️ CÁRCEL DE FUENTE: Cíñete 100% al texto. Si no está escrito, no existe.")
+        if counts['error_estructural'] > 0: instructions.append("⚠️ ESTRUCTURA: Respeta formato JSON. Solo claves A, B, C.")
+        if counts['sesgo_longitud'] > 0: instructions.append("⚠️ ANTI-SESGO: Todas las opciones deben tener EXACTAMENTE la misma longitud visual.")
+        
         return "\n".join(instructions)
 
     def _safe_generate(self, prompt, is_json=False):
         max_retries = 3
         wait_time = 5
+        # Configuración dinámica basada en el feedback
+        gen_config = {
+            "temperature": self.current_temperature,
+            "response_mime_type": "application/json" if is_json else "text/plain"
+        }
+        
         for attempt in range(max_retries):
             try:
-                config = {"response_mime_type": "application/json"} if is_json else {}
-                res = self.model.generate_content(prompt, generation_config=config)
+                res = self.model.generate_content(prompt, generation_config=gen_config)
                 return res.text
             except Exception as e:
                 error_str = str(e).lower()
+                # Manejo de error 429 (Quota Exceeded)
                 if "429" in error_str or "quota" in error_str:
-                    with st.spinner(f"⏳ Tráfico alto en Google. Reintentando en {wait_time}s..."):
+                    with st.spinner(f"⏳ Google saturado. Esperando {wait_time}s..."):
                         time.sleep(wait_time)
                     wait_time *= 2
                 else:
@@ -109,9 +141,10 @@ class LegalEnginePRO:
     def generate_adaptive_case(self):
         if not self.chunks: return {"error": "⚠️ No hay ley cargada."}
         
+        # 1. SELECCIÓN DE TEXTO
         if self.simulacro_mode:
             current_idx = random.choice(range(len(self.chunks)))
-            prompt_modifier = "MODO SIMULACRO: Genera un caso difícil integrando conceptos."
+            prompt_modifier = "MODO SIMULACRO: Caso de ALTA DIFICULTAD integrando múltiples conceptos."
         else:
             if self.failed_indices and random.random() < 0.4:
                 current_idx = random.choice(list(self.failed_indices))
@@ -127,28 +160,39 @@ class LegalEnginePRO:
         lentes = ["CONCEPTUAL", "PROCEDIMENTAL", "SANCIONATORIO", "SITUACIONAL"]
         lente_actual = lentes[current_mastery % len(lentes)]
         
+        # 2. INYECCIÓN DE ALEATORIEDAD (PYTHON)
+        rol_random = random.choice(ROLES)
+        sit_random = random.choice(SITUACIONES)
+        
         contexto_entidad = ""
         if self.entity.strip():
-            contexto_entidad = f"Ambienta el caso en: **{self.entity.upper()}**."
+            contexto_entidad = f"Ambienta el caso OBLIGATORIAMENTE en: **{self.entity.upper()}**."
 
+        # 3. PROMPT MAESTRO
         prompt = f"""
-        Actúa como la Comisión Nacional del Servicio Civil (CNSC).
-        TEXTO NORMATIVO BASE: "{active_text[:4500]}"...
+        Actúa como un experto redactor de la Comisión Nacional del Servicio Civil (CNSC).
+        Diseña una prueba de juicio situacional NIVEL DIFÍCIL.
 
-        {contexto_entidad}
-        {prompt_modifier if self.simulacro_mode else ""}
+        TEXTO NORMATIVO FUENTE: "{active_text[:4500]}"...
 
-        === INSTRUCCIONES ===
-        1. **FOCO:** {lente_actual}.
-        2. **FUENTE CERRADA:** Usa SOLO el texto normativo base.
-        3. **FORMATO:** Genera JSON con 2 preguntas. Claves A, B, C.
-        
-        === FEEDBACK PREVIO ===
+        === TU MISIÓN DE DISEÑO ===
+        1. **PROTAGONISTA:** El caso debe tratar sobre {rol_random}.
+        2. **SITUACIÓN:** El conflicto gira en torno a {sit_random}.
+        3. **ENTIDAD:** {contexto_entidad}
+        4. **FOCO JURÍDICO:** {lente_actual}.
+
+        === REGLAS DE DIFICULTAD (CASCARITAS) ===
+        * **NO** hagas preguntas obvias.
+        * Las opciones incorrectas (distractores) deben ser JURÍDICAMENTE PLAUSIBLES.
+        * Diferencia las opciones por detalles sutiles: un plazo (3 días vs 5 días), una autoridad, o la intención (Dolo vs Culpa).
+        * Todas las opciones deben tener la misma longitud.
+
+        === CALIBRACIÓN DE USUARIO (FEEDBACK) ===
         {self.get_learning_context()}
 
         Responde SOLO el JSON:
         {{
-            "narrativa_caso": "Historia...",
+            "narrativa_caso": "Historia compleja con nombres y cargos específicos...",
             "preguntas": [
                 {{ "enunciado": "...", "opciones": {{ "A": "..", "B": "..", "C": ".." }}, "respuesta": "A", "explicacion": ".." }},
                 {{ "enunciado": "...", "opciones": {{ "A": "..", "B": "..", "C": ".." }}, "respuesta": "B", "explicacion": ".." }}
@@ -156,8 +200,7 @@ class LegalEnginePRO:
         }}
         """
         json_res = self._safe_generate(prompt, is_json=True)
-        if not json_res: return {"error": "Error de conexión con Google."}
-        
+        if not json_res: return {"error": "Error de conexión con Google (Intenta de nuevo)."}
         try:
             text = json_res.strip()
             if "```" in text:
@@ -170,47 +213,50 @@ class LegalEnginePRO:
 if 'engine' not in st.session_state:
     st.session_state.engine = LegalEnginePRO()
 if 'page' not in st.session_state:
-    st.session_state.page = 'setup' # setup, game, report
+    st.session_state.page = 'setup'
 
 engine = st.session_state.engine
 
-# --- BARRA LATERAL (SETUP) ---
+# --- BARRA LATERAL ---
 with st.sidebar:
     st.header("⚙️ Configuración")
     
-    # 1. API
-    api_key = st.text_input("1. Gemini API Key", type="password")
-    if api_key and not engine.model:
-        ok, msg = engine.configure_api(api_key)
-        if ok: st.success(msg)
-        else: st.error(msg)
+    # 1. API KEY (SECRETS O MANUAL)
+    api_key_input = ""
+    if "GEMINI_KEY" in st.secrets:
+        api_key_input = st.secrets["GEMINI_KEY"]
+        st.success("🔑 API Key detectada (Secretos)")
+    else:
+        api_key_input = st.text_input("Gemini API Key", type="password")
+    
+    if api_key_input and not engine.model:
+        ok, msg = engine.configure_api(api_key_input)
+        if not ok: st.error(msg)
     
     st.divider()
     
-    # 2. CARGA DE LEY
+    # 2. CARGA DE NORMA
     engine.entity = st.text_input("2. Entidad (Opcional)", placeholder="Ej: DIAN, Contraloría...")
     uploaded_text = st.text_area("3. Pegar Norma/Ley", height=150)
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("⚠️ Borrar e Iniciar", type="primary"):
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("⚠️ Reiniciar Todo", type="primary"):
             if engine.process_law(uploaded_text, append=False) > 0:
                 engine.simulacro_mode = False
                 st.session_state.page = 'game'
                 st.session_state.current_data = None
-                st.toast("Entrenamiento iniciado", icon="🚀")
                 st.rerun()
             else: st.error("Texto muy corto")
-            
-    with col2:
+    with c2:
         if st.button("➕ Agregar Norma"):
             c = engine.process_law(uploaded_text, append=True)
-            if c > 0: st.success(f"+{c} bloques.")
+            if c > 0: st.success(f"+{c} bloques")
             else: st.error("Texto vacío")
 
     st.divider()
     
-    # 3. MODOS Y GESTIÓN
+    # 3. MODOS
     if st.button("🔥 MODO SIMULACRO", disabled=not engine.chunks):
         engine.simulacro_mode = True
         st.session_state.current_data = None
@@ -220,10 +266,8 @@ with st.sidebar:
 
     st.divider()
     
-    # 4. GUARDAR / CARGAR (JSON)
-    st.markdown("### 💾 Persistencia")
-    
-    # Descargar
+    # 4. PERSISTENCIA
+    st.markdown("### 💾 Guardar/Cargar")
     if engine.chunks:
         data_to_save = {
             "chunks": engine.chunks,
@@ -233,44 +277,29 @@ with st.sidebar:
             "feed": engine.feedback_history,
             "entity": engine.entity
         }
-        json_str = json.dumps(data_to_save)
-        st.download_button("Bajar Progreso", json_str, file_name="progreso_legal.json", mime="application/json")
+        st.download_button("Descargar Progreso", json.dumps(data_to_save), "backup.json", "application/json")
     
-    # Cargar
-    uploaded_file = st.file_uploader("Subir Progreso", type=['json'])
-    if uploaded_file is not None:
+    uf = st.file_uploader("Subir Archivo", type=['json'])
+    if uf:
         try:
-            data = json.load(uploaded_file)
-            engine.chunks = data['chunks']
-            engine.mastery_tracker = {int(k):v for k,v in data['mastery'].items()}
-            engine.failed_indices = set(data['failed'])
-            engine.mistakes_log = data['log']
-            engine.feedback_history = data['feed']
-            engine.entity = data.get('entity', "")
-            st.success("¡Sesión restaurada!")
+            d = json.load(uf)
+            engine.chunks = d['chunks']
+            engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
+            engine.failed_indices = set(d['failed'])
+            engine.mistakes_log = d['log']
+            engine.feedback_history = d['feed']
+            engine.entity = d.get('entity', "")
+            st.success("Progreso Restaurado")
         except: st.error("Archivo inválido")
 
-# --- PÁGINA PRINCIPAL ---
-
-if st.session_state.page == 'setup':
-    st.title("🏛️ Entrenador Legal PRO v3.6")
-    st.info("👈 Configura tu API y carga la norma en la barra lateral para comenzar.")
-    st.markdown("""
-    ### Novedades:
-    * **Anti-Bloqueo:** Espera automática si Google se satura.
-    * **Simulacro:** Mezcla todas las normas cargadas.
-    * **Maestría:** Sistema de repetición espaciada.
-    """)
-
-elif st.session_state.page == 'game':
-    # HEADER
+# --- PÁGINA DE JUEGO ---
+if st.session_state.page == 'game':
     perc, fails = engine.get_progress_stats()
-    bar_color = "red" if engine.simulacro_mode else "blue"
-    st.progress(perc/100, text=f"Progreso: {perc}% | Repasos pendientes: {fails} | Modo: {'SIMULACRO' if engine.simulacro_mode else 'ESTUDIO'}")
+    st.progress(perc/100, f"Dominio: {perc}% | Repasos: {fails} | Modo: {'SIMULACRO' if engine.simulacro_mode else 'ESTUDIO'}")
 
-    # GENERACIÓN DE CASO
+    # Generar caso si no existe
     if 'current_data' not in st.session_state or st.session_state.current_data is None:
-        with st.spinner("⚖️ Analizando norma y redactando caso..."):
+        with st.spinner("⚖️ Redactando caso complejo..."):
             data = engine.generate_adaptive_case()
             if "error" in data:
                 st.error(data['error'])
@@ -284,21 +313,19 @@ elif st.session_state.page == 'game':
     data = st.session_state.current_data
     q_idx = st.session_state.q_idx
 
-    # VISTA CASO
+    # Mostrar Caso
     with st.container(border=True):
-        st.markdown(f"#### 📜 Historia del Caso")
-        st.write(data['narrativa_caso'])
+        st.markdown(f"#### 📜 Narrativa del Caso")
+        st.write(data.get('narrativa_caso', 'Error de generación.'))
     
-    if q_idx < len(data['preguntas']):
+    if q_idx < len(data.get('preguntas', [])):
         q = data['preguntas'][q_idx]
         st.subheader(f"Pregunta {q_idx + 1}")
         st.markdown(f"**{q['enunciado']}**")
-
-        # OPCIONES
+        
         opts = q['opciones']
         opt_list = [f"A) {opts.get('A','')}", f"B) {opts.get('B','')}", f"C) {opts.get('C','')}"]
         
-        # Formulario para evitar recargas
         with st.form("game_form"):
             choice = st.radio("Selecciona:", opt_list, index=None)
             submitted = st.form_submit_button("✅ Validar Respuesta")
@@ -311,44 +338,38 @@ elif st.session_state.page == 'game':
                     if engine.current_chunk_idx in engine.failed_indices:
                         engine.failed_indices.remove(engine.current_chunk_idx)
                 else:
-                    st.error(f"❌ Incorrecto. Era la {corr}.")
+                    st.error(f"❌ Incorrecto. La respuesta era {corr}.")
                     engine.failed_indices.add(engine.current_chunk_idx)
                     engine.mistakes_log.append({"pregunta": q['enunciado'], "elegida": sel, "correcta": corr})
                 
-                st.info(f"💡 {q['explicacion']}")
+                st.info(f"💡 Explicación: {q['explicacion']}")
                 st.session_state.answered = True
 
-        # NAVEGACIÓN
+        # Botones de Navegación y Calibración
         if st.session_state.answered:
-            c1, c2 = st.columns([1, 1])
-            with c1:
-                lbl = "⏭️ Siguiente Pregunta" if q_idx < len(data['preguntas'])-1 else "🔄 Siguiente Caso"
-                if st.button(lbl):
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                label = "⏭️ Siguiente Pregunta" if q_idx < len(data['preguntas'])-1 else "🔄 Nuevo Caso"
+                if st.button(label):
                     if q_idx < len(data['preguntas'])-1:
                         st.session_state.q_idx += 1
                     else:
-                        # Fin del caso
                         if not engine.simulacro_mode and engine.current_chunk_idx not in engine.failed_indices:
                             engine.mastery_tracker[engine.current_chunk_idx] = engine.mastery_tracker.get(engine.current_chunk_idx, 0) + 1
                         st.session_state.current_data = None
                     st.session_state.answered = False
                     st.rerun()
             
-            with c2:
-                with st.expander("📢 Reportar Error / Calibrar"):
-                    reason = st.selectbox("Motivo:", [
-                        "repetitivo", "alucinacion", "error_estructural", 
-                        "sesgo_longitud", "desconectado", "caso_simple", "pregunta_facil"
+            with col2:
+                with st.expander("📢 Reportar Error / Ajustar Dificultad"):
+                    reason = st.selectbox("Motivo del reporte:", [
+                        "repetitivo", "pregunta_facil", "caso_simple", 
+                        "alucinacion", "error_estructural", "sesgo_longitud", "desconectado"
                     ])
-                    if st.button("Enviar Reporte"):
+                    if st.button("Enviar Feedback"):
                         engine.feedback_history.append(reason)
-                        st.toast("Algoritmo ajustado.", icon="🛠️")
+                        st.toast("Feedback recibido. Ajustando algoritmo...", icon="🧠")
 
-# --- REPORTE ---
-if st.button("📊 Ver Reporte de Errores"):
-    if not engine.mistakes_log:
-        st.success("¡Sin errores por ahora!")
-    else:
-        st.write("### 📉 Historial de Fallos")
-        for m in engine.mistakes_log:
-            st.warning(f"**P:** {m['pregunta']} | **Tú:** {m['elegida']} | **Era:** {m['correcta']}")
+elif st.session_state.page == 'setup':
+    st.title("🏛️ Entrenador Legal PRO v3.8")
+    st.info("👈 Configura la API y carga la norma en la barra lateral.")
