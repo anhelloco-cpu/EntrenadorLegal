@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v9.2 - Desbloqueo Total", page_icon="🔓", layout="wide")
+st.set_page_config(page_title="TITÁN v9.3 - Auto-Detector", page_icon="🤖", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -68,18 +68,11 @@ class LegalEngineTITAN:
         self.current_temperature = 0.2 
         self.last_failed_embedding = None 
         self.last_error = ""
-        self.model_name = "gemini-1.5-flash" # Default
+        self.active_model_name = "Desconocido"
 
-    def configure_api_pool(self, key1, key2, preferred_model="Flash (Rápido)"):
+    def configure_api_pool(self, key1, key2):
         self.api_keys = [k.strip() for k in [key1, key2] if k.strip()]
         if not self.api_keys: return False, "⚠️ Ingresa al menos una API Key."
-        
-        # Determinar modelo base
-        base_model = "gemini-1.5-flash"
-        if "Pro" in preferred_model: base_model = "gemini-1.5-pro"
-        elif "1.0" in preferred_model: base_model = "gemini-1.0-pro"
-        
-        self.model_name = base_model
         return self.switch_key(0)
 
     def switch_key(self, idx):
@@ -87,12 +80,36 @@ class LegalEngineTITAN:
             target_key = self.api_keys[idx % len(self.api_keys)]
             genai.configure(api_key=target_key)
             
-            # Forzar modelo seleccionado o buscar disponible
-            self.model = genai.GenerativeModel(self.model_name)
+            # --- AUTO-DETECTOR DE MODELOS (FIX 404) ---
+            # En lugar de pedir un nombre fijo, pedimos la lista disponible
+            model_list = genai.list_models()
+            available_models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
+            
+            if not available_models:
+                return False, "Tu API Key no tiene acceso a ningún modelo. Verifica tu cuenta."
+            
+            # Algoritmo de Prioridad: Flash > Pro > 1.0 > Cualquiera
+            target_model = None
+            for m in available_models:
+                if 'flash' in m.lower(): target_model = m; break
+            
+            if not target_model:
+                for m in available_models:
+                    if 'gemini-1.5-pro' in m.lower(): target_model = m; break
+            
+            if not target_model:
+                for m in available_models:
+                    if 'gemini-pro' in m.lower(): target_model = m; break # El clásico
+            
+            if not target_model:
+                target_model = available_models[0] # El que sea que funcione
+            
+            self.model = genai.GenerativeModel(target_model)
+            self.active_model_name = target_model
             self.current_key_index = idx
-            return True, f"✅ Conectado: {self.model_name} (Llave {idx + 1})"
+            return True, f"✅ Conectado a: {target_model} (Llave {idx + 1})"
         except Exception as e:
-            return False, str(e)
+            return False, f"Error conectando: {str(e)}"
 
     def process_law(self, text, append=False):
         text = text.replace('\r', '')
@@ -197,7 +214,7 @@ class LegalEngineTITAN:
         }}
         """
         
-        # CONFIGURACIÓN DE SEGURIDAD (DESBLOQUEO)
+        # CONFIGURACIÓN DE SEGURIDAD (DESBLOQUEO TOTAL)
         safety_settings = [
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
             {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
@@ -243,17 +260,16 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v9.2")
+    st.title("⚙️ TITÁN v9.3")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
     with st.expander("🔑 1. Configuración de Llaves", expanded=True):
-        # --- NUEVO: SELECTOR DE MOTOR ---
-        model_pref = st.selectbox("Motor IA:", ["Flash (Rápido)", "Pro (Potente/Lento)", "1.0 Pro (Estable)"])
+        st.info("ℹ️ El sistema detectará automáticamente el mejor modelo para ti.")
         k1 = st.text_input("Llave 1:", type="password")
         k2 = st.text_input("Llave 2:", type="password")
         
         if k1 and not engine.model:
-            ok, msg = engine.configure_api_pool(k1, k2, model_pref)
+            ok, msg = engine.configure_api_pool(k1, k2)
             if ok:
                 st.success(msg)
                 if engine.chunks:
@@ -324,7 +340,7 @@ if st.session_state.page == 'game':
                 else: error_txt = engine.last_error if engine.last_error else "Respuesta vacía"
                 
                 st.error(f"⚠️ {error_txt}")
-                if "API Key" in str(error_txt): st.info("Ve al menú lateral y cambia el Motor IA o revisa tu llave.")
+                if "API Key" in str(error_txt): st.info("Ve al menú lateral y revisa tu llave.")
                 elif st.button("🔄 REINTENTAR"): st.rerun()
                 st.stop()
 
