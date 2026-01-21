@@ -16,17 +16,18 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v21 - RESTAURADO", page_icon="🏛️", layout="wide")
+# --- CONFIGURACIÓN VISUAL (ESTÉTICA PROFESIONAL) ---
+st.set_page_config(page_title="TITÁN v22 - Edición De Lujo", page_icon="🏛️", layout="wide")
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #1a237e; color: white;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #0d47a1; color: white;}
     .narrative-box {
-        background-color: #e8eaf6; padding: 25px; border-radius: 12px; 
-        border-left: 6px solid #283593; margin-bottom: 25px;
+        background-color: #e3f2fd; padding: 25px; border-radius: 12px; 
+        border-left: 6px solid #1565c0; margin-bottom: 25px;
         font-family: 'Georgia', serif; font-size: 1.15em; line-height: 1.6;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .question-card {background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-top: 10px;}
+    .question-card {background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-top: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);}
 </style>
 """, unsafe_allow_html=True)
 
@@ -37,7 +38,27 @@ def load_embedding_model():
 
 dl_model = load_embedding_model()
 
-ENTIDADES_CO = ["Contraloría", "Fiscalía", "Procuraduría", "Defensoría", "DIAN", "Registraduría", "Rama Judicial", "Policía", "ICBF", "SENA", "MinEducación", "MinSalud", "Otra"]
+# --- LISTADO DE ENTIDADES (NOMBRES OFICIALES COMPLETOS) ---
+ENTIDADES_CO = [
+    "Contraloría General de la República", 
+    "Fiscalía General de la Nación",
+    "Procuraduría General de la Nación", 
+    "Defensoría del Pueblo",
+    "Dirección de Impuestos y Aduanas Nacionales (DIAN)", 
+    "Registraduría Nacional del Estado Civil", 
+    "Consejo Superior de la Judicatura",
+    "Corte Suprema de Justicia", 
+    "Consejo de Estado", 
+    "Corte Constitucional",
+    "Policía Nacional de Colombia", 
+    "Ejército Nacional de Colombia", 
+    "Instituto Colombiano de Bienestar Familiar (ICBF)", 
+    "Servicio Nacional de Aprendizaje (SENA)", 
+    "Ministerio de Educación Nacional", 
+    "Ministerio de Salud y Protección Social", 
+    "Departamento Administrativo Nacional de Estadística (DANE)",
+    "Otra (Manual) / Agregar +"
+]
 
 class LegalEngineTITAN:
     def __init__(self):
@@ -102,7 +123,7 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- AQUÍ ESTÁN LAS REGLAS DE ORO COMPLETAS (RESTAURADAS) ---
+    # --- REGLAS DE ORO COMPLETAS (SIN RECORTES) ---
     def get_strict_rules(self):
         return """
         🛑 REGLAS DE ORO OBLIGATORIAS (PROTOCOLO ANTI-TEORÍA):
@@ -124,18 +145,18 @@ class LegalEngineTITAN:
            - Los distractores deben ser leyes reales que no aplican por un detalle técnico.
         """
 
-    # --- AQUÍ ESTÁ EL MENÚ DE CALIBRACIÓN COMPLETO (RESTAURADO) ---
+    # --- MENÚ DE CALIBRACIÓN COMPLETO (SIN RECORTES) ---
     def get_calibration_instructions(self):
         if not self.feedback_history: return ""
         counts = Counter(self.feedback_history)
         instructions = []
-        if counts['desconexion'] > 0: instructions.append("🔴 ERROR CRÍTICO PREVIO: Desconexión temática. ¡ORDEN!: Las preguntas DEBEN basarse 100% en los hechos del caso narrado.")
-        if counts['recorte'] > 0: instructions.append("🔴 INTEGRIDAD OBLIGATORIA: ¡PROHIBIDO RESUMIR! Usa los requisitos COMPLETOS.")
-        if counts['spoiler'] > 0: instructions.append("🔴 ALERTA DE SPOILER: ¡PROHIBIDO incluir la respuesta o pistas obvias en el enunciado!")
-        if counts['sesgo_longitud'] > 0: instructions.append("🔴 FORMATO VISUAL: ¡ALERTA! Las opciones deben tener la misma longitud visual.")
-        if counts['respuesta_obvia'] > 0: instructions.append("🔴 DIFICULTAD EXTREMA: Usa 'Trampas de Pertinencia'. Prohibido preguntas que se respondan sin leer.")
+        if counts['desconexion'] > 0: instructions.append("🔴 ERROR CRÍTICO: Desconexión temática. ¡ORDEN!: Las preguntas DEBEN basarse 100% en los hechos del caso.")
+        if counts['recorte'] > 0: instructions.append("🔴 INTEGRIDAD: ¡PROHIBIDO RESUMIR! Usa los requisitos COMPLETOS de la norma.")
+        if counts['spoiler'] > 0: instructions.append("🔴 ALERTA SPOILER: ¡PROHIBIDO incluir la respuesta o pistas obvias en el enunciado!")
+        if counts['sesgo_longitud'] > 0: instructions.append("🔴 VISUAL: ¡ALERTA! Las opciones deben tener la misma longitud visual.")
+        if counts['respuesta_obvia'] > 0: instructions.append("🔴 DIFICULTAD: Usa 'Trampas de Pertinencia'. Prohibido preguntas que se respondan sin leer el caso.")
         if counts['pregunta_facil'] > 0: instructions.append("🔴 NIVEL EXPERTO: La clave debe ser un detalle minúsculo.")
-        if counts['repetitivo'] > 0: self.current_temperature = 0.9; instructions.append("🔴 CREATIVIDAD RADICAL: ¡CAMBIA TODO!: Nombres, cargos, situaciones.")
+        if counts['repetitivo'] > 0: self.current_temperature = 0.9; instructions.append("🔴 CREATIVIDAD: ¡CAMBIA TODO!: Nombres, cargos, situaciones.")
         if counts['alucinacion'] > 0: self.current_temperature = 0.0; instructions.append("🔴 FUENTE CERRADA: ¡ESTRICTO! No inventes leyes. Cíñete SOLO al texto.")
         if counts['incoherente'] > 0: instructions.append("🔴 CLARIDAD: Escribe con sintaxis jurídica perfecta.")
         return "\n".join(instructions)
@@ -164,12 +185,12 @@ class LegalEngineTITAN:
         {self.get_calibration_instructions()}
         
         TAREA:
-        1. Redacta CASO complejo.
+        1. Redacta un CASO SITUACIONAL complejo y detallado.
         2. Genera 4 PREGUNTAS difíciles y dependientes del texto.
         
         JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "...",
+            "narrativa_caso": "Texto...",
             "preguntas": [
                 {{
                     "enunciado": "...", 
@@ -216,7 +237,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v21")
+    st.title("⚙️ TITÁN v22")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -232,7 +253,7 @@ with st.sidebar:
             engine.chunks = d['chunks']
             engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
             engine.failed_indices = set(d['failed'])
-            engine.feedback_history = d.get('feed', []) # ¡Recuperado!
+            engine.feedback_history = d.get('feed', [])
             engine.entity = d.get('ent', "")
             st.success("¡Cargado!")
             if engine.api_key: time.sleep(0.5); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
@@ -243,7 +264,14 @@ with st.sidebar:
 
     st.divider()
     engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor"], index=0)
-    engine.entity = st.selectbox("Entidad:", ENTIDADES_CO)
+    
+    # Selector de Entidad con Lógica Manual
+    ent_selection = st.selectbox("Entidad:", ENTIDADES_CO)
+    if "Otra" in ent_selection or "Agregar" in ent_selection:
+        engine.entity = st.text_input("Escribe el nombre de la Entidad:")
+    else:
+        engine.entity = ent_selection
+
     txt = st.text_area("Cargar Nueva Norma:", height=150)
     if st.button("🚀 INICIAR"):
         if engine.process_law(txt): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
