@@ -16,8 +16,8 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# --- CONFIGURACIÓN VISUAL (ESTÉTICA DE LUJO v22) ---
-st.set_page_config(page_title="TITÁN v24 - Integridad Total", page_icon="🏛️", layout="wide")
+# --- CONFIGURACIÓN VISUAL (ESTÉTICA DE LUJO v24) ---
+st.set_page_config(page_title="TITÁN v25 - Final Estudio", page_icon="🎓", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #0d47a1; color: white;}
@@ -38,7 +38,7 @@ def load_embedding_model():
 
 dl_model = load_embedding_model()
 
-# --- LISTADO DE ENTIDADES (COMPLETO v22) ---
+# --- LISTADO DE ENTIDADES (COMPLETO) ---
 ENTIDADES_CO = [
     "Contraloría General de la República", 
     "Fiscalía General de la Nación",
@@ -75,7 +75,7 @@ class LegalEngineTITAN:
         self.provider = "Unknown" 
         self.api_key = ""
         self.model = None 
-        self.current_temperature = 0.1 # Temperatura ajustada para obediencia
+        self.current_temperature = 0.1
         self.last_failed_embedding = None 
 
     def configure_api(self, key):
@@ -123,7 +123,7 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- REGLAS DE ORO (MODIFICADAS: SOLO SE CAMBIÓ ESTO) ---
+    # --- REGLAS DE ORO ---
     def get_strict_rules(self):
         return """
         🛑 PROTOCOLO DE MUDEZ SELECTIVA (GRAMÁTICA OBLIGATORIA):
@@ -132,16 +132,12 @@ class LegalEngineTITAN:
            - La pregunta DEBE ser: [Referencia al Sujeto] + [Referencia a Fecha/Documento] + [Interrogante Jurídico].
            - PROHIBIDO: Usar frases explicativas intermedias que describan la acción o la conducta.
         
-        2. EJEMPLOS DE CORRECCIÓN:
-           - ❌ MALO (Con Spoiler): "Considerando que el Dr. Robles archivó la denuncia por racismo..." (Regalaste el dato "racismo").
-           - ✅ BUENO (Mudo): "Considerando la decisión tomada por el Dr. Robles en el oficio del 15 de marzo..." (Obligas a leer el oficio).
-        
-        3. DEPENDENCIA TOTAL:
+        2. DEPENDENCIA TOTAL:
            - El usuario NO DEBE saber qué pasó en esa fecha si no lee el texto.
            - Si la pregunta describe la conducta, FALLAS.
         """
 
-    # --- MENÚ DE CALIBRACIÓN COMPLETO (RESTAURADO DE v22) ---
+    # --- CALIBRACIÓN COMPLETA ---
     def get_calibration_instructions(self):
         if not self.feedback_history: return ""
         counts = Counter(self.feedback_history)
@@ -172,6 +168,7 @@ class LegalEngineTITAN:
         
         self.current_chunk_idx = idx
         
+        # --- AQUÍ ESTÁ EL FORMATO DE RESPUESTA QUE PEDISTE ---
         prompt = f"""
         ACTÚA COMO EXPERTO CNSC. NIVEL: {self.level.upper()}.
         ESCENARIO: {self.entity.upper()}.
@@ -184,6 +181,10 @@ class LegalEngineTITAN:
         1. Redacta un CASO SITUACIONAL complejo y detallado.
         2. Genera 4 PREGUNTAS difíciles y dependientes del texto (Sin describir la conducta).
         
+        FORMATO DE EXPLICACIÓN OBLIGATORIO (ESTRICTO):
+        En el campo "explicacion", DEBES seguir esta estructura exacta:
+        "NORMA TAXATIVA: [Cita textual entre comillas] ... ANÁLISIS: [Explicación de por qué aplica al caso] ... DESCARTES: [Por qué las otras opciones no aplican]"
+        
         JSON OBLIGATORIO:
         {{
             "narrativa_caso": "Texto...",
@@ -192,7 +193,7 @@ class LegalEngineTITAN:
                     "enunciado": "...", 
                     "opciones": {{"A": "..", "B": "..", "C": ".."}}, 
                     "respuesta": "A", 
-                    "explicacion": "..."
+                    "explicacion": "NORMA TAXATIVA: '...' ANÁLISIS: ... DESCARTES: ..."
                 }}
             ]
         }}
@@ -233,7 +234,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v24")
+    st.title("⚙️ TITÁN v25")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -316,7 +317,7 @@ if st.session_state.page == 'game':
             else:
                 if st.button("Nuevo Caso"): st.session_state.current_data = None; st.rerun()
         
-        # --- MENÚ DE CALIBRACIÓN COMPLETO (RESTAURADO) ---
+        # --- MENÚ DE CALIBRACIÓN COMPLETO ---
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL (COMPLETA)", expanded=True):
             reasons_map = {
