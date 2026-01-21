@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ROBUSTA ---
-st.set_page_config(page_title="TITÁN v7.6 - AutoConnect", page_icon="🇨🇴", layout="wide")
+st.set_page_config(page_title="TITÁN v7.7 - Auto-Adaptable", page_icon="🇨🇴", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -71,22 +71,28 @@ class LegalEngineTITAN:
         try:
             genai.configure(api_key=key)
             
-            # --- FIX 404: AUTO-DETECCIÓN DE MODELO ---
-            # Preguntamos a Google qué modelos permite usar tu llave
-            available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            # --- FIX DEFINITIVO 404: SELECCIÓN SEGURA ---
+            # 1. Obtenemos la lista REAL de modelos disponibles para TU llave
+            model_list = genai.list_models()
+            available_models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
             
-            # Buscamos el mejor modelo disponible en orden de preferencia
-            target_model = 'gemini-pro' # Opción segura por defecto (1.0)
+            if not available_models:
+                return False, "Error: Tu API Key no tiene acceso a ningún modelo generativo."
+
+            # 2. Algoritmo de selección inteligente (Prioridad: Flash > Pro > Cualquiera)
+            target_model = available_models[0] # Por defecto, el primero que funcione
             
-            for m in available:
-                if 'gemini-1.5-flash' in m:
-                    target_model = 'gemini-1.5-flash'
-                    break
-                elif 'gemini-1.5-pro' in m:
-                    target_model = 'gemini-1.5-pro'
+            for m in available_models:
+                if 'flash' in m.lower():
+                    target_model = m
+                    break # Encontré Flash, me quedo con este
+                if 'pro' in m.lower() and 'vision' not in m.lower():
+                    target_model = m 
             
+            # 3. Conexión usando el nombre EXACTO que devolvió Google
             self.model = genai.GenerativeModel(target_model)
-            return True, f"Conectado a: {target_model}"
+            return True, f"Conectado exitosamente a: {target_model}"
+            
         except Exception as e: return False, str(e)
 
     def process_law(self, text, append=False):
@@ -194,7 +200,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v7.6")
+    st.title("⚙️ TITÁN v7.7")
     if DL_AVAILABLE: st.success("🧠 Deep Learning: ACTIVADO")
     
     key = st.text_input("API Key:", type="password")
