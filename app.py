@@ -16,14 +16,14 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v13 - Híbrido & Blindado", page_icon="⚔️", layout="wide")
+# --- 1. CONFIGURACIÓN VISUAL (COMPLETA) ---
+st.set_page_config(page_title="TITÁN v15 - Estándar Oro Blindado", page_icon="⚖️", layout="wide")
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #4527a0; color: white;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #283593; color: white;}
     .narrative-box {
-        background-color: #f3e5f5; padding: 25px; border-radius: 12px; 
-        border-left: 6px solid #7b1fa2; margin-bottom: 25px;
+        background-color: #e8eaf6; padding: 25px; border-radius: 12px; 
+        border-left: 6px solid #1a237e; margin-bottom: 25px;
         font-family: 'Georgia', serif; font-size: 1.15em;
     }
     .question-card {background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0;}
@@ -66,7 +66,7 @@ class LegalEngineTITAN:
         self.provider = "Unknown" # 'Google' o 'Groq'
         self.api_key = ""
         self.model = None # Para Google
-        self.current_temperature = 0.3
+        self.current_temperature = 0.2 # Temperatura BAJA para obediencia estricta
         self.last_failed_embedding = None 
         self.last_error = ""
 
@@ -122,25 +122,35 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- REGLAS DE ORO (INYECTADAS SIEMPRE) ---
+    # --- REGLAS DE ORO ACTUALIZADAS (V14 Logic) ---
     def get_strict_rules(self):
         return """
-        *** REGLAS DE ORO (OBLIGATORIAS) ***:
-        1. VINCULACIÓN: Las preguntas DEBEN basarse 100% en los hechos del caso narrado.
-        2. ANTI-SPOILER: El enunciado NO puede contener la respuesta.
-        3. EQUIDAD VISUAL: Opciones A, B, C del mismo largo (palabras).
-        4. INTEGRIDAD: No resumas la norma, úsala completa.
-        5. TRAMPAS: Los distractores deben ser leyes reales que no aplican por competencia o trámite.
+        🛑 PROTOCOLO DE SEGURIDAD CONTRA RESPUESTAS OBVIAS (OBLIGATORIO):
+        
+        1. PROHIBICIÓN DE "TEORÍA GENERAL":
+           - ESTÁ PROHIBIDO preguntar: "¿Qué dice la ley sobre X?". (Esto se responde sin leer).
+           - OBLIGATORIO preguntar: "Teniendo en cuenta la conducta del Sr. [Nombre] en la fase de [Hecho], ¿qué norma vulneró?".
+           - REGLA DE ORO: Si yo puedo tapar el texto del caso y aún así responder la pregunta, TU TRABAJO ESTÁ MAL HECHO.
+        
+        2. DEPENDENCIA DE HECHOS (DATA DEPENDENCY):
+           - El enunciado de la pregunta DEBE mencionar explícitamente un nombre, una fecha, un cargo o una situación única narrada en el caso.
+        
+        3. ANTI-SPOILER SEMÁNTICO (NUEVO):
+           - No uses palabras en el enunciado que compartan raíz con la respuesta.
+           - MALO: "El funcionario omitió..." (Respuesta: Omisión).
+           - BUENO: "El funcionario guardó silencio..." (Respuesta: Omisión).
+           
+        4. TRAMPAS DE COMPETENCIA:
+           - Los distractores deben ser leyes reales que no aplican por un detalle técnico.
         """
 
     def get_calibration_instructions(self):
-        # Mantiene el menú de calibración manual por si acaso
         if not self.feedback_history: return ""
         counts = Counter(self.feedback_history)
         instructions = []
         if counts['desconexion'] > 0: instructions.append("¡ALERTA! Previamente generaste preguntas desconectadas del caso. ¡CORRIGE ESO!")
         if counts['recorte'] > 0: instructions.append("¡ALERTA! No recortes la norma.")
-        if counts['spoiler'] > 0: instructions.append("¡ALERTA! No hagas spoilers en el enunciado.")
+        if counts['spoiler'] > 0: instructions.append("¡ALERTA! No hagas spoilers en el enunciado (Anti-Spoiler Semántico).")
         if counts['sesgo_longitud'] > 0: instructions.append("¡ALERTA! Iguala la longitud de las opciones.")
         if counts['respuesta_obvia'] > 0: instructions.append("¡ALERTA! Sube la dificultad de los distractores.")
         if counts['pregunta_facil'] > 0: instructions.append("¡ALERTA! Pregunta por detalles más difíciles.")
@@ -176,7 +186,6 @@ class LegalEngineTITAN:
             - Las otras son errores de subsunción.
             """
         
-        # PROMPT UNIFICADO (EL CLÁSICO + REGLAS DE ORO)
         prompt = f"""
         ACTÚA COMO EXPERTO CNSC. NIVEL: {self.level.upper()}.
         ESCENARIO: {self.entity.upper()}.
@@ -257,7 +266,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v13")
+    st.title("⚙️ TITÁN v15")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
     with st.expander("🔑 LLAVE MAESTRA (Google o Groq)", expanded=True):
