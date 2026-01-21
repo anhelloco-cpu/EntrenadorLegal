@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ROBUSTA ---
-st.set_page_config(page_title="TITÁN v7.5 - Integridad Total", page_icon="🇨🇴", layout="wide")
+st.set_page_config(page_title="TITÁN v7.6 - AutoConnect", page_icon="🇨🇴", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -70,8 +70,23 @@ class LegalEngineTITAN:
     def configure_api(self, key):
         try:
             genai.configure(api_key=key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-            return True, "Conectado"
+            
+            # --- FIX 404: AUTO-DETECCIÓN DE MODELO ---
+            # Preguntamos a Google qué modelos permite usar tu llave
+            available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            
+            # Buscamos el mejor modelo disponible en orden de preferencia
+            target_model = 'gemini-pro' # Opción segura por defecto (1.0)
+            
+            for m in available:
+                if 'gemini-1.5-flash' in m:
+                    target_model = 'gemini-1.5-flash'
+                    break
+                elif 'gemini-1.5-pro' in m:
+                    target_model = 'gemini-1.5-pro'
+            
+            self.model = genai.GenerativeModel(target_model)
+            return True, f"Conectado a: {target_model}"
         except Exception as e: return False, str(e)
 
     def process_law(self, text, append=False):
@@ -84,7 +99,7 @@ class LegalEngineTITAN:
             self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.failed_indices = set()
             self.mistakes_log = []
-            self.feedback_history = [] # Reiniciar feedback en nueva norma
+            self.feedback_history = [] 
             if dl_model: 
                 with st.spinner("🧠 Procesando norma (Deep Learning)..."):
                     self.chunk_embeddings = dl_model.encode(self.chunks)
@@ -104,7 +119,6 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- RECUPERADO: SISTEMA DE CALIBRACIÓN ---
     def get_calibration_prompt(self):
         if not self.feedback_history: return "Modo: Estándar."
         counts = Counter(self.feedback_history)
@@ -122,7 +136,6 @@ class LegalEngineTITAN:
         idx = -1
         selection_reason = "Aleatorio"
 
-        # Lógica Deep Learning (Radar de Debilidades)
         if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
             candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 3]
@@ -143,7 +156,6 @@ class LegalEngineTITAN:
         self.current_chunk_idx = idx
         self.selection_reason = selection_reason
         
-        # --- PROMPT COMPLETO (RECUPERADO DE v7.3) ---
         prompt = f"""
         ACTÚA COMO EXPERTO CNSC. NIVEL: {self.level.upper()}.
         ESCENARIO OBLIGATORIO: {self.entity.upper()}.
@@ -166,7 +178,6 @@ class LegalEngineTITAN:
         try:
             res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature})
             text_resp = res.text.strip()
-            # Limpieza robusta de JSON
             if "```" in text_resp:
                 match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
                 if match: text_resp = match.group(1).strip()
@@ -183,11 +194,13 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v7.5")
+    st.title("⚙️ TITÁN v7.6")
     if DL_AVAILABLE: st.success("🧠 Deep Learning: ACTIVADO")
     
     key = st.text_input("API Key:", type="password")
-    if key and not engine.model: engine.configure_api(key)
+    if key and not engine.model:
+        ok, msg = engine.configure_api(key)
+        if ok: st.success(msg)
     
     st.divider()
     engine.level = st.selectbox("Nivel:", ["Asistencial", "Técnico", "Profesional", "Asesor"], index=2)
@@ -233,7 +246,6 @@ if st.session_state.page == 'game':
     st.markdown(f"**DOMINIO: {perc}%** | **BLOQUES: {total}** | **REPASOS: {fails}**")
     st.progress(perc/100)
 
-    # Lógica Anti-Bucle (Mejorada de v7.4)
     if not st.session_state.get('current_data'):
         msg = "🧠 Generando caso..."
         if DL_AVAILABLE and engine.last_failed_embedding is not None: msg = "🧠 Neurona analizando tus fallos..."
@@ -244,9 +256,9 @@ if st.session_state.page == 'game':
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
             else:
-                st.error(f"⚠️ La IA tuvo un lapsus técnico. ({engine.last_error})")
-                if st.button("🔄 INTENTAR DE NUEVO MANUALMENTE"): st.rerun()
-                st.stop() # Detiene la ejecución aquí para evitar el bucle infinito
+                st.error(f"⚠️ Error: {engine.last_error if engine.last_error else 'Sin datos'}")
+                if st.button("🔄 INTENTAR MANUALMENTE"): st.rerun()
+                st.stop()
 
     data = st.session_state.current_data
     st.markdown(f"<div class='narrative-box'><h4>🏛️ {engine.entity}</h4>{data.get('narrativa_caso','Error')}</div>", unsafe_allow_html=True)
@@ -272,14 +284,13 @@ if st.session_state.page == 'game':
                     st.session_state.q_idx += 1; st.session_state.answered = False; st.rerun()
                 else: engine.mastery_tracker[engine.current_chunk_idx] += 1; st.session_state.current_data = None; st.rerun()
 
-        # --- RECUPERADO: PANEL DE CALIBRACIÓN ---
-        with st.expander("📢 Reportar Fallo (Ayuda a la IA a mejorar)"):
-            r = st.selectbox("¿Qué estuvo mal?", ["Respuesta Obvia", "Alucinación (Inventó ley)", "Pregunta sin sentido / Spoiler"])
-            if st.button("Enviar Reporte"):
-                code = "alucinacion" if "Inventó" in r else "respuesta_obvia" if "Obvia" in r else "desconectado"
+        with st.expander("📢 Reportar Fallo IA"):
+            r = st.selectbox("Error:", ["Respuesta Obvia", "Alucinación", "Spoiler"])
+            if st.button("Enviar"):
+                code = "alucinacion" if "Aluc" in r else "respuesta_obvia" if "Obvia" in r else "desconectado"
                 engine.feedback_history.append(code)
-                st.toast("Ajuste aplicado para la próxima.", icon="🛠️")
+                st.toast("Ajustado.")
                 
     except Exception as e:
-        st.error("Error visualizando la pregunta.")
+        st.error(f"Error visual: {str(e)}")
         if st.button("Resetear"): st.session_state.current_data = None; st.rerun()
