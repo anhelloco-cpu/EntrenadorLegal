@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v8.6 - Anti-Bloqueo", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="TITÁN v8.7 - Flujo Perfecto", page_icon="⚡", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -195,7 +195,7 @@ class LegalEngineTITAN:
         }}
         """
         
-        # --- FIX v8.6: SISTEMA DE REINTENTO AUTOMÁTICO (ANTI-429) ---
+        # --- SISTEMA DE REINTENTO (ANTI-429) ---
         max_retries = 3
         retry_count = 0
         
@@ -212,15 +212,14 @@ class LegalEngineTITAN:
                 error_str = str(e)
                 if "429" in error_str or "quota" in error_str.lower():
                     retry_count += 1
-                    wait_time = 15 * retry_count # 15s, 30s, 45s
-                    # Mensaje visual en la app sin romperla
-                    with st.spinner(f"⏳ Google está saturado (Límite 429). Reintentando en {wait_time}s... (Intento {retry_count}/{max_retries})"):
+                    wait_time = 15 * retry_count
+                    with st.spinner(f"⏳ Google está saturado. Reintentando en {wait_time}s..."):
                         time.sleep(wait_time)
                 else:
                     self.last_error = error_str
-                    return None # Error real (no de cuota)
+                    return None
         
-        self.last_error = "Límite de Google excedido tras varios intentos. Prueba en 1 min."
+        self.last_error = "Límite de Google excedido. Espera 1 minuto."
         return None
 
 # --- 3. INTERFAZ ---
@@ -231,17 +230,24 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v8.6")
+    st.title("⚙️ TITÁN v8.7")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
+    # 1. API KEY
     key = st.text_input("1. API Key (Obligatorio):", type="password")
     if key and not engine.model:
         ok, msg = engine.configure_api(key)
-        if ok: st.success(msg)
+        if ok:
+            st.success(msg)
+            # --- SALTO AUTOMÁTICO 1 (Si ya había datos cargados antes) ---
+            if engine.chunks:
+                time.sleep(0.5)
+                st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
         else: st.error(msg)
     
     st.divider()
 
+    # 2. CARGA DE AVANCE
     with st.expander("2. 📂 Cargar Avance (JSON)", expanded=True):
         upl = st.file_uploader("Archivo:", type=['json'])
         if upl:
@@ -253,14 +259,13 @@ with st.sidebar:
                 engine.feedback_history = d.get('feed', [])
                 engine.entity = d.get('ent', "")
                 
+                # --- SALTO AUTOMÁTICO 2 (Si ya hay llave puesta) ---
                 if engine.model:
-                    st.success("¡Datos y Conexión listos! Iniciando...")
+                    st.success("¡Listo! Iniciando...")
                     time.sleep(1)
-                    st.session_state.page = 'game'
-                    st.session_state.current_data = None
-                    st.rerun()
+                    st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
                 else:
-                    st.warning("✅ Datos cargados. AHORA INGRESA TU API KEY ARRIBA para iniciar.")
+                    st.warning("✅ Datos listos. FALTA TU API KEY ARRIBA.")
             except: st.error("Archivo inválido")
 
     st.divider()
@@ -303,7 +308,7 @@ if st.session_state.page == 'game':
             else:
                 error_txt = "Error desconocido"
                 if isinstance(data, dict): error_txt = data.get('error', engine.last_error)
-                else: error_txt = engine.last_error if engine.last_error else "Respuesta vacía de la IA"
+                else: error_txt = engine.last_error if engine.last_error else "Respuesta vacía"
                 
                 st.error(f"⚠️ {error_txt}")
                 if "API Key" in str(error_txt): st.info("Ve al menú lateral y conecta tu llave.")
