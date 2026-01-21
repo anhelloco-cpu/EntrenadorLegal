@@ -16,8 +16,8 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# --- CONFIGURACIÓN VISUAL (ESTÉTICA PROFESIONAL) ---
-st.set_page_config(page_title="TITÁN v22 - Edición De Lujo", page_icon="🏛️", layout="wide")
+# --- CONFIGURACIÓN VISUAL (ESTÉTICA DE LUJO v22) ---
+st.set_page_config(page_title="TITÁN v24 - Integridad Total", page_icon="🏛️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #0d47a1; color: white;}
@@ -38,7 +38,7 @@ def load_embedding_model():
 
 dl_model = load_embedding_model()
 
-# --- LISTADO DE ENTIDADES (NOMBRES OFICIALES COMPLETOS) ---
+# --- LISTADO DE ENTIDADES (COMPLETO v22) ---
 ENTIDADES_CO = [
     "Contraloría General de la República", 
     "Fiscalía General de la Nación",
@@ -75,7 +75,7 @@ class LegalEngineTITAN:
         self.provider = "Unknown" 
         self.api_key = ""
         self.model = None 
-        self.current_temperature = 0.2
+        self.current_temperature = 0.1 # Temperatura ajustada para obediencia
         self.last_failed_embedding = None 
 
     def configure_api(self, key):
@@ -123,36 +123,32 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- REGLAS DE ORO COMPLETAS (SIN RECORTES) ---
+    # --- REGLAS DE ORO (MODIFICADAS: SOLO SE CAMBIÓ ESTO) ---
     def get_strict_rules(self):
         return """
-        🛑 REGLAS DE ORO OBLIGATORIAS (PROTOCOLO ANTI-TEORÍA):
+        🛑 PROTOCOLO DE MUDEZ SELECTIVA (GRAMÁTICA OBLIGATORIA):
         
-        1. PROHIBICIÓN DE "TEORÍA GENERAL":
-           - ESTÁ PROHIBIDO preguntar: "¿Qué dice la ley sobre X?". (Esto se responde sin leer).
-           - OBLIGATORIO preguntar: "Teniendo en cuenta la conducta del Sr. [Nombre] en la fecha [Fecha], ¿qué norma vulneró?".
-           - REGLA DE ORO: Si yo puedo tapar el texto del caso y aún así responder la pregunta, TU TRABAJO ESTÁ MAL HECHO.
+        1. ESTRUCTURA DE LA PREGUNTA:
+           - La pregunta DEBE ser: [Referencia al Sujeto] + [Referencia a Fecha/Documento] + [Interrogante Jurídico].
+           - PROHIBIDO: Usar frases explicativas intermedias que describan la acción o la conducta.
         
-        2. DEPENDENCIA DE HECHOS (DATA DEPENDENCY):
-           - El enunciado de la pregunta DEBE mencionar explícitamente un nombre, una fecha, un cargo o una situación única narrada en el caso.
+        2. EJEMPLOS DE CORRECCIÓN:
+           - ❌ MALO (Con Spoiler): "Considerando que el Dr. Robles archivó la denuncia por racismo..." (Regalaste el dato "racismo").
+           - ✅ BUENO (Mudo): "Considerando la decisión tomada por el Dr. Robles en el oficio del 15 de marzo..." (Obligas a leer el oficio).
         
-        3. ANTI-SPOILER SEMÁNTICO:
-           - No uses palabras en el enunciado que compartan raíz con la respuesta.
-           - MALO: "El funcionario omitió..." (Respuesta: Omisión).
-           - BUENO: "El funcionario guardó silencio..." (Respuesta: Omisión).
-           
-        4. TRAMPAS DE COMPETENCIA:
-           - Los distractores deben ser leyes reales que no aplican por un detalle técnico.
+        3. DEPENDENCIA TOTAL:
+           - El usuario NO DEBE saber qué pasó en esa fecha si no lee el texto.
+           - Si la pregunta describe la conducta, FALLAS.
         """
 
-    # --- MENÚ DE CALIBRACIÓN COMPLETO (SIN RECORTES) ---
+    # --- MENÚ DE CALIBRACIÓN COMPLETO (RESTAURADO DE v22) ---
     def get_calibration_instructions(self):
         if not self.feedback_history: return ""
         counts = Counter(self.feedback_history)
         instructions = []
         if counts['desconexion'] > 0: instructions.append("🔴 ERROR CRÍTICO: Desconexión temática. ¡ORDEN!: Las preguntas DEBEN basarse 100% en los hechos del caso.")
         if counts['recorte'] > 0: instructions.append("🔴 INTEGRIDAD: ¡PROHIBIDO RESUMIR! Usa los requisitos COMPLETOS de la norma.")
-        if counts['spoiler'] > 0: instructions.append("🔴 ALERTA SPOILER: ¡PROHIBIDO incluir la respuesta o pistas obvias en el enunciado!")
+        if counts['spoiler'] > 0: instructions.append("🔴 ALERTA SPOILER: ¡PROHIBIDO describir la conducta en la pregunta! Solo usa fechas/nombres.")
         if counts['sesgo_longitud'] > 0: instructions.append("🔴 VISUAL: ¡ALERTA! Las opciones deben tener la misma longitud visual.")
         if counts['respuesta_obvia'] > 0: instructions.append("🔴 DIFICULTAD: Usa 'Trampas de Pertinencia'. Prohibido preguntas que se respondan sin leer el caso.")
         if counts['pregunta_facil'] > 0: instructions.append("🔴 NIVEL EXPERTO: La clave debe ser un detalle minúsculo.")
@@ -186,7 +182,7 @@ class LegalEngineTITAN:
         
         TAREA:
         1. Redacta un CASO SITUACIONAL complejo y detallado.
-        2. Genera 4 PREGUNTAS difíciles y dependientes del texto.
+        2. Genera 4 PREGUNTAS difíciles y dependientes del texto (Sin describir la conducta).
         
         JSON OBLIGATORIO:
         {{
@@ -237,7 +233,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v22")
+    st.title("⚙️ TITÁN v24")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -265,10 +261,10 @@ with st.sidebar:
     st.divider()
     engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor"], index=0)
     
-    # Selector de Entidad con Lógica Manual
+    # Entidades completas
     ent_selection = st.selectbox("Entidad:", ENTIDADES_CO)
     if "Otra" in ent_selection or "Agregar" in ent_selection:
-        engine.entity = st.text_input("Escribe el nombre de la Entidad:")
+        engine.entity = st.text_input("Nombre Entidad:")
     else:
         engine.entity = ent_selection
 
@@ -322,7 +318,7 @@ if st.session_state.page == 'game':
         
         # --- MENÚ DE CALIBRACIÓN COMPLETO (RESTAURADO) ---
         st.divider()
-        with st.expander("🛠️ CALIBRACIÓN MANUAL (SI FALLA)", expanded=True):
+        with st.expander("🛠️ CALIBRACIÓN MANUAL (COMPLETA)", expanded=True):
             reasons_map = {
                 "Preguntas no tienen que ver con el Caso": "desconexion",
                 "Respuesta Incompleta (Recortó la norma)": "recorte",
