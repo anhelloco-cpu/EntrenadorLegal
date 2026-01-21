@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v8.2 - Calibración Total", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="TITÁN v8.3 - Carga Directa", page_icon="🇨🇴", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -113,43 +113,34 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- CALIBRACIÓN TOTAL (8 PUNTOS DE AJUSTE) ---
     def get_calibration_prompt(self):
         if not self.feedback_history: return "Modo: Estándar (Sin ajustes previos)."
         counts = Counter(self.feedback_history)
         instructions = []
         
-        # 1. Anti-Recorte (Integridad)
         if counts['recorte'] > 0:
             instructions.append("⚠️ INTEGRIDAD CRÍTICA: Has sido reportado por recortar la norma. Debes incluir TODOS los requisitos (A, B y C). Prohibido resumir.")
         
-        # 2. Anti-Spoiler
         if counts['spoiler'] > 0:
             instructions.append("🔗 ANTI-SPOILER EXTREMO: El enunciado NO puede contener la respuesta. El usuario debe deducirlo de la narrativa.")
 
-        # 3. Formato Visual
         if counts['sesgo_longitud'] > 0:
             instructions.append("🛑 FORMATO: Las opciones deben tener la misma longitud visual (palabras) para no delatar la correcta.")
 
-        # 4. Dificultad / Obviedad
         if counts['respuesta_obvia'] > 0:
             instructions.append("💀 DIFICULTAD: Los distractores son muy obvios. Deben ser 'Trampas de Pertinencia' (Leyes reales que parecen aplicar pero no).")
 
-        # 5. Trampa de Detalle
         if counts['pregunta_facil'] > 0:
             instructions.append("🔍 DETALLE: La clave de la respuesta debe ser un detalle minúsculo (un plazo, una excepción, una autoridad).")
 
-        # 6. Variedad
         if counts['repetitivo'] > 0:
             self.current_temperature = 0.8
             instructions.append("🔄 CREATIVIDAD: Cambia radicalmente los nombres, los cargos y el tipo de problema jurídico.")
 
-        # 7. Fuente Cerrada (Alucinación)
         if counts['alucinacion'] > 0:
             self.current_temperature = 0.0
             instructions.append("⛔ FUENTE CERRADA: Prohibido inventar leyes. Usa SOLO el texto provisto.")
 
-        # 8. Coherencia
         if counts['incoherente'] > 0:
             instructions.append("🧠 LÓGICA: La redacción anterior fue confusa. Escribe con claridad jurídica perfecta.")
 
@@ -177,7 +168,6 @@ class LegalEngineTITAN:
         self.current_chunk_idx = idx
         self.selection_reason = selection_reason
         
-        # INSTRUCCIÓN NIVEL DURO
         instruccion_nivel = ""
         if self.level in ["Profesional", "Asesor"]:
             instruccion_nivel = """
@@ -198,23 +188,23 @@ class LegalEngineTITAN:
         1. Caso complejo en {self.entity}.
         2. 4 PREGUNTAS difíciles.
         
-        REGLAS DE RETROALIMENTACIÓN (EXPLICACIÓN):
+        REGLAS DE RETROALIMENTACIÓN:
         En 'explicacion' DEBES estructurar así:
-        - "NORMA": Cita textual.
+        - "NORMA TAXATIVA": Cita textual.
         - "ANÁLISIS": Por qué aplica.
         - "DESCARTES": Por qué las otras no aplican (aunque sean leyes reales).
         
-        !!! AJUSTES ACTIVOS (TÓMALOS EN CUENTA) !!!:
+        !!! AJUSTES ACTIVOS !!!:
         {self.get_calibration_prompt()}
         
         JSON OBLIGATORIO:
         {{
             "narrativa_caso": "Historia...",
             "preguntas": [
-                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "A", "explicacion": "NORMA: ... ANÁLISIS: ..."}},
-                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "B", "explicacion": "NORMA: ... ANÁLISIS: ..."}},
-                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "C", "explicacion": "NORMA: ... ANÁLISIS: ..."}},
-                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "A", "explicacion": "NORMA: ... ANÁLISIS: ..."}}
+                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "A", "explicacion": "NORMA TAXATIVA: ... ANÁLISIS: ..."}},
+                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "B", "explicacion": "NORMA TAXATIVA: ... ANÁLISIS: ..."}},
+                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "C", "explicacion": "NORMA TAXATIVA: ... ANÁLISIS: ..."}},
+                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "A", "explicacion": "NORMA TAXATIVA: ... ANÁLISIS: ..."}}
             ]
         }}
         """
@@ -237,10 +227,10 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v8.2")
+    st.title("⚙️ TITÁN v8.3")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
-    # Carga Prioritaria
+    # --- CARGA PRIORITARIA CON SALTO AUTOMÁTICO (FIX) ---
     with st.expander("📂 Cargar Avance", expanded=True):
         upl = st.file_uploader("Archivo JSON:", type=['json'])
         if upl:
@@ -251,8 +241,14 @@ with st.sidebar:
                 engine.failed_indices = set(d['failed'])
                 engine.feedback_history = d.get('feed', [])
                 engine.entity = d.get('ent', "")
-                st.success("¡Restaurado!")
-            except: st.error("Error en archivo")
+                
+                # --- REDIRECCIÓN AUTOMÁTICA ---
+                st.success("¡Avance Restaurado! Iniciando...")
+                time.sleep(1) # Pausa breve para ver el mensaje
+                st.session_state.page = 'game'
+                st.session_state.current_data = None
+                st.rerun() # Salta inmediatamente al juego
+            except: st.error("Archivo inválido")
 
     st.divider()
     key = st.text_input("API Key:", type="password")
@@ -331,7 +327,7 @@ if st.session_state.page == 'game':
                     engine.mastery_tracker[engine.current_chunk_idx] += 1
                     st.session_state.current_data = None; st.rerun()
 
-        # --- PANEL DE REPORTE TOTAL (AHORA SÍ COMPLETO) ---
+        # --- PANEL DE REPORTE TOTAL (8 PUNTOS) ---
         with st.expander("📢 Reportar Fallo (Calibrar IA)", expanded=True):
             reasons_map = {
                 "Respuesta Incompleta (Recortó la norma)": "recorte",
@@ -349,10 +345,6 @@ if st.session_state.page == 'game':
                 engine.feedback_history.append(code)
                 st.toast(f"Calibración aplicada: {code}", icon="🛠️")
                 
-                # Feedback Visual Inmediato
-                if code == "recorte": st.info("Próxima instrucción: 'INTEGRIDAD CRÍTICA'.")
-                elif code == "spoiler": st.info("Próxima instrucción: 'ANTI-SPOILER EXTREMO'.")
-
     except Exception as e:
         st.error(f"Error visual: {str(e)}")
         if st.button("Resetear"): st.session_state.current_data = None; st.rerun()
