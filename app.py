@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v8.4 - Blindado", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="TITÁN v8.5 - Stable", page_icon="🛡️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -132,7 +132,6 @@ class LegalEngineTITAN:
         return "\n".join(instructions)
 
     def generate_case(self):
-        # --- FIX: ESCUDO DE SEGURIDAD ---
         if not self.model: return {"error": "⚠️ Primero conecta tu API Key en el menú lateral."}
         if not self.chunks: return {"error": "Carga una norma primero."}
         
@@ -214,10 +213,9 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v8.4")
+    st.title("⚙️ TITÁN v8.5")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
-    # 1. API KEY PRIMERO (Para evitar error de NoneType)
     key = st.text_input("1. API Key (Obligatorio):", type="password")
     if key and not engine.model:
         ok, msg = engine.configure_api(key)
@@ -226,7 +224,6 @@ with st.sidebar:
     
     st.divider()
 
-    # 2. LUEGO CARGA DE AVANCE (Lógica Segura)
     with st.expander("2. 📂 Cargar Avance (JSON)", expanded=True):
         upl = st.file_uploader("Archivo:", type=['json'])
         if upl:
@@ -238,7 +235,6 @@ with st.sidebar:
                 engine.feedback_history = d.get('feed', [])
                 engine.entity = d.get('ent', "")
                 
-                # --- FIX: SOLO SALTA SI HAY CONEXIÓN ---
                 if engine.model:
                     st.success("¡Datos y Conexión listos! Iniciando...")
                     time.sleep(1)
@@ -283,14 +279,18 @@ if st.session_state.page == 'game':
         
         with st.spinner(msg):
             data = engine.generate_case()
-            # Validación de integridad de la respuesta
-            if data and "error" not in data and "preguntas" in data and len(data['preguntas']) > 0:
+            # Validación robusta
+            if data and isinstance(data, dict) and "preguntas" in data and len(data['preguntas']) > 0:
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
             else:
-                error_msg = data.get('error', engine.last_error if engine.last_error else 'Respuesta vacía o incompleta')
-                st.error(f"⚠️ {error_msg}")
-                if "API Key" in str(error_msg): st.info("Ve al menú lateral y conecta tu llave.")
+                # FIX: Manejo seguro del error sin crashear
+                error_txt = "Error desconocido"
+                if isinstance(data, dict): error_txt = data.get('error', engine.last_error)
+                else: error_txt = engine.last_error if engine.last_error else "Respuesta vacía de la IA"
+                
+                st.error(f"⚠️ {error_txt}")
+                if "API Key" in str(error_txt): st.info("Ve al menú lateral y conecta tu llave.")
                 elif st.button("🔄 REINTENTAR"): st.rerun()
                 st.stop()
 
