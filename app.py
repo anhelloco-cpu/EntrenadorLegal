@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v8.7 - Flujo Perfecto", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="TITÁN v8.9 - Rescate Manual", page_icon="🛟", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -63,25 +63,32 @@ class LegalEngineTITAN:
         self.level = "Profesional" 
         self.simulacro_mode = False
         self.model = None
+        self.api_keys = []
+        self.current_key_index = 0
         self.current_temperature = 0.2 
         self.last_failed_embedding = None 
         self.last_error = ""
 
-    def configure_api(self, key):
+    def configure_api_pool(self, key1, key2):
+        self.api_keys = [k.strip() for k in [key1, key2] if k.strip()]
+        if not self.api_keys: return False, "⚠️ Ingresa al menos una API Key."
+        return self.switch_key(0)
+
+    def switch_key(self, idx):
         try:
-            genai.configure(api_key=key)
+            target_key = self.api_keys[idx % len(self.api_keys)]
+            genai.configure(api_key=target_key)
             model_list = genai.list_models()
             available_models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
-            if not available_models: return False, "API Key sin acceso a modelos."
-
             target_model = available_models[0]
             for m in available_models:
                 if 'flash' in m.lower(): target_model = m; break
-                if 'pro' in m.lower() and 'vision' not in m.lower(): target_model = m 
             
             self.model = genai.GenerativeModel(target_model)
-            return True, f"Conectado a: {target_model}"
-        except Exception as e: return False, str(e)
+            self.current_key_index = idx
+            return True, f"✅ Conectado a Motor {idx + 1} ({target_model})"
+        except Exception as e:
+            return False, str(e)
 
     def process_law(self, text, append=False):
         text = text.replace('\r', '')
@@ -117,27 +124,22 @@ class LegalEngineTITAN:
         if not self.feedback_history: return "Modo: Estándar (Sin ajustes previos)."
         counts = Counter(self.feedback_history)
         instructions = []
-        
         if counts['recorte'] > 0: instructions.append("⚠️ INTEGRIDAD CRÍTICA: Has sido reportado por recortar la norma. Debes incluir TODOS los requisitos (A, B y C). Prohibido resumir.")
         if counts['spoiler'] > 0: instructions.append("🔗 ANTI-SPOILER EXTREMO: El enunciado NO puede contener la respuesta. El usuario debe deducirlo de la narrativa.")
         if counts['sesgo_longitud'] > 0: instructions.append("🛑 FORMATO: Las opciones deben tener la misma longitud visual (palabras) para no delatar la correcta.")
         if counts['respuesta_obvia'] > 0: instructions.append("💀 DIFICULTAD: Los distractores son muy obvios. Deben ser 'Trampas de Pertinencia' (Leyes reales que parecen aplicar pero no).")
         if counts['pregunta_facil'] > 0: instructions.append("🔍 DETALLE: La clave de la respuesta debe ser un detalle minúsculo (un plazo, una excepción, una autoridad).")
-        if counts['repetitivo'] > 0:
-            self.current_temperature = 0.8; instructions.append("🔄 CREATIVIDAD: Cambia radicalmente los nombres, los cargos y el tipo de problema jurídico.")
-        if counts['alucinacion'] > 0:
-            self.current_temperature = 0.0; instructions.append("⛔ FUENTE CERRADA: Prohibido inventar leyes. Usa SOLO el texto provisto.")
+        if counts['repetitivo'] > 0: self.current_temperature = 0.8; instructions.append("🔄 CREATIVIDAD: Cambia radicalmente los nombres, los cargos y el tipo de problema jurídico.")
+        if counts['alucinacion'] > 0: self.current_temperature = 0.0; instructions.append("⛔ FUENTE CERRADA: Prohibido inventar leyes. Usa SOLO el texto provisto.")
         if counts['incoherente'] > 0: instructions.append("🧠 LÓGICA: La redacción anterior fue confusa. Escribe con claridad jurídica perfecta.")
-
         return "\n".join(instructions)
 
     def generate_case(self):
-        if not self.model: return {"error": "⚠️ Primero conecta tu API Key en el menú lateral."}
+        if not self.model: return {"error": "⚠️ Primero conecta tus API Keys en el menú."}
         if not self.chunks: return {"error": "Carga una norma primero."}
         
         idx = -1
         selection_reason = "Aleatorio"
-
         if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
             candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 3]
@@ -167,22 +169,17 @@ class LegalEngineTITAN:
         ACTÚA COMO EXPERTO CNSC. NIVEL: {self.level.upper()}.
         ESCENARIO: {self.entity.upper()}.
         NORMA: "{self.chunks[idx][:6000]}"
-        
         {instruccion_nivel}
-        
         TAREA:
         1. Caso complejo en {self.entity}.
         2. 4 PREGUNTAS difíciles.
-        
         REGLAS DE RETROALIMENTACIÓN:
         En 'explicacion' DEBES estructurar así:
         - "NORMA TAXATIVA": Cita textual.
         - "ANÁLISIS": Por qué aplica.
         - "DESCARTES": Por qué las otras no aplican (aunque sean leyes reales).
-        
         !!! AJUSTES ACTIVOS !!!:
         {self.get_calibration_prompt()}
-        
         JSON OBLIGATORIO:
         {{
             "narrativa_caso": "Historia...",
@@ -195,11 +192,9 @@ class LegalEngineTITAN:
         }}
         """
         
-        # --- SISTEMA DE REINTENTO (ANTI-429) ---
         max_retries = 3
-        retry_count = 0
-        
-        while retry_count < max_retries:
+        attempts = 0
+        while attempts < max_retries:
             try:
                 res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature})
                 text_resp = res.text.strip()
@@ -207,19 +202,23 @@ class LegalEngineTITAN:
                     match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
                     if match: text_resp = match.group(1).strip()
                 return json.loads(text_resp)
-            
             except Exception as e:
                 error_str = str(e)
-                if "429" in error_str or "quota" in error_str.lower():
-                    retry_count += 1
-                    wait_time = 15 * retry_count
-                    with st.spinner(f"⏳ Google está saturado. Reintentando en {wait_time}s..."):
-                        time.sleep(wait_time)
+                if ("429" in error_str or "quota" in error_str.lower()) and len(self.api_keys) > 1:
+                    next_idx = self.current_key_index + 1
+                    ok, msg = self.switch_key(next_idx)
+                    if ok:
+                        st.toast(f"⚠️ Llave saturada. Cambiando a Llave {self.current_key_index + 1}...", icon="🔄")
+                        time.sleep(1)
+                        attempts += 1
+                        continue
+                elif "429" in error_str:
+                    time.sleep(10)
+                    attempts += 1
                 else:
                     self.last_error = error_str
                     return None
-        
-        self.last_error = "Límite de Google excedido. Espera 1 minuto."
+        self.last_error = "Todas las llaves están saturadas. Espera 1 minuto."
         return None
 
 # --- 3. INTERFAZ ---
@@ -230,25 +229,24 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v8.7")
+    st.title("⚙️ TITÁN v8.9")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
-    # 1. API KEY
-    key = st.text_input("1. API Key (Obligatorio):", type="password")
-    if key and not engine.model:
-        ok, msg = engine.configure_api(key)
-        if ok:
-            st.success(msg)
-            # --- SALTO AUTOMÁTICO 1 (Si ya había datos cargados antes) ---
-            if engine.chunks:
-                time.sleep(0.5)
-                st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
-        else: st.error(msg)
+    with st.expander("🔑 1. Configuración de Llaves", expanded=True):
+        k1 = st.text_input("Llave 1:", type="password")
+        k2 = st.text_input("Llave 2:", type="password")
+        if k1 and not engine.model:
+            ok, msg = engine.configure_api_pool(k1, k2)
+            if ok:
+                st.success(msg)
+                # Intento de salto automático
+                if engine.chunks:
+                    time.sleep(0.5); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+            else: st.error(msg)
     
     st.divider()
 
-    # 2. CARGA DE AVANCE
-    with st.expander("2. 📂 Cargar Avance (JSON)", expanded=True):
+    with st.expander("📂 2. Cargar Avance (JSON)", expanded=True):
         upl = st.file_uploader("Archivo:", type=['json'])
         if upl:
             try:
@@ -259,17 +257,23 @@ with st.sidebar:
                 engine.feedback_history = d.get('feed', [])
                 engine.entity = d.get('ent', "")
                 
-                # --- SALTO AUTOMÁTICO 2 (Si ya hay llave puesta) ---
+                # --- AQUÍ ESTÁ EL FIX: Mensaje claro ---
+                st.success(f"¡Cargado! {len(engine.chunks)} bloques recuperados.")
+                
                 if engine.model:
-                    st.success("¡Listo! Iniciando...")
-                    time.sleep(1)
-                    st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+                    time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
                 else:
-                    st.warning("✅ Datos listos. FALTA TU API KEY ARRIBA.")
+                    st.warning("⚠️ Datos listos. FALTA LLAVE ARRIBA.")
             except: st.error("Archivo inválido")
 
+    # --- BOTÓN MANUAL DE RESCATE (NUEVO) ---
+    if engine.chunks and engine.model and st.session_state.page == 'setup':
+        st.divider()
+        if st.button("▶️ CONTINUAR CON AVANCE CARGADO", type="primary"):
+            st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+    # ---------------------------------------
+
     st.divider()
-    
     engine.level = st.selectbox("Nivel:", ["Asistencial", "Técnico", "Profesional", "Asesor"], index=2)
     ent_sel = st.selectbox("Entidad:", ENTIDADES_CO)
     if "Otra" in ent_sel or "Agregar" in ent_sel: engine.entity = st.text_input("Nombre Entidad:")
@@ -311,7 +315,7 @@ if st.session_state.page == 'game':
                 else: error_txt = engine.last_error if engine.last_error else "Respuesta vacía"
                 
                 st.error(f"⚠️ {error_txt}")
-                if "API Key" in str(error_txt): st.info("Ve al menú lateral y conecta tu llave.")
+                if "API Key" in str(error_txt): st.info("Ve al menú lateral y conecta tus llaves.")
                 elif st.button("🔄 REINTENTAR"): st.rerun()
                 st.stop()
 
