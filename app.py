@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v7.9 - Calibrado", page_icon="🇨🇴", layout="wide")
+st.set_page_config(page_title="TITÁN v8.2 - Calibración Total", page_icon="⚖️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -70,11 +70,9 @@ class LegalEngineTITAN:
     def configure_api(self, key):
         try:
             genai.configure(api_key=key)
-            # Auto-detección de modelo (Fix 404)
             model_list = genai.list_models()
             available_models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
-            
-            if not available_models: return False, "Tu API Key no tiene acceso a modelos."
+            if not available_models: return False, "API Key sin acceso a modelos."
 
             target_model = available_models[0]
             for m in available_models:
@@ -115,35 +113,45 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- CALIBRACIÓN COMPLETA (RESTAURADA) ---
+    # --- CALIBRACIÓN TOTAL (8 PUNTOS DE AJUSTE) ---
     def get_calibration_prompt(self):
-        if not self.feedback_history: return "Modo: Estándar."
+        if not self.feedback_history: return "Modo: Estándar (Sin ajustes previos)."
         counts = Counter(self.feedback_history)
         instructions = []
         
-        # Regla Base
-        instructions.append("🛡️ ANTI-RECORTE: Si el texto dice 'A y B', es PROHIBIDO generar una respuesta que diga 'Solo A'.")
-
-        # Ajustes Dinámicos según feedback
-        if counts['desconectado'] > 0:
-            instructions.append("🔗 ANTI-SPOILER: La pregunta NO puede regalar el dato clave.")
+        # 1. Anti-Recorte (Integridad)
+        if counts['recorte'] > 0:
+            instructions.append("⚠️ INTEGRIDAD CRÍTICA: Has sido reportado por recortar la norma. Debes incluir TODOS los requisitos (A, B y C). Prohibido resumir.")
         
+        # 2. Anti-Spoiler
+        if counts['spoiler'] > 0:
+            instructions.append("🔗 ANTI-SPOILER EXTREMO: El enunciado NO puede contener la respuesta. El usuario debe deducirlo de la narrativa.")
+
+        # 3. Formato Visual
         if counts['sesgo_longitud'] > 0:
-            instructions.append("🛑 FORMATO VISUAL: Las opciones A, B y C deben tener EXACTAMENTE el mismo número de palabras (+/- 2).")
+            instructions.append("🛑 FORMATO: Las opciones deben tener la misma longitud visual (palabras) para no delatar la correcta.")
 
+        # 4. Dificultad / Obviedad
         if counts['respuesta_obvia'] > 0:
-            instructions.append("💀 DIFICULTAD TÉCNICA: Los distractores deben ser trampas sutiles. Prohibido opciones absurdas.")
-        
+            instructions.append("💀 DIFICULTAD: Los distractores son muy obvios. Deben ser 'Trampas de Pertinencia' (Leyes reales que parecen aplicar pero no).")
+
+        # 5. Trampa de Detalle
         if counts['pregunta_facil'] > 0:
-            instructions.append("⚠️ TRAMPA DE DETALLE: La respuesta correcta debe depender de un dato pequeño escondido en el texto.")
-            
+            instructions.append("🔍 DETALLE: La clave de la respuesta debe ser un detalle minúsculo (un plazo, una excepción, una autoridad).")
+
+        # 6. Variedad
         if counts['repetitivo'] > 0:
-            self.current_temperature = 0.7 
-            instructions.append("🔄 VARIEDAD TOTAL: Cambia nombres, cargos y la situación problema.")
-        
+            self.current_temperature = 0.8
+            instructions.append("🔄 CREATIVIDAD: Cambia radicalmente los nombres, los cargos y el tipo de problema jurídico.")
+
+        # 7. Fuente Cerrada (Alucinación)
         if counts['alucinacion'] > 0:
-            self.current_temperature = 0.0 
-            instructions.append("⛔ FUENTE CERRADA: Usa SOLO lo que está escrito en el texto.")
+            self.current_temperature = 0.0
+            instructions.append("⛔ FUENTE CERRADA: Prohibido inventar leyes. Usa SOLO el texto provisto.")
+
+        # 8. Coherencia
+        if counts['incoherente'] > 0:
+            instructions.append("🧠 LÓGICA: La redacción anterior fue confusa. Escribe con claridad jurídica perfecta.")
 
         return "\n".join(instructions)
 
@@ -169,29 +177,44 @@ class LegalEngineTITAN:
         self.current_chunk_idx = idx
         self.selection_reason = selection_reason
         
+        # INSTRUCCIÓN NIVEL DURO
+        instruccion_nivel = ""
+        if self.level in ["Profesional", "Asesor"]:
+            instruccion_nivel = """
+            NIVEL EXPERTO (HARDCORE):
+            - TODAS las opciones (A, B, C) deben ser VERDADERAS jurídicamente.
+            - SOLO UNA aplica a este caso por un detalle de competencia o procedimiento.
+            - Las otras son errores de subsunción (ley correcta, caso incorrecto).
+            """
+        
         prompt = f"""
         ACTÚA COMO EXPERTO CNSC. NIVEL: {self.level.upper()}.
-        ESCENARIO OBLIGATORIO: {self.entity.upper()}.
+        ESCENARIO: {self.entity.upper()}.
         NORMA: "{self.chunks[idx][:6000]}"
         
+        {instruccion_nivel}
+        
         TAREA:
-        1. Redacta un CASO SITUACIONAL complejo ocurrido en {self.entity}.
-        2. Genera **EXACTAMENTE 4 PREGUNTAS** sobre ese caso.
+        1. Caso complejo en {self.entity}.
+        2. 4 PREGUNTAS difíciles.
         
-        REGLAS:
-        - Las opciones incorrectas deben ser leyes reales pero inaplicables (Trampa de Pertinencia).
+        REGLAS DE RETROALIMENTACIÓN (EXPLICACIÓN):
+        En 'explicacion' DEBES estructurar así:
+        - "NORMA": Cita textual.
+        - "ANÁLISIS": Por qué aplica.
+        - "DESCARTES": Por qué las otras no aplican (aunque sean leyes reales).
         
-        !!! AJUSTES DE CALIBRACIÓN ACTIVA !!!
+        !!! AJUSTES ACTIVOS (TÓMALOS EN CUENTA) !!!:
         {self.get_calibration_prompt()}
         
-        FORMATO JSON ÚNICO (Responde solo con JSON):
+        JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "Historia detallada...",
+            "narrativa_caso": "Historia...",
             "preguntas": [
-                {{"enunciado": "Pregunta 1...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "A", "explicacion": ".."}},
-                {{"enunciado": "Pregunta 2...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "B", "explicacion": ".."}},
-                {{"enunciado": "Pregunta 3...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "C", "explicacion": ".."}},
-                {{"enunciado": "Pregunta 4...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "A", "explicacion": ".."}}
+                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "A", "explicacion": "NORMA: ... ANÁLISIS: ..."}},
+                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "B", "explicacion": "NORMA: ... ANÁLISIS: ..."}},
+                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "C", "explicacion": "NORMA: ... ANÁLISIS: ..."}},
+                {{"enunciado": "...", "opciones": {{"A": "..", "B": "..", "C": ".."}}, "respuesta": "A", "explicacion": "NORMA: ... ANÁLISIS: ..."}}
             ]
         }}
         """
@@ -214,21 +237,35 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v7.9")
+    st.title("⚙️ TITÁN v8.2")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
+    # Carga Prioritaria
+    with st.expander("📂 Cargar Avance", expanded=True):
+        upl = st.file_uploader("Archivo JSON:", type=['json'])
+        if upl:
+            try:
+                d = json.load(upl)
+                engine.chunks = d['chunks']
+                engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
+                engine.failed_indices = set(d['failed'])
+                engine.feedback_history = d.get('feed', [])
+                engine.entity = d.get('ent', "")
+                st.success("¡Restaurado!")
+            except: st.error("Error en archivo")
+
+    st.divider()
     key = st.text_input("API Key:", type="password")
     if key and not engine.model:
         ok, msg = engine.configure_api(key)
         if ok: st.success(msg)
     
-    st.divider()
     engine.level = st.selectbox("Nivel:", ["Asistencial", "Técnico", "Profesional", "Asesor"], index=2)
     ent_sel = st.selectbox("Entidad:", ENTIDADES_CO)
     if "Otra" in ent_sel or "Agregar" in ent_sel: engine.entity = st.text_input("Nombre Entidad:")
     else: engine.entity = ent_sel
 
-    txt = st.text_area("Norma:", height=150)
+    txt = st.text_area("Cargar Nueva Norma:", height=150)
     col1, col2 = st.columns(2)
     if col1.button("🚀 INICIAR"):
         if engine.process_law(txt): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
@@ -241,19 +278,7 @@ with st.sidebar:
 
     if engine.chunks:
         save = json.dumps({"chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices), "feed": engine.feedback_history, "ent": engine.entity})
-        st.download_button("Guardar", save, "progreso.json")
-    
-    upl = st.file_uploader("Cargar", type=['json'])
-    if upl:
-        try:
-            d = json.load(upl)
-            engine.chunks = d['chunks']
-            engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
-            engine.failed_indices = set(d['failed'])
-            engine.feedback_history = d.get('feed', [])
-            engine.entity = d.get('ent', "")
-            st.success("Cargado")
-        except: st.error("Error archivo")
+        st.download_button("Guardar Progreso", save, "progreso_titan.json")
 
 # --- 4. JUEGO ---
 if st.session_state.page == 'game':
@@ -306,21 +331,27 @@ if st.session_state.page == 'game':
                     engine.mastery_tracker[engine.current_chunk_idx] += 1
                     st.session_state.current_data = None; st.rerun()
 
-        # --- PANEL DE REPORTE COMPLETO (RESTAURADO) ---
-        with st.expander("📢 Reportar Fallo (Calibrar IA)"):
+        # --- PANEL DE REPORTE TOTAL (AHORA SÍ COMPLETO) ---
+        with st.expander("📢 Reportar Fallo (Calibrar IA)", expanded=True):
             reasons_map = {
-                "Respuesta Obvia": "respuesta_obvia",
+                "Respuesta Incompleta (Recortó la norma)": "recorte",
+                "Spoiler (Regala dato)": "spoiler",
+                "Respuesta Obvia / Tonta": "respuesta_obvia",
                 "Alucinación (Inventó ley)": "alucinacion",
-                "Spoiler (Regala dato)": "desconectado",
                 "Opciones Desiguales (Largo)": "sesgo_longitud",
-                "Muy Fácil para el Nivel": "pregunta_facil",
-                "Repetitivo": "repetitivo"
+                "Muy Fácil (Dato regalado)": "pregunta_facil",
+                "Repetitivo / Poca creatividad": "repetitivo",
+                "Incoherente / Mal redactado": "incoherente"
             }
-            r = st.selectbox("¿Qué falló?", list(reasons_map.keys()))
+            r = st.selectbox("¿Qué estuvo mal?", list(reasons_map.keys()))
             if st.button("Enviar Reporte y Calibrar"):
                 code = reasons_map[r]
                 engine.feedback_history.append(code)
                 st.toast(f"Calibración aplicada: {code}", icon="🛠️")
+                
+                # Feedback Visual Inmediato
+                if code == "recorte": st.info("Próxima instrucción: 'INTEGRIDAD CRÍTICA'.")
+                elif code == "spoiler": st.info("Próxima instrucción: 'ANTI-SPOILER EXTREMO'.")
 
     except Exception as e:
         st.error(f"Error visual: {str(e)}")
