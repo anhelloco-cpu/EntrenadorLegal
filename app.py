@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v8.3 - Carga Directa", page_icon="🇨🇴", layout="wide")
+st.set_page_config(page_title="TITÁN v8.4 - Blindado", page_icon="🛡️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -118,35 +118,22 @@ class LegalEngineTITAN:
         counts = Counter(self.feedback_history)
         instructions = []
         
-        if counts['recorte'] > 0:
-            instructions.append("⚠️ INTEGRIDAD CRÍTICA: Has sido reportado por recortar la norma. Debes incluir TODOS los requisitos (A, B y C). Prohibido resumir.")
-        
-        if counts['spoiler'] > 0:
-            instructions.append("🔗 ANTI-SPOILER EXTREMO: El enunciado NO puede contener la respuesta. El usuario debe deducirlo de la narrativa.")
-
-        if counts['sesgo_longitud'] > 0:
-            instructions.append("🛑 FORMATO: Las opciones deben tener la misma longitud visual (palabras) para no delatar la correcta.")
-
-        if counts['respuesta_obvia'] > 0:
-            instructions.append("💀 DIFICULTAD: Los distractores son muy obvios. Deben ser 'Trampas de Pertinencia' (Leyes reales que parecen aplicar pero no).")
-
-        if counts['pregunta_facil'] > 0:
-            instructions.append("🔍 DETALLE: La clave de la respuesta debe ser un detalle minúsculo (un plazo, una excepción, una autoridad).")
-
+        if counts['recorte'] > 0: instructions.append("⚠️ INTEGRIDAD CRÍTICA: Has sido reportado por recortar la norma. Debes incluir TODOS los requisitos (A, B y C). Prohibido resumir.")
+        if counts['spoiler'] > 0: instructions.append("🔗 ANTI-SPOILER EXTREMO: El enunciado NO puede contener la respuesta. El usuario debe deducirlo de la narrativa.")
+        if counts['sesgo_longitud'] > 0: instructions.append("🛑 FORMATO: Las opciones deben tener la misma longitud visual (palabras) para no delatar la correcta.")
+        if counts['respuesta_obvia'] > 0: instructions.append("💀 DIFICULTAD: Los distractores son muy obvios. Deben ser 'Trampas de Pertinencia' (Leyes reales que parecen aplicar pero no).")
+        if counts['pregunta_facil'] > 0: instructions.append("🔍 DETALLE: La clave de la respuesta debe ser un detalle minúsculo (un plazo, una excepción, una autoridad).")
         if counts['repetitivo'] > 0:
-            self.current_temperature = 0.8
-            instructions.append("🔄 CREATIVIDAD: Cambia radicalmente los nombres, los cargos y el tipo de problema jurídico.")
-
+            self.current_temperature = 0.8; instructions.append("🔄 CREATIVIDAD: Cambia radicalmente los nombres, los cargos y el tipo de problema jurídico.")
         if counts['alucinacion'] > 0:
-            self.current_temperature = 0.0
-            instructions.append("⛔ FUENTE CERRADA: Prohibido inventar leyes. Usa SOLO el texto provisto.")
-
-        if counts['incoherente'] > 0:
-            instructions.append("🧠 LÓGICA: La redacción anterior fue confusa. Escribe con claridad jurídica perfecta.")
+            self.current_temperature = 0.0; instructions.append("⛔ FUENTE CERRADA: Prohibido inventar leyes. Usa SOLO el texto provisto.")
+        if counts['incoherente'] > 0: instructions.append("🧠 LÓGICA: La redacción anterior fue confusa. Escribe con claridad jurídica perfecta.")
 
         return "\n".join(instructions)
 
     def generate_case(self):
+        # --- FIX: ESCUDO DE SEGURIDAD ---
+        if not self.model: return {"error": "⚠️ Primero conecta tu API Key en el menú lateral."}
         if not self.chunks: return {"error": "Carga una norma primero."}
         
         idx = -1
@@ -227,12 +214,21 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v8.3")
+    st.title("⚙️ TITÁN v8.4")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
-    # --- CARGA PRIORITARIA CON SALTO AUTOMÁTICO (FIX) ---
-    with st.expander("📂 Cargar Avance", expanded=True):
-        upl = st.file_uploader("Archivo JSON:", type=['json'])
+    # 1. API KEY PRIMERO (Para evitar error de NoneType)
+    key = st.text_input("1. API Key (Obligatorio):", type="password")
+    if key and not engine.model:
+        ok, msg = engine.configure_api(key)
+        if ok: st.success(msg)
+        else: st.error(msg)
+    
+    st.divider()
+
+    # 2. LUEGO CARGA DE AVANCE (Lógica Segura)
+    with st.expander("2. 📂 Cargar Avance (JSON)", expanded=True):
+        upl = st.file_uploader("Archivo:", type=['json'])
         if upl:
             try:
                 d = json.load(upl)
@@ -242,19 +238,18 @@ with st.sidebar:
                 engine.feedback_history = d.get('feed', [])
                 engine.entity = d.get('ent', "")
                 
-                # --- REDIRECCIÓN AUTOMÁTICA ---
-                st.success("¡Avance Restaurado! Iniciando...")
-                time.sleep(1) # Pausa breve para ver el mensaje
-                st.session_state.page = 'game'
-                st.session_state.current_data = None
-                st.rerun() # Salta inmediatamente al juego
+                # --- FIX: SOLO SALTA SI HAY CONEXIÓN ---
+                if engine.model:
+                    st.success("¡Datos y Conexión listos! Iniciando...")
+                    time.sleep(1)
+                    st.session_state.page = 'game'
+                    st.session_state.current_data = None
+                    st.rerun()
+                else:
+                    st.warning("✅ Datos cargados. AHORA INGRESA TU API KEY ARRIBA para iniciar.")
             except: st.error("Archivo inválido")
 
     st.divider()
-    key = st.text_input("API Key:", type="password")
-    if key and not engine.model:
-        ok, msg = engine.configure_api(key)
-        if ok: st.success(msg)
     
     engine.level = st.selectbox("Nivel:", ["Asistencial", "Técnico", "Profesional", "Asesor"], index=2)
     ent_sel = st.selectbox("Entidad:", ENTIDADES_CO)
@@ -288,12 +283,15 @@ if st.session_state.page == 'game':
         
         with st.spinner(msg):
             data = engine.generate_case()
-            if data and "preguntas" in data and len(data['preguntas']) > 0:
+            # Validación de integridad de la respuesta
+            if data and "error" not in data and "preguntas" in data and len(data['preguntas']) > 0:
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
             else:
-                st.error(f"⚠️ Error IA: {engine.last_error if engine.last_error else 'Respuesta vacía'}")
-                if st.button("🔄 REINTENTAR"): st.rerun()
+                error_msg = data.get('error', engine.last_error if engine.last_error else 'Respuesta vacía o incompleta')
+                st.error(f"⚠️ {error_msg}")
+                if "API Key" in str(error_msg): st.info("Ve al menú lateral y conecta tu llave.")
+                elif st.button("🔄 REINTENTAR"): st.rerun()
                 st.stop()
 
     data = st.session_state.current_data
@@ -327,7 +325,6 @@ if st.session_state.page == 'game':
                     engine.mastery_tracker[engine.current_chunk_idx] += 1
                     st.session_state.current_data = None; st.rerun()
 
-        # --- PANEL DE REPORTE TOTAL (8 PUNTOS) ---
         with st.expander("📢 Reportar Fallo (Calibrar IA)", expanded=True):
             reasons_map = {
                 "Respuesta Incompleta (Recortó la norma)": "recorte",
