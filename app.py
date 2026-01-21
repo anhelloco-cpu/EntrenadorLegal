@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v9.1 - Calibración Agresiva", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="TITÁN v9.2 - Desbloqueo Total", page_icon="🔓", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -68,25 +68,29 @@ class LegalEngineTITAN:
         self.current_temperature = 0.2 
         self.last_failed_embedding = None 
         self.last_error = ""
+        self.model_name = "gemini-1.5-flash" # Default
 
-    def configure_api_pool(self, key1, key2):
+    def configure_api_pool(self, key1, key2, preferred_model="Flash (Rápido)"):
         self.api_keys = [k.strip() for k in [key1, key2] if k.strip()]
         if not self.api_keys: return False, "⚠️ Ingresa al menos una API Key."
+        
+        # Determinar modelo base
+        base_model = "gemini-1.5-flash"
+        if "Pro" in preferred_model: base_model = "gemini-1.5-pro"
+        elif "1.0" in preferred_model: base_model = "gemini-1.0-pro"
+        
+        self.model_name = base_model
         return self.switch_key(0)
 
     def switch_key(self, idx):
         try:
             target_key = self.api_keys[idx % len(self.api_keys)]
             genai.configure(api_key=target_key)
-            model_list = genai.list_models()
-            available_models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
-            target_model = available_models[0]
-            for m in available_models:
-                if 'flash' in m.lower(): target_model = m; break
             
-            self.model = genai.GenerativeModel(target_model)
+            # Forzar modelo seleccionado o buscar disponible
+            self.model = genai.GenerativeModel(self.model_name)
             self.current_key_index = idx
-            return True, f"✅ Conectado a Motor {idx + 1} ({target_model})"
+            return True, f"✅ Conectado: {self.model_name} (Llave {idx + 1})"
         except Exception as e:
             return False, str(e)
 
@@ -124,37 +128,15 @@ class LegalEngineTITAN:
         if not self.feedback_history: return "MODO: ESTÁNDAR."
         counts = Counter(self.feedback_history)
         instructions = []
-        
-        # --- CALIBRACIONES AGRESIVAS (OBLIGATORIAS) ---
-        if counts['desconexion'] > 0: 
-            instructions.append("🔴 ERROR CRÍTICO PREVIO: Desconexión temática. ¡ORDEN!: Las preguntas DEBEN basarse 100% en los hechos del caso narrado. Si el caso es de X, la pregunta NO puede ser de Y.")
-        
-        if counts['recorte'] > 0: 
-            instructions.append("🔴 INTEGRIDAD OBLIGATORIA: Se te ha reportado por RESUMIR la norma. ¡PROHIBIDO! Debes usar los requisitos COMPLETOS (A, B, C...). No omitas nada.")
-        
-        if counts['spoiler'] > 0: 
-            instructions.append("🔴 ALERTA DE SPOILER: ¡PROHIBIDO incluir la respuesta en el enunciado! El usuario debe deducirlo. Si le das la respuesta en la pregunta, FALLAS.")
-        
-        if counts['sesgo_longitud'] > 0: 
-            instructions.append("🔴 FORMATO VISUAL: ¡ALERTA! Las opciones A, B y C tienen longitudes diferentes y eso delata la respuesta. ¡OBLIGATORIO que tengan la misma cantidad de palabras visualmente!")
-        
-        if counts['respuesta_obvia'] > 0: 
-            instructions.append("🔴 DIFICULTAD EXTREMA: Los distractores anteriores eran estúpidos. ¡ORDEN!: Usa 'Trampas de Pertinencia' (leyes reales parecidas). Si pones opciones obvias, el usuario rechazará el caso.")
-        
-        if counts['pregunta_facil'] > 0: 
-            instructions.append("🔴 NIVEL EXPERTO: La pregunta es muy fácil. ¡EXIJO DETALLE!: La clave debe ser un término, un plazo exacto o una excepción pequeña.")
-        
-        if counts['repetitivo'] > 0: 
-            self.current_temperature = 0.9 # Más agresivo el cambio
-            instructions.append("🔴 CREATIVIDAD RADICAL: Estás repitiendo esquemas. ¡CAMBIA TODO!: Nombres, cargos, situaciones y tipo de problema.")
-        
-        if counts['alucinacion'] > 0: 
-            self.current_temperature = 0.0 # Cero creatividad
-            instructions.append("🔴 FUENTE CERRADA: ¡ESTRICTO! No inventes leyes. Cíñete SOLO al texto entregado. Si no está en el texto, no existe.")
-        
-        if counts['incoherente'] > 0: 
-            instructions.append("🔴 CLARIDAD: Tu redacción anterior fue pésima. Escribe con sintaxis jurídica perfecta, clara y concisa.")
-        
+        if counts['desconexion'] > 0: instructions.append("🔴 ERROR CRÍTICO PREVIO: Desconexión temática. ¡ORDEN!: Las preguntas DEBEN basarse 100% en los hechos del caso narrado.")
+        if counts['recorte'] > 0: instructions.append("🔴 INTEGRIDAD OBLIGATORIA: ¡PROHIBIDO RESUMIR! Usa los requisitos COMPLETOS (A, B, C...).")
+        if counts['spoiler'] > 0: instructions.append("🔴 ALERTA DE SPOILER: ¡PROHIBIDO incluir la respuesta en el enunciado!")
+        if counts['sesgo_longitud'] > 0: instructions.append("🔴 FORMATO VISUAL: ¡ALERTA! Las opciones deben tener la misma longitud visual.")
+        if counts['respuesta_obvia'] > 0: instructions.append("🔴 DIFICULTAD EXTREMA: Usa 'Trampas de Pertinencia' (leyes reales parecidas).")
+        if counts['pregunta_facil'] > 0: instructions.append("🔴 NIVEL EXPERTO: La clave debe ser un detalle minúsculo.")
+        if counts['repetitivo'] > 0: self.current_temperature = 0.9; instructions.append("🔴 CREATIVIDAD RADICAL: ¡CAMBIA TODO!: Nombres, cargos, situaciones.")
+        if counts['alucinacion'] > 0: self.current_temperature = 0.0; instructions.append("🔴 FUENTE CERRADA: ¡ESTRICTO! No inventes leyes. Cíñete SOLO al texto.")
+        if counts['incoherente'] > 0: instructions.append("🔴 CLARIDAD: Escribe con sintaxis jurídica perfecta.")
         return "\n".join(instructions)
 
     def generate_case(self):
@@ -188,29 +170,21 @@ class LegalEngineTITAN:
             - Las otras son errores de subsunción (ley correcta, caso incorrecto).
             """
         
-        # --- AQUÍ ESTÁ LA INYECCIÓN DE PODER ---
         prompt = f"""
         ACTÚA COMO EXPERTO CNSC. NIVEL: {self.level.upper()}.
         ESCENARIO: {self.entity.upper()}.
         NORMA: "{self.chunks[idx][:6000]}"
         {instruccion_nivel}
-        
         TAREA:
         1. Crea un caso complejo en {self.entity}.
         2. Genera 4 PREGUNTAS difíciles.
-        
         REGLAS DE RETROALIMENTACIÓN:
         En 'explicacion' DEBES estructurar así:
         - "NORMA TAXATIVA": Cita textual.
         - "ANÁLISIS": Por qué aplica.
         - "DESCARTES": Por qué las otras no aplican (aunque sean leyes reales).
-        
-        !!! ÓRDENES DE CALIBRACIÓN ACTIVAS (PRIORIDAD MÁXIMA) !!!:
-        *********************************************************
+        !!! ÓRDENES DE CALIBRACIÓN ACTIVAS !!!:
         {self.get_calibration_prompt()}
-        *********************************************************
-        SI IGNORAS ESTAS ÓRDENES, EL SISTEMA FALLARÁ. CÚMPLELAS.
-        
         JSON OBLIGATORIO:
         {{
             "narrativa_caso": "Historia...",
@@ -223,11 +197,23 @@ class LegalEngineTITAN:
         }}
         """
         
+        # CONFIGURACIÓN DE SEGURIDAD (DESBLOQUEO)
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
+
         max_retries = 3
         attempts = 0
         while attempts < max_retries:
             try:
-                res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature})
+                res = self.model.generate_content(
+                    prompt, 
+                    generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature},
+                    safety_settings=safety_settings
+                )
                 text_resp = res.text.strip()
                 if "```" in text_resp:
                     match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
@@ -240,12 +226,9 @@ class LegalEngineTITAN:
                     ok, msg = self.switch_key(next_idx)
                     if ok:
                         st.toast(f"⚠️ Llave saturada. Cambiando a Llave {self.current_key_index + 1}...", icon="🔄")
-                        time.sleep(1)
-                        attempts += 1
-                        continue
+                        time.sleep(1); attempts += 1; continue
                 elif "429" in error_str:
-                    time.sleep(10)
-                    attempts += 1
+                    time.sleep(10); attempts += 1
                 else:
                     self.last_error = error_str
                     return None
@@ -260,14 +243,17 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v9.1")
+    st.title("⚙️ TITÁN v9.2")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
     with st.expander("🔑 1. Configuración de Llaves", expanded=True):
+        # --- NUEVO: SELECTOR DE MOTOR ---
+        model_pref = st.selectbox("Motor IA:", ["Flash (Rápido)", "Pro (Potente/Lento)", "1.0 Pro (Estable)"])
         k1 = st.text_input("Llave 1:", type="password")
         k2 = st.text_input("Llave 2:", type="password")
+        
         if k1 and not engine.model:
-            ok, msg = engine.configure_api_pool(k1, k2)
+            ok, msg = engine.configure_api_pool(k1, k2, model_pref)
             if ok:
                 st.success(msg)
                 if engine.chunks:
@@ -286,16 +272,11 @@ with st.sidebar:
                 engine.failed_indices = set(d['failed'])
                 engine.feedback_history = d.get('feed', [])
                 engine.entity = d.get('ent', "")
-                
                 st.success(f"¡Cargado! {len(engine.chunks)} bloques recuperados.")
-                
                 if engine.model:
                     time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
-                else:
-                    st.warning("⚠️ Datos listos. FALTA LLAVE ARRIBA.")
             except: st.error("Archivo inválido")
 
-    # --- BOTÓN MANUAL DE RESCATE ---
     if engine.chunks and engine.model and st.session_state.page == 'setup':
         st.divider()
         if st.button("▶️ CONTINUAR CON AVANCE CARGADO", type="primary"):
@@ -343,7 +324,7 @@ if st.session_state.page == 'game':
                 else: error_txt = engine.last_error if engine.last_error else "Respuesta vacía"
                 
                 st.error(f"⚠️ {error_txt}")
-                if "API Key" in str(error_txt): st.info("Ve al menú lateral y conecta tus llaves.")
+                if "API Key" in str(error_txt): st.info("Ve al menú lateral y cambia el Motor IA o revisa tu llave.")
                 elif st.button("🔄 REINTENTAR"): st.rerun()
                 st.stop()
 
