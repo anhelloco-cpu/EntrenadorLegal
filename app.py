@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v8.5 - Stable", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="TITÁN v8.6 - Anti-Bloqueo", page_icon="🛡️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -194,16 +194,34 @@ class LegalEngineTITAN:
             ]
         }}
         """
-        try:
-            res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature})
-            text_resp = res.text.strip()
-            if "```" in text_resp:
-                match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
-                if match: text_resp = match.group(1).strip()
-            return json.loads(text_resp)
-        except Exception as e:
-            self.last_error = str(e)
-            return None
+        
+        # --- FIX v8.6: SISTEMA DE REINTENTO AUTOMÁTICO (ANTI-429) ---
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature})
+                text_resp = res.text.strip()
+                if "```" in text_resp:
+                    match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
+                    if match: text_resp = match.group(1).strip()
+                return json.loads(text_resp)
+            
+            except Exception as e:
+                error_str = str(e)
+                if "429" in error_str or "quota" in error_str.lower():
+                    retry_count += 1
+                    wait_time = 15 * retry_count # 15s, 30s, 45s
+                    # Mensaje visual en la app sin romperla
+                    with st.spinner(f"⏳ Google está saturado (Límite 429). Reintentando en {wait_time}s... (Intento {retry_count}/{max_retries})"):
+                        time.sleep(wait_time)
+                else:
+                    self.last_error = error_str
+                    return None # Error real (no de cuota)
+        
+        self.last_error = "Límite de Google excedido tras varios intentos. Prueba en 1 min."
+        return None
 
 # --- 3. INTERFAZ ---
 if 'engine' not in st.session_state: st.session_state.engine = LegalEngineTITAN()
@@ -213,7 +231,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v8.5")
+    st.title("⚙️ TITÁN v8.6")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
     key = st.text_input("1. API Key (Obligatorio):", type="password")
@@ -279,12 +297,10 @@ if st.session_state.page == 'game':
         
         with st.spinner(msg):
             data = engine.generate_case()
-            # Validación robusta
             if data and isinstance(data, dict) and "preguntas" in data and len(data['preguntas']) > 0:
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
             else:
-                # FIX: Manejo seguro del error sin crashear
                 error_txt = "Error desconocido"
                 if isinstance(data, dict): error_txt = data.get('error', engine.last_error)
                 else: error_txt = engine.last_error if engine.last_error else "Respuesta vacía de la IA"
