@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v8.9 - Rescate Manual", page_icon="🛟", layout="wide")
+st.set_page_config(page_title="TITÁN v9.1 - Calibración Agresiva", page_icon="🛡️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s;}
@@ -121,17 +121,40 @@ class LegalEngineTITAN:
         return min(perc, 100), len(self.failed_indices), total
 
     def get_calibration_prompt(self):
-        if not self.feedback_history: return "Modo: Estándar (Sin ajustes previos)."
+        if not self.feedback_history: return "MODO: ESTÁNDAR."
         counts = Counter(self.feedback_history)
         instructions = []
-        if counts['recorte'] > 0: instructions.append("⚠️ INTEGRIDAD CRÍTICA: Has sido reportado por recortar la norma. Debes incluir TODOS los requisitos (A, B y C). Prohibido resumir.")
-        if counts['spoiler'] > 0: instructions.append("🔗 ANTI-SPOILER EXTREMO: El enunciado NO puede contener la respuesta. El usuario debe deducirlo de la narrativa.")
-        if counts['sesgo_longitud'] > 0: instructions.append("🛑 FORMATO: Las opciones deben tener la misma longitud visual (palabras) para no delatar la correcta.")
-        if counts['respuesta_obvia'] > 0: instructions.append("💀 DIFICULTAD: Los distractores son muy obvios. Deben ser 'Trampas de Pertinencia' (Leyes reales que parecen aplicar pero no).")
-        if counts['pregunta_facil'] > 0: instructions.append("🔍 DETALLE: La clave de la respuesta debe ser un detalle minúsculo (un plazo, una excepción, una autoridad).")
-        if counts['repetitivo'] > 0: self.current_temperature = 0.8; instructions.append("🔄 CREATIVIDAD: Cambia radicalmente los nombres, los cargos y el tipo de problema jurídico.")
-        if counts['alucinacion'] > 0: self.current_temperature = 0.0; instructions.append("⛔ FUENTE CERRADA: Prohibido inventar leyes. Usa SOLO el texto provisto.")
-        if counts['incoherente'] > 0: instructions.append("🧠 LÓGICA: La redacción anterior fue confusa. Escribe con claridad jurídica perfecta.")
+        
+        # --- CALIBRACIONES AGRESIVAS (OBLIGATORIAS) ---
+        if counts['desconexion'] > 0: 
+            instructions.append("🔴 ERROR CRÍTICO PREVIO: Desconexión temática. ¡ORDEN!: Las preguntas DEBEN basarse 100% en los hechos del caso narrado. Si el caso es de X, la pregunta NO puede ser de Y.")
+        
+        if counts['recorte'] > 0: 
+            instructions.append("🔴 INTEGRIDAD OBLIGATORIA: Se te ha reportado por RESUMIR la norma. ¡PROHIBIDO! Debes usar los requisitos COMPLETOS (A, B, C...). No omitas nada.")
+        
+        if counts['spoiler'] > 0: 
+            instructions.append("🔴 ALERTA DE SPOILER: ¡PROHIBIDO incluir la respuesta en el enunciado! El usuario debe deducirlo. Si le das la respuesta en la pregunta, FALLAS.")
+        
+        if counts['sesgo_longitud'] > 0: 
+            instructions.append("🔴 FORMATO VISUAL: ¡ALERTA! Las opciones A, B y C tienen longitudes diferentes y eso delata la respuesta. ¡OBLIGATORIO que tengan la misma cantidad de palabras visualmente!")
+        
+        if counts['respuesta_obvia'] > 0: 
+            instructions.append("🔴 DIFICULTAD EXTREMA: Los distractores anteriores eran estúpidos. ¡ORDEN!: Usa 'Trampas de Pertinencia' (leyes reales parecidas). Si pones opciones obvias, el usuario rechazará el caso.")
+        
+        if counts['pregunta_facil'] > 0: 
+            instructions.append("🔴 NIVEL EXPERTO: La pregunta es muy fácil. ¡EXIJO DETALLE!: La clave debe ser un término, un plazo exacto o una excepción pequeña.")
+        
+        if counts['repetitivo'] > 0: 
+            self.current_temperature = 0.9 # Más agresivo el cambio
+            instructions.append("🔴 CREATIVIDAD RADICAL: Estás repitiendo esquemas. ¡CAMBIA TODO!: Nombres, cargos, situaciones y tipo de problema.")
+        
+        if counts['alucinacion'] > 0: 
+            self.current_temperature = 0.0 # Cero creatividad
+            instructions.append("🔴 FUENTE CERRADA: ¡ESTRICTO! No inventes leyes. Cíñete SOLO al texto entregado. Si no está en el texto, no existe.")
+        
+        if counts['incoherente'] > 0: 
+            instructions.append("🔴 CLARIDAD: Tu redacción anterior fue pésima. Escribe con sintaxis jurídica perfecta, clara y concisa.")
+        
         return "\n".join(instructions)
 
     def generate_case(self):
@@ -165,21 +188,29 @@ class LegalEngineTITAN:
             - Las otras son errores de subsunción (ley correcta, caso incorrecto).
             """
         
+        # --- AQUÍ ESTÁ LA INYECCIÓN DE PODER ---
         prompt = f"""
         ACTÚA COMO EXPERTO CNSC. NIVEL: {self.level.upper()}.
         ESCENARIO: {self.entity.upper()}.
         NORMA: "{self.chunks[idx][:6000]}"
         {instruccion_nivel}
+        
         TAREA:
-        1. Caso complejo en {self.entity}.
-        2. 4 PREGUNTAS difíciles.
+        1. Crea un caso complejo en {self.entity}.
+        2. Genera 4 PREGUNTAS difíciles.
+        
         REGLAS DE RETROALIMENTACIÓN:
         En 'explicacion' DEBES estructurar así:
         - "NORMA TAXATIVA": Cita textual.
         - "ANÁLISIS": Por qué aplica.
         - "DESCARTES": Por qué las otras no aplican (aunque sean leyes reales).
-        !!! AJUSTES ACTIVOS !!!:
+        
+        !!! ÓRDENES DE CALIBRACIÓN ACTIVAS (PRIORIDAD MÁXIMA) !!!:
+        *********************************************************
         {self.get_calibration_prompt()}
+        *********************************************************
+        SI IGNORAS ESTAS ÓRDENES, EL SISTEMA FALLARÁ. CÚMPLELAS.
+        
         JSON OBLIGATORIO:
         {{
             "narrativa_caso": "Historia...",
@@ -229,7 +260,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v8.9")
+    st.title("⚙️ TITÁN v9.1")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
     with st.expander("🔑 1. Configuración de Llaves", expanded=True):
@@ -239,7 +270,6 @@ with st.sidebar:
             ok, msg = engine.configure_api_pool(k1, k2)
             if ok:
                 st.success(msg)
-                # Intento de salto automático
                 if engine.chunks:
                     time.sleep(0.5); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
             else: st.error(msg)
@@ -257,7 +287,6 @@ with st.sidebar:
                 engine.feedback_history = d.get('feed', [])
                 engine.entity = d.get('ent', "")
                 
-                # --- AQUÍ ESTÁ EL FIX: Mensaje claro ---
                 st.success(f"¡Cargado! {len(engine.chunks)} bloques recuperados.")
                 
                 if engine.model:
@@ -266,12 +295,11 @@ with st.sidebar:
                     st.warning("⚠️ Datos listos. FALTA LLAVE ARRIBA.")
             except: st.error("Archivo inválido")
 
-    # --- BOTÓN MANUAL DE RESCATE (NUEVO) ---
+    # --- BOTÓN MANUAL DE RESCATE ---
     if engine.chunks and engine.model and st.session_state.page == 'setup':
         st.divider()
         if st.button("▶️ CONTINUAR CON AVANCE CARGADO", type="primary"):
             st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
-    # ---------------------------------------
 
     st.divider()
     engine.level = st.selectbox("Nivel:", ["Asistencial", "Técnico", "Profesional", "Asesor"], index=2)
@@ -352,6 +380,7 @@ if st.session_state.page == 'game':
 
         with st.expander("📢 Reportar Fallo (Calibrar IA)", expanded=True):
             reasons_map = {
+                "Preguntas no tienen que ver con el Caso": "desconexion",
                 "Respuesta Incompleta (Recortó la norma)": "recorte",
                 "Spoiler (Regala dato)": "spoiler",
                 "Respuesta Obvia / Tonta": "respuesta_obvia",
