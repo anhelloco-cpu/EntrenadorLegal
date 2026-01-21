@@ -1,4 +1,5 @@
 import streamlit as st
+import google.generativeai as genai
 import json
 import random
 import time
@@ -16,13 +17,13 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- 1. CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v11 - Estándar de Oro", page_icon="🏆", layout="wide")
+st.set_page_config(page_title="TITÁN v13 - Híbrido & Blindado", page_icon="⚔️", layout="wide")
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #2e7d32; color: white;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #4527a0; color: white;}
     .narrative-box {
-        background-color: #e8f5e9; padding: 25px; border-radius: 12px; 
-        border-left: 6px solid #2e7d32; margin-bottom: 25px;
+        background-color: #f3e5f5; padding: 25px; border-radius: 12px; 
+        border-left: 6px solid #7b1fa2; margin-bottom: 25px;
         font-family: 'Georgia', serif; font-size: 1.15em;
     }
     .question-card {background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0;}
@@ -48,7 +49,7 @@ ENTIDADES_CO = [
     "Otra (Manual) / Agregar +"
 ]
 
-# --- 2. MOTOR LÓGICO ---
+# --- 2. MOTOR LÓGICO HÍBRIDO (GEMINI + GROQ) ---
 class LegalEngineTITAN:
     def __init__(self):
         self.chunks = []           
@@ -62,17 +63,34 @@ class LegalEngineTITAN:
         self.entity = ""
         self.level = "Profesional" 
         self.simulacro_mode = False
+        self.provider = "Unknown" # 'Google' o 'Groq'
         self.api_key = ""
-        self.current_temperature = 0.4 # Temperatura baja para ser estricto
+        self.model = None # Para Google
+        self.current_temperature = 0.3
         self.last_failed_embedding = None 
         self.last_error = ""
 
     def configure_api(self, key):
-        if key.strip().startswith("gsk_"):
-            self.api_key = key.strip()
-            return True, "✅ Conectado a GROQ (Llama 3.3 70B)"
+        key = key.strip()
+        self.api_key = key
+        
+        # DETECCIÓN AUTOMÁTICA DE PROVEEDOR
+        if key.startswith("gsk_"):
+            self.provider = "Groq"
+            return True, "🚀 Motor GROQ (Llama 3.3) Activado - Velocidad Máxima"
         else:
-            return False, "⚠️ La llave debe empezar por 'gsk_'"
+            self.provider = "Google"
+            try:
+                genai.configure(api_key=key)
+                # Auto-detector de modelo Google
+                model_list = genai.list_models()
+                models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
+                target = next((m for m in models if 'gemini-1.5-pro' in m), 
+                         next((m for m in models if 'flash' in m), models[0]))
+                self.model = genai.GenerativeModel(target)
+                return True, f"🧠 Motor GOOGLE ({target}) Activado"
+            except Exception as e:
+                return False, f"Error Google: {str(e)}"
 
     def process_law(self, text, append=False):
         text = text.replace('\r', '')
@@ -104,52 +122,32 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- AQUÍ ESTÁ EL CAMBIO: REGLAS FIJAS SIEMPRE ---
+    # --- REGLAS DE ORO (INYECTADAS SIEMPRE) ---
     def get_strict_rules(self):
         return """
-        ESTÁNDARES DE CALIDAD OBLIGATORIOS (NO NEGOCIABLES):
-        1. [VINCULACIÓN]: Las preguntas DEBEN basarse 100% en los hechos narrados en el caso. Si preguntas algo que no está en la historia, FALLAS.
-        2. [ANTI-SPOILER]: El enunciado de la pregunta NO puede contener la respuesta ni pistas obvias.
-        3. [EQUIDAD]: Las opciones A, B y C deben tener la misma longitud visual (palabras) para no delatar la correcta por ser más larga o corta.
-        4. [INTEGRIDAD]: Cita la norma completa si es necesario. No resumas requisitos legales.
-        5. [DIFICULTAD]: Los distractores deben ser "Trampas de Competencia" (parecer correctos legalmente pero fallar por el cargo o la entidad).
+        *** REGLAS DE ORO (OBLIGATORIAS) ***:
+        1. VINCULACIÓN: Las preguntas DEBEN basarse 100% en los hechos del caso narrado.
+        2. ANTI-SPOILER: El enunciado NO puede contener la respuesta.
+        3. EQUIDAD VISUAL: Opciones A, B, C del mismo largo (palabras).
+        4. INTEGRIDAD: No resumas la norma, úsala completa.
+        5. TRAMPAS: Los distractores deben ser leyes reales que no aplican por competencia o trámite.
         """
 
-    def call_groq_api(self, prompt):
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        # INYECTAMOS LAS REGLAS EN EL SYSTEM PROMPT
-        system_msg = f"""
-        Eres un experto redactor de pruebas de la Comisión Nacional del Servicio Civil (CNSC).
-        Tu trabajo es evaluar competencias funcionales en derecho.
-        RESPONDES SOLO EN JSON.
-        
-        {self.get_strict_rules()}
-        """
-
-        data = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": self.current_temperature,
-            "response_format": {"type": "json_object"}
-        }
-        
-        try:
-            response = requests.post(url, headers=headers, json=data)
-            response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
-        except Exception as e:
-            raise Exception(f"Error Groq: {str(e)}")
+    def get_calibration_instructions(self):
+        # Mantiene el menú de calibración manual por si acaso
+        if not self.feedback_history: return ""
+        counts = Counter(self.feedback_history)
+        instructions = []
+        if counts['desconexion'] > 0: instructions.append("¡ALERTA! Previamente generaste preguntas desconectadas del caso. ¡CORRIGE ESO!")
+        if counts['recorte'] > 0: instructions.append("¡ALERTA! No recortes la norma.")
+        if counts['spoiler'] > 0: instructions.append("¡ALERTA! No hagas spoilers en el enunciado.")
+        if counts['sesgo_longitud'] > 0: instructions.append("¡ALERTA! Iguala la longitud de las opciones.")
+        if counts['respuesta_obvia'] > 0: instructions.append("¡ALERTA! Sube la dificultad de los distractores.")
+        if counts['pregunta_facil'] > 0: instructions.append("¡ALERTA! Pregunta por detalles más difíciles.")
+        return "\n".join(instructions)
 
     def generate_case(self):
-        if not self.api_key: return {"error": "⚠️ Conecta tu API Key de GROQ en el menú."}
+        if not self.api_key: return {"error": "⚠️ Conecta una Llave (Google o Groq) en el menú."}
         if not self.chunks: return {"error": "Carga una norma primero."}
         
         idx = -1
@@ -174,31 +172,35 @@ class LegalEngineTITAN:
             instruccion_nivel = """
             NIVEL EXPERTO (HARDCORE):
             - TODAS las opciones (A, B, C) deben ser VERDADERAS jurídicamente en abstracto.
-            - SOLO UNA aplica al caso concreto por un detalle de competencia, cuantía o procedimiento.
-            - Las otras son errores de subsunción (ley correcta, caso incorrecto).
+            - SOLO UNA aplica al caso concreto por un detalle.
+            - Las otras son errores de subsunción.
             """
         
-        # PROMPT DE USUARIO REFORZADO
+        # PROMPT UNIFICADO (EL CLÁSICO + REGLAS DE ORO)
         prompt = f"""
+        ACTÚA COMO EXPERTO CNSC. NIVEL: {self.level.upper()}.
         ESCENARIO: {self.entity.upper()}.
         NORMA BASE: "{self.chunks[idx][:6000]}"
         
         {instruccion_nivel}
+        {self.get_strict_rules()}
+        {self.get_calibration_instructions()}
         
         TAREA:
-        1. Redacta un CASO SITUACIONAL complejo y realista en {self.entity}.
+        1. Redacta un CASO SITUACIONAL complejo en {self.entity}.
         2. Formula 4 PREGUNTAS de Selección Múltiple con Única Respuesta.
         
-        RECUERDA CUMPLIR LOS ESTÁNDARES DE CALIDAD (Vinculación, Anti-Spoiler, Equidad).
-        
-        FORMATO JSON OBLIGATORIO:
+        ESTRUCTURA DE RESPUESTA REQUERIDA (JSON):
         {{
             "narrativa_caso": "Texto del caso...",
             "preguntas": [
-                {{"enunciado": "Pregunta 1...", "opciones": {{"A": "...", "B": "...", "C": "..."}}, "respuesta": "A", "explicacion": "..."}},
-                {{"enunciado": "Pregunta 2...", "opciones": {{"A": "...", "B": "...", "C": "..."}}, "respuesta": "B", "explicacion": "..."}},
-                {{"enunciado": "Pregunta 3...", "opciones": {{"A": "...", "B": "...", "C": "..."}}, "respuesta": "C", "explicacion": "..."}},
-                {{"enunciado": "Pregunta 4...", "opciones": {{"A": "...", "B": "...", "C": "..."}}, "respuesta": "A", "explicacion": "..."}}
+                {{
+                    "enunciado": "...", 
+                    "opciones": {{"A": "..", "B": "..", "C": ".."}}, 
+                    "respuesta": "A", 
+                    "explicacion": "NORMA TAXATIVA: [Cita textual] ... ANÁLISIS: [Por qué aplica] ... DESCARTES: [Por qué fallan las otras]"
+                }},
+                ... (3 preguntas más)
             ]
         }}
         """
@@ -207,16 +209,44 @@ class LegalEngineTITAN:
         attempts = 0
         while attempts < max_retries:
             try:
-                text_resp = self.call_groq_api(prompt)
+                # --- LÓGICA GOOGLE GEMINI ---
+                if self.provider == "Google":
+                    safety = [{"category": f"HARM_CATEGORY_{c}", "threshold": "BLOCK_NONE"} 
+                             for c in ["HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT"]]
+                    res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature}, safety_settings=safety)
+                    text_resp = res.text.strip()
+                
+                # --- LÓGICA GROQ (LLAMA) ---
+                else:
+                    headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+                    data = {
+                        "model": "llama-3.3-70b-versatile",
+                        "messages": [
+                            {"role": "system", "content": "Eres un redactor experto de pruebas CNSC. Responde SOLO en JSON válido."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": self.current_temperature,
+                        "response_format": {"type": "json_object"}
+                    }
+                    resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
+                    resp.raise_for_status()
+                    text_resp = resp.json()['choices'][0]['message']['content']
+
+                # LIMPIEZA JSON COMÚN
+                if "```" in text_resp:
+                    match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
+                    if match: text_resp = match.group(1).strip()
                 return json.loads(text_resp)
+
             except Exception as e:
                 error_str = str(e)
                 if "429" in error_str:
-                    time.sleep(5); attempts += 1
+                    time.sleep(5 if self.provider == "Groq" else 10)
+                    attempts += 1
                 else:
                     self.last_error = error_str
                     return None
-        self.last_error = "Groq no responde. Intenta en unos segundos."
+        self.last_error = "Servidor saturado. Intenta de nuevo."
         return None
 
 # --- 3. INTERFAZ ---
@@ -227,12 +257,12 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v11")
+    st.title("⚙️ TITÁN v13")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
-    with st.expander("🔑 1. Llave GROQ (Gratis)", expanded=True):
-        st.markdown("[Conseguir Llave Aquí](https://console.groq.com/keys)")
-        key = st.text_input("Pega tu llave 'gsk_':", type="password")
+    with st.expander("🔑 LLAVE MAESTRA (Google o Groq)", expanded=True):
+        st.info("Pega tu llave aquí. El sistema detecta si es Google o Groq automáticamente.")
+        key = st.text_input("API Key:", type="password")
         if key:
             ok, msg = engine.configure_api(key)
             if ok: st.success(msg)
@@ -240,7 +270,7 @@ with st.sidebar:
     
     st.divider()
 
-    with st.expander("📂 2. Cargar Avance (JSON)", expanded=True):
+    with st.expander("📂 Cargar Avance (JSON)", expanded=True):
         upl = st.file_uploader("Archivo:", type=['json'])
         if upl:
             try:
@@ -288,8 +318,8 @@ if st.session_state.page == 'game':
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
-        msg = "🧠 Llama 3.3 diseñando caso..."
-        if DL_AVAILABLE and engine.last_failed_embedding is not None: msg = "🧠 Atacando debilidad detectada..."
+        msg = f"🧠 {engine.provider} analizando..."
+        if DL_AVAILABLE and engine.last_failed_embedding is not None: msg = f"🧠 {engine.provider} atacando debilidad..."
         
         with st.spinner(msg):
             data = engine.generate_case()
@@ -335,18 +365,23 @@ if st.session_state.page == 'game':
                     engine.mastery_tracker[engine.current_chunk_idx] += 1
                     st.session_state.current_data = None; st.rerun()
 
-        with st.expander("📢 Ajuste Fino (Opcional)", expanded=True):
-            st.info("ℹ️ Las reglas de oro ya están activas. Usa esto solo si ves un error grave.")
+        with st.expander("📢 Calibración Manual (Opcional)", expanded=True):
             reasons_map = {
-                "Falla de Lógica/Conexión": "desconexion",
-                "Falla de Formato": "sesgo_longitud",
-                "Muy Fácil": "pregunta_facil"
+                "Preguntas no tienen que ver con el Caso": "desconexion",
+                "Respuesta Incompleta (Recortó la norma)": "recorte",
+                "Spoiler (Regala dato)": "spoiler",
+                "Respuesta Obvia / Tonta": "respuesta_obvia",
+                "Alucinación (Inventó ley)": "alucinacion",
+                "Opciones Desiguales (Largo)": "sesgo_longitud",
+                "Muy Fácil (Dato regalado)": "pregunta_facil",
+                "Repetitivo / Poca creatividad": "repetitivo",
+                "Incoherente / Mal redactado": "incoherente"
             }
-            r = st.selectbox("Reportar rareza:", list(reasons_map.keys()))
-            if st.button("Reforzar IA"):
+            r = st.selectbox("¿Qué estuvo mal?", list(reasons_map.keys()))
+            if st.button("Enviar Reporte y Calibrar"):
                 code = reasons_map[r]
                 engine.feedback_history.append(code)
-                st.toast(f"Ajuste enviado: {code}", icon="🛠️")
+                st.toast(f"Calibración aplicada: {code}", icon="🛠️")
                 
     except Exception as e:
         st.error(f"Error visual: {str(e)}")
