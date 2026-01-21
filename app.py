@@ -16,17 +16,19 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# --- 1. CONFIGURACIÓN VISUAL (COMPLETA) ---
-st.set_page_config(page_title="TITÁN v15 - Estándar Oro Blindado", page_icon="⚖️", layout="wide")
+# --- 1. CONFIGURACIÓN VISUAL (ESTÉTICA COMPLETA) ---
+st.set_page_config(page_title="TITÁN v17 - LA DEFINITIVA", page_icon="🏛️", layout="wide")
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #283593; color: white;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #1565c0; color: white;}
     .narrative-box {
-        background-color: #e8eaf6; padding: 25px; border-radius: 12px; 
-        border-left: 6px solid #1a237e; margin-bottom: 25px;
-        font-family: 'Georgia', serif; font-size: 1.15em;
+        background-color: #e3f2fd; padding: 25px; border-radius: 12px; 
+        border-left: 6px solid #0d47a1; margin-bottom: 25px;
+        font-family: 'Georgia', serif; font-size: 1.15em; line-height: 1.6;
     }
-    .question-card {background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0;}
+    .question-card {background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-top: 10px;}
+    .success-box {background-color: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 5px solid #2e7d32;}
+    .error-box {background-color: #ffebee; padding: 15px; border-radius: 8px; border-left: 5px solid #c62828;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -82,9 +84,10 @@ class LegalEngineTITAN:
             self.provider = "Google"
             try:
                 genai.configure(api_key=key)
-                # Auto-detector de modelo Google
+                # Auto-detector de modelo Google para evitar error 404
                 model_list = genai.list_models()
                 models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
+                # Prioridad: 1.5 Pro > Flash > Cualquiera
                 target = next((m for m in models if 'gemini-1.5-pro' in m), 
                          next((m for m in models if 'flash' in m), models[0]))
                 self.model = genai.GenerativeModel(target)
@@ -122,20 +125,20 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- REGLAS DE ORO ACTUALIZADAS (V14 Logic) ---
+    # --- REGLAS DE ORO & ANTI-TEORÍA (EL CEREBRO DE LA V16) ---
     def get_strict_rules(self):
         return """
         🛑 PROTOCOLO DE SEGURIDAD CONTRA RESPUESTAS OBVIAS (OBLIGATORIO):
         
         1. PROHIBICIÓN DE "TEORÍA GENERAL":
            - ESTÁ PROHIBIDO preguntar: "¿Qué dice la ley sobre X?". (Esto se responde sin leer).
-           - OBLIGATORIO preguntar: "Teniendo en cuenta la conducta del Sr. [Nombre] en la fase de [Hecho], ¿qué norma vulneró?".
+           - OBLIGATORIO preguntar: "Teniendo en cuenta la conducta del Sr. [Nombre] en la fecha [Fecha], ¿qué norma vulneró?".
            - REGLA DE ORO: Si yo puedo tapar el texto del caso y aún así responder la pregunta, TU TRABAJO ESTÁ MAL HECHO.
         
         2. DEPENDENCIA DE HECHOS (DATA DEPENDENCY):
            - El enunciado de la pregunta DEBE mencionar explícitamente un nombre, una fecha, un cargo o una situación única narrada en el caso.
         
-        3. ANTI-SPOILER SEMÁNTICO (NUEVO):
+        3. ANTI-SPOILER SEMÁNTICO:
            - No uses palabras en el enunciado que compartan raíz con la respuesta.
            - MALO: "El funcionario omitió..." (Respuesta: Omisión).
            - BUENO: "El funcionario guardó silencio..." (Respuesta: Omisión).
@@ -144,16 +147,20 @@ class LegalEngineTITAN:
            - Los distractores deben ser leyes reales que no aplican por un detalle técnico.
         """
 
+    # --- MENÚ DE CALIBRACIÓN COMPLETO (Recuperado de la V9) ---
     def get_calibration_instructions(self):
         if not self.feedback_history: return ""
         counts = Counter(self.feedback_history)
         instructions = []
-        if counts['desconexion'] > 0: instructions.append("¡ALERTA! Previamente generaste preguntas desconectadas del caso. ¡CORRIGE ESO!")
-        if counts['recorte'] > 0: instructions.append("¡ALERTA! No recortes la norma.")
-        if counts['spoiler'] > 0: instructions.append("¡ALERTA! No hagas spoilers en el enunciado (Anti-Spoiler Semántico).")
-        if counts['sesgo_longitud'] > 0: instructions.append("¡ALERTA! Iguala la longitud de las opciones.")
-        if counts['respuesta_obvia'] > 0: instructions.append("¡ALERTA! Sube la dificultad de los distractores.")
-        if counts['pregunta_facil'] > 0: instructions.append("¡ALERTA! Pregunta por detalles más difíciles.")
+        if counts['desconexion'] > 0: instructions.append("🔴 ERROR CRÍTICO PREVIO: Desconexión temática. ¡ORDEN!: Las preguntas DEBEN basarse 100% en los hechos del caso narrado.")
+        if counts['recorte'] > 0: instructions.append("🔴 INTEGRIDAD OBLIGATORIA: ¡PROHIBIDO RESUMIR! Usa los requisitos COMPLETOS.")
+        if counts['spoiler'] > 0: instructions.append("🔴 ALERTA DE SPOILER: ¡PROHIBIDO incluir la respuesta o pistas obvias en el enunciado!")
+        if counts['sesgo_longitud'] > 0: instructions.append("🔴 FORMATO VISUAL: ¡ALERTA! Las opciones deben tener la misma longitud visual.")
+        if counts['respuesta_obvia'] > 0: instructions.append("🔴 DIFICULTAD EXTREMA: Usa 'Trampas de Pertinencia'. Prohibido preguntas que se respondan sin leer.")
+        if counts['pregunta_facil'] > 0: instructions.append("🔴 NIVEL EXPERTO: La clave debe ser un detalle minúsculo.")
+        if counts['repetitivo'] > 0: self.current_temperature = 0.9; instructions.append("🔴 CREATIVIDAD RADICAL: ¡CAMBIA TODO!: Nombres, cargos, situaciones.")
+        if counts['alucinacion'] > 0: self.current_temperature = 0.0; instructions.append("🔴 FUENTE CERRADA: ¡ESTRICTO! No inventes leyes. Cíñete SOLO al texto.")
+        if counts['incoherente'] > 0: instructions.append("🔴 CLARIDAD: Escribe con sintaxis jurídica perfecta.")
         return "\n".join(instructions)
 
     def generate_case(self):
@@ -196,7 +203,7 @@ class LegalEngineTITAN:
         {self.get_calibration_instructions()}
         
         TAREA:
-        1. Redacta un CASO SITUACIONAL complejo en {self.entity}.
+        1. Redacta un CASO SITUACIONAL complejo en {self.entity} (Usa Nombres Propios, Fechas, Cargos).
         2. Formula 4 PREGUNTAS de Selección Múltiple con Única Respuesta.
         
         ESTRUCTURA DE RESPUESTA REQUERIDA (JSON):
@@ -266,7 +273,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v15")
+    st.title("⚙️ TITÁN v17 (FULL)")
     if DL_AVAILABLE: st.success("🧠 Neurona: ACTIVADA")
     
     with st.expander("🔑 LLAVE MAESTRA (Google o Groq)", expanded=True):
@@ -327,7 +334,7 @@ if st.session_state.page == 'game':
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
-        msg = f"🧠 {engine.provider} analizando..."
+        msg = f"🧠 {engine.provider} analizando... (Modo Anti-Teoría Activo)"
         if DL_AVAILABLE and engine.last_failed_embedding is not None: msg = f"🧠 {engine.provider} atacando debilidad..."
         
         with st.spinner(msg):
@@ -374,12 +381,13 @@ if st.session_state.page == 'game':
                     engine.mastery_tracker[engine.current_chunk_idx] += 1
                     st.session_state.current_data = None; st.rerun()
 
+        # --- MENÚ DE CALIBRACIÓN COMPLETO (Recuperado) ---
         with st.expander("📢 Calibración Manual (Opcional)", expanded=True):
             reasons_map = {
                 "Preguntas no tienen que ver con el Caso": "desconexion",
                 "Respuesta Incompleta (Recortó la norma)": "recorte",
                 "Spoiler (Regala dato)": "spoiler",
-                "Respuesta Obvia / Tonta": "respuesta_obvia",
+                "Respuesta Obvia (Sin leer el caso)": "respuesta_obvia",
                 "Alucinación (Inventó ley)": "alucinacion",
                 "Opciones Desiguales (Largo)": "sesgo_longitud",
                 "Muy Fácil (Dato regalado)": "pregunta_facil",
