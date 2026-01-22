@@ -15,8 +15,8 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# --- CONFIGURACIÓN VISUAL (LA QUE YA TE GUSTABA) ---
-st.set_page_config(page_title="TITÁN v36 - Flexible", page_icon="🏛️", layout="wide")
+# --- CONFIGURACIÓN VISUAL ---
+st.set_page_config(page_title="TITÁN v37 - Estructura Total", page_icon="🏛️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #0d47a1; color: white;}
@@ -65,9 +65,10 @@ class LegalEngineTITAN:
         self.model = None 
         self.current_temperature = 0.2
         self.last_failed_embedding = None
-        # ESTRATEGIA FLEXIBLE
-        self.guide_text = "" # Aquí se pega cualquier guía
+        # --- VARIABLES DE ESTRATEGIA (RESTAURADAS) ---
+        self.study_phase = "Pre-Guía" # Pre-Guía o Post-Guía
         self.job_functions = ""
+        self.guide_methodology = ""
         self.thematic_axis = "General"
 
     def configure_api(self, key):
@@ -116,7 +117,7 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- REGLAS DE ORO (LAS QUE YA FUNCIONABAN) ---
+    # --- REGLAS DE ORO ---
     def get_strict_rules(self):
         return """
         🛑 REGLAS DE ORO OBLIGATORIAS:
@@ -127,7 +128,7 @@ class LegalEngineTITAN:
         3. ALEATORIEDAD: La respuesta correcta NO puede ser siempre la A. Distribúyela.
         """
 
-    # --- MENÚ DE CALIBRACIÓN COMPLETO (RESTAURADO) ---
+    # --- CALIBRACIÓN ---
     def get_calibration_instructions(self):
         if not self.feedback_history: return ""
         counts = Counter(self.feedback_history)
@@ -157,30 +158,39 @@ class LegalEngineTITAN:
         if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
         
-        # --- CEREBRO ADAPTATIVO (LEE TU GUÍA) ---
-        # Aquí está la magia: La IA analiza lo que pegaste y decide cómo preguntar
-        strategy_prompt = ""
-        if self.guide_text:
-            strategy_prompt = f"""
-            📢 INSTRUCCIÓN PRIORITARIA (METODOLOGÍA DE EVALUACIÓN):
-            El usuario ha proporcionado el siguiente extracto de la GUÍA DE ORIENTACIÓN del concurso:
-            '''{self.guide_text}'''
-            
-            TU OBLIGACIÓN ES ADAPTAR EL FORMATO A ESA GUÍA:
-            1. Si la guía pide "Juicio Situacional", crea una historia con personajes.
-            2. Si la guía pide "Análisis" o "Bloom", crea un contexto técnico/jurídico.
-            3. Si la guía menciona 3 opciones, da 3. Si menciona 4, da 4.
-            4. IGNORA cualquier configuración por defecto y OBEDECE AL TEXTO DE LA GUÍA.
-            """
+        # --- CEREBRO ESTRATÉGICO (Pre vs Post) ---
+        contexto_estrategia = ""
         
-        if self.job_functions:
-            strategy_prompt += f"\nCONTEXTO DEL CARGO: Las funciones son: '{self.job_functions}'. Relaciona el caso con esto."
+        if self.study_phase == "Pre-Guía":
+            # MODALIDAD 1: PRE-GUÍA (Enfoque en Funciones + Norma)
+            # Aquí la IA asume un rol de entrenamiento funcional general.
+            contexto_estrategia = f"""
+            MODO DE ESTUDIO: PRE-GUÍA (Entrenamiento Funcional).
+            CONTEXTO: El usuario aún no tiene la guía oficial, así que estudiaremos la relación entre la NORMA y las FUNCIONES DEL CARGO.
+            FUNCIONES DEL USUARIO: '{self.job_functions}'
+            INSTRUCCIÓN: Crea un caso donde el usuario deba aplicar la norma cargada para resolver un problema relacionado con sus funciones.
+            """
+        else:
+            # MODALIDAD 2: POST-GUÍA (Enfoque Metodológico Estricto)
+            # Aquí la IA obedece ciegamente el texto que pegues de la guía.
+            contexto_estrategia = f"""
+            MODO DE ESTUDIO: POST-GUÍA (Simulacro Oficial).
+            CONTEXTO: El usuario tiene la Guía de Orientación en mano.
+            METODOLOGÍA OBLIGATORIA (TEXTO DE LA GUÍA):
+            '''{self.guide_methodology}'''
+            
+            INSTRUCCIÓN SUPREMA: 
+            1. Analiza el texto de la guía proporcionado arriba.
+            2. Extrae el estilo de pregunta (¿Juicio Situacional? ¿Análisis de Caso? ¿Contexto Técnico?).
+            3. Extrae el número de opciones (¿Son 3 o 4?).
+            4. Genera el caso y las preguntas SIGUIENDO EXACTAMENTE ESA METODOLOGÍA.
+            """
 
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS (NIVEL {self.level.upper()}).
-        ENTIDAD: {self.entity.upper()}. EJE: {self.thematic_axis.upper()}.
+        ENTIDAD: {self.entity.upper()}. EJE TEMÁTICO: {self.thematic_axis.upper()}.
         
-        {strategy_prompt}
+        {contexto_estrategia}
         
         NORMA BASE: "{self.chunks[idx][:7000]}"
         
@@ -188,12 +198,11 @@ class LegalEngineTITAN:
         {self.get_calibration_instructions()}
         
         TAREA:
-        1. Redacta el Caso/Contexto (según el estilo detectado en la guía).
-        2. Genera 4 preguntas (o las que diga la guía).
+        1. Redacta el Caso/Contexto (Adaptado a la fase de estudio).
+        2. Genera 4 preguntas (O las que dicte la guía en modo Post).
         
-        FORMATO DE RESPUESTA OBLIGATORIO (ESTUDIO):
-        En "explicacion", usa EXACTAMENTE este formato:
-        "NORMA TAXATIVA: [Cita textual] ... ANÁLISIS: [Explicación] ... DESCARTES: [Por qué no son las otras]"
+        FORMATO DE RESPUESTA OBLIGATORIO:
+        En "explicacion", usa: "NORMA TAXATIVA: ... ANÁLISIS: ... DESCARTES: ..."
         
         JSON OBLIGATORIO:
         {{
@@ -203,7 +212,7 @@ class LegalEngineTITAN:
                     "enunciado": "...", 
                     "opciones": {{"A": "...", "B": "...", "C": "..."}}, 
                     "respuesta": "A", 
-                    "explicacion": "NORMA TAXATIVA: ... ANÁLISIS: ... DESCARTES: ..."
+                    "explicacion": "..."
                 }}
             ]
         }}
@@ -244,7 +253,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v36 (Restaurado)")
+    st.title("⚙️ TITÁN v37 (Restaurado)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -254,11 +263,23 @@ with st.sidebar:
     
     st.divider()
     
-    # --- PANEL DE ESTRATEGIA (SIMPLE Y FLEXIBLE) ---
-    st.markdown("### 📋 CONFIGURACIÓN DE CONCURSO")
-    with st.expander("1. Definir Reglas del Juego (Guía)", expanded=True):
-        engine.job_functions = st.text_area("Tus Funciones (Opcional):", height=70, placeholder="Ej: Atender peticiones, Sustanciar fallos...")
-        engine.guide_text = st.text_area("📜 PEGA AQUÍ LA GUÍA (Metodología):", height=150, placeholder="Copia y pega el párrafo de la guía que dice cómo son las preguntas (Ej: 'Juicio Situacional con 3 opciones' o 'Análisis de Bloom con 4 opciones'). La IA leerá esto y se adaptará.")
+    # --- PANEL DE ESTRATEGIA (CON SELECTOR DE FASE) ---
+    st.markdown("### 📋 ESTRATEGIA DE ESTUDIO")
+    
+    # 1. EL SELECTOR QUE QUERÍAS
+    fase = st.radio("Fase de Preparación:", ["Pre-Guía", "Post-Guía"], index=0, help="Pre: Estudia funciones. Post: Aplica la guía del concurso.")
+    engine.study_phase = fase
+
+    # 2. LOS CAMPOS SEGÚN LA FASE
+    with st.expander("Configurar Contexto", expanded=True):
+        if fase == "Pre-Guía":
+            st.info("📌 Modo Funcional: Entrena tus funciones con la norma.")
+            engine.job_functions = st.text_area("Tus Funciones:", height=100, placeholder="Ej: Atender peticiones, Sustanciar fallos...")
+            engine.guide_methodology = "" # Se limpia para no confundir
+        else:
+            st.warning("📌 Modo Metodológico: La IA obedecerá tu Guía.")
+            engine.guide_methodology = st.text_area("📜 PEGA AQUÍ LA METODOLOGÍA (De la Guía PDF):", height=150, placeholder="Ej: 'Preguntas de Análisis, 4 opciones de respuesta, contexto técnico...'")
+            engine.job_functions = "" # Se limpia
 
     st.divider()
     
@@ -308,9 +329,9 @@ if st.session_state.page == 'game':
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
-        # Feedback visual de qué está haciendo la IA
+        # Mensaje de carga inteligente
         msg = "🧠 Analizando norma..."
-        if engine.guide_text: msg = "🧠 Adaptando formato según tu Guía..."
+        if engine.study_phase == "Post-Guía": msg = "🧠 Leyendo tu Guía y adaptando metodología..."
         
         with st.spinner(msg):
             data = engine.generate_case()
@@ -330,7 +351,7 @@ if st.session_state.page == 'game':
         st.write(f"### Pregunta {st.session_state.q_idx + 1}")
         
         with st.form(key=f"q_{st.session_state.q_idx}"):
-            # Filtramos opciones vacías por si la guía pide 3 y la IA genera un campo D vacío
+            # Filtro inteligente de opciones vacías (Por si la guía pide 3)
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()])
             
@@ -338,7 +359,6 @@ if st.session_state.page == 'game':
                 letra_sel = sel.split(")")[0]
                 if letra_sel == q['respuesta']: st.success("✅ ¡Correcto!"); engine.mastery_tracker[engine.current_chunk_idx] += 1
                 else: st.error(f"Incorrecto. Era {q['respuesta']}"); engine.failed_indices.add(engine.current_chunk_idx)
-                # Aquí sale el formato TAXATIVO que te gusta
                 st.info(q['explicacion']); st.session_state.answered = True
 
         if st.session_state.answered:
@@ -347,7 +367,7 @@ if st.session_state.page == 'game':
             else:
                 if st.button("Nuevo Caso"): st.session_state.current_data = None; st.rerun()
         
-        # --- CALIBRACIÓN COMPLETA (RESTAURADA) ---
+        # --- CALIBRACIÓN COMPLETA (INTACTA) ---
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
             reasons_map = {
