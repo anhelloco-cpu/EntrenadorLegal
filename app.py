@@ -4,7 +4,6 @@ import json
 import random
 import time
 import requests
-import re
 from collections import Counter
 
 # --- GESTIÓN DE DEPENDENCIAS ---
@@ -17,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v44 - Clonación Estricta", page_icon="🧬", layout="wide")
+st.set_page_config(page_title="TITÁN v45 - Control Total", page_icon="🎛️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
@@ -67,11 +66,14 @@ class LegalEngineTITAN:
         self.current_temperature = 0.2
         self.last_failed_embedding = None
         
-        # --- ESTRATEGIA ---
+        # --- NUEVAS VARIABLES DE CONTROL ---
         self.study_phase = "Pre-Guía" 
         self.example_question = "" 
         self.job_functions = ""    
         self.thematic_axis = "General"
+        # VARIABLES DE ESTRUCTURA FIJA
+        self.structure_type = "Técnico / Normativo (Sin Caso)" 
+        self.questions_per_case = 1 
 
     def configure_api(self, key):
         key = key.strip()
@@ -146,65 +148,42 @@ class LegalEngineTITAN:
         if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
         
-        # --- CEREBRO DUÁL (CORREGIDO PARA EVITAR CASOS FORZADOS) ---
-        instruction_prompt = ""
+        # --- CEREBRO CON CONTROL TOTAL ---
         
-        if self.study_phase == "Pre-Guía":
-            # CEREBRO A: ESTÁNDAR CNSC
-            instruction_prompt = f"""
-            MODO: PRE-GUÍA (JUICIO SITUACIONAL ESTÁNDAR).
-            INSTRUCCIÓN: Genera un CASO con TRES (3) preguntas derivadas.
-            1. ENUNCIADO: Crea una situación laboral hipotética detallada (narrativa).
-               - Contexto Funcional: '{self.job_functions}'
-            2. CANTIDAD: 3 Preguntas.
-            3. OPCIONES: 3 Opciones (A, B, C).
-            """
+        # 1. Definir Estilo del Contexto
+        if "Sin Caso" in self.structure_type:
+            tipo_contexto = "TÉCNICO / NORMATIVO. Prohibido usar personajes o historias. Redacta un párrafo analítico o cita normativa."
         else:
-            # CEREBRO B: CLONACIÓN EXACTA
-            instruction_prompt = f"""
-            MODO: POST-GUÍA (CLONACIÓN EXACTA - NO INVENTAR).
-            El usuario proporcionó este EJEMPLO REAL:
-            '''{self.example_question}'''
-            
-            INSTRUCCIÓN DE MIMETISMO ESTRICTO:
-            1. ANÁLISIS DE ESTRUCTURA:
-               - Si el ejemplo es un enunciado técnico corto (sin personajes, sin historia): ¡HAZ LO MISMO!
-                 -> En el campo 'narrativa_caso' pon SOLAMENTE el contexto técnico o normativo. NO inventes "Pedro Pérez en la oficina".
-               - Si el ejemplo es un caso largo: Copia ese estilo.
-            
-            2. CONTEO DE PREGUNTAS (VITAL):
-               - ¿Cuántas preguntas ves en el ejemplo? (Normalmente es 1).
-               - GENERA EXACTAMENTE ESA CANTIDAD. 
-               - ¡PROHIBIDO HACER 3 PREGUNTAS SI EL EJEMPLO TIENE 1!
-            
-            3. OPCIONES:
-               - Usa el mismo número de opciones que el ejemplo.
-            """
+            tipo_contexto = f"NARRATIVO / SITUACIONAL. Crea una historia laboral realista usando estas funciones: '{self.job_functions}'."
 
+        # 2. Definir Cantidad
+        cantidad_instruccion = f"Genera EXACTAMENTE {self.questions_per_case} pregunta(s) basada(s) en ese contexto."
+
+        # 3. Prompt Maestro
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}. EJE: {self.thematic_axis.upper()}.
         
-        {instruction_prompt}
+        INSTRUCCIONES DE ESTRUCTURA (OBLIGATORIAS):
+        1. TIPO DE CONTEXTO: {tipo_contexto}
+        2. CANTIDAD DE PREGUNTAS: {cantidad_instruccion}
+        3. SI HAY EJEMPLO CLONADO: Úsalo solo para imitar el tono de redacción y la dificultad, pero respeta la estructura de arriba (Sin caso/Con caso) que el usuario forzó.
+           Ejemplo usuario: '''{self.example_question}'''
         
         NORMA BASE: "{self.chunks[idx][:7000]}"
         
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
         
-        TAREA:
-        1. Redacta el Enunciado (Técnico o Situacional según el ejemplo).
-        2. Genera las Preguntas (Cantidad exacta al ejemplo).
-        
         FORMATO JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "Aquí va el contexto técnico o la historia...",
+            "narrativa_caso": "Texto del contexto...",
             "preguntas": [
                 {{
-                    "enunciado": "La pregunta en sí...", 
+                    "enunciado": "...", 
                     "opciones": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, 
                     "respuesta": "A", 
-                    "explicacion": "NORMA TAXATIVA: ... ANÁLISIS: ... DESCARTES: ..."
+                    "explicacion": "..."
                 }}
             ]
         }}
@@ -245,7 +224,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v44 (Clon Estricto)")
+    st.title("⚙️ TITÁN v45 (Control Total)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -258,28 +237,41 @@ with st.sidebar:
     # --- PANEL DE ESTRATEGIA ---
     st.markdown("### 📋 ESTRATEGIA DE ESTUDIO")
     
-    # Selector de Fase con persistencia visual
+    # Mantenemos Fase como un "Preset", pero abajo está el control real
     fase_default = 0 if engine.study_phase == "Pre-Guía" else 1
-    fase = st.radio("Fase de Preparación:", ["Pre-Guía", "Post-Guía"], index=fase_default, 
-                   help="Pre-Guía: CNSC Estándar (3 Preguntas). Post-Guía: Clona EXACTAMENTE tu ejemplo.")
-    
-    # IMPORTANTE: Actualizar el motor solo si el usuario cambia el radio, pero respetar la carga
+    fase = st.radio("Fase de Preparación:", ["Pre-Guía", "Post-Guía"], index=fase_default)
     engine.study_phase = fase
 
-    with st.expander("Configurar Contexto", expanded=True):
-        if fase == "Pre-Guía":
-            st.info("📌 MODO ESTÁNDAR (CNSC): Juicio Situacional (3 Preguntas).")
-            engine.job_functions = st.text_area("Funciones del Cargo (Opcional):", value=engine.job_functions, height=80, placeholder="Ej: Atención al ciudadano...")
-            engine.example_question = "" 
+    # --- AQUÍ ESTÁ EL CONTROL MANUAL QUE PEDISTE ---
+    st.markdown("#### 🔧 CONFIGURACIÓN DE ESTRUCTURA")
+    st.caption("Tú defines las reglas, la IA obedece.")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        # Recuperamos valor previo
+        idx_struct = 0 if "Sin Caso" in engine.structure_type else 1
+        estilo = st.radio("Tipo de Enunciado:", 
+                         ["Técnico / Normativo (Sin Caso)", "Narrativo / Situacional (Con Caso)"], 
+                         index=idx_struct)
+        engine.structure_type = estilo
+    
+    with col2:
+        cant = st.number_input("Preguntas por Bloque:", min_value=1, max_value=5, value=engine.questions_per_case)
+        engine.questions_per_case = cant
+
+    with st.expander("Detalles del Contexto", expanded=True):
+        if "Con Caso" in estilo:
+            st.info("📝 Se creará una historia. Define roles:")
+            engine.job_functions = st.text_area("Funciones / Rol:", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...")
+            engine.example_question = ""
         else:
-            st.warning("📌 MODO CLONACIÓN: Imitación exacta del ejemplo (Sin inventar casos).")
-            engine.example_question = st.text_area("🧬 PEGA EL EJEMPLO MODELO:", value=engine.example_question, height=180, 
-                                                 placeholder="Pega el ejemplo completo...")
-            engine.job_functions = "" 
+            st.warning("⚖️ Se creará análisis puro. (Opcional: Pega ejemplo de estilo)")
+            engine.example_question = st.text_area("Ejemplo de Estilo (Opcional):", value=engine.example_question, height=70, placeholder="Pega un enunciado técnico...")
+            engine.job_functions = ""
 
     st.divider()
     
-    # --- LOGICA DE CARGA ---
+    # --- LOGICA DE CARGA (MANTENIENDO EL FIX DE LA v43) ---
     with st.expander("2. Cargar Normas", expanded=True):
         upl = st.file_uploader("Cargar Backup JSON:", type=['json'])
         if upl is not None:
@@ -290,11 +282,15 @@ with st.sidebar:
                     engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
                     engine.failed_indices = set(d['failed'])
                     engine.feedback_history = d.get('feed', [])
-                    
                     engine.entity = d.get('ent', "")
                     engine.thematic_axis = d.get('axis', "General")
                     engine.level = d.get('lvl', "Profesional")
                     engine.study_phase = d.get('phase', "Pre-Guía")
+                    
+                    # Recuperamos los controles nuevos
+                    engine.structure_type = d.get('struct_type', "Técnico / Normativo (Sin Caso)")
+                    engine.questions_per_case = d.get('q_per_case', 1)
+                    
                     engine.example_question = d.get('ex_q', "")
                     engine.job_functions = d.get('job', "")
                     
@@ -316,19 +312,15 @@ with st.sidebar:
         if st.button("▶️ IR AL SIMULACRO", type="primary"): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
 
     st.divider()
-    
-    # Recuperación de índices para selectboxes
-    try:
-        lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
+    # Recuperación visual de selectboxes
+    try: lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
     except: lvl_idx = 0
     engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=lvl_idx)
     
-    try:
-        ent_idx = ENTIDADES_CO.index(engine.entity)
-        ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
-    except:
-        ent_selection = st.selectbox("Entidad:", ENTIDADES_CO)
+    try: ent_idx = ENTIDADES_CO.index(engine.entity)
+    except: ent_idx = 0
     
+    ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
     if "Otra" in ent_selection or "Agregar" in ent_selection:
         engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
     else:
@@ -348,7 +340,9 @@ with st.sidebar:
         full_save_data = {
             "chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices),
             "feed": engine.feedback_history, "ent": engine.entity, "axis": engine.thematic_axis,
-            "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions
+            "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
+            # Guardamos los controles nuevos
+            "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case
         }
         st.download_button("💾 Guardar Progreso Completo", json.dumps(full_save_data), "backup_titan_full.json")
 
@@ -359,8 +353,9 @@ if st.session_state.page == 'game':
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
-        msg = "🧠 Generando RACIMO (Pre-Guía)..."
-        if engine.study_phase == "Post-Guía": msg = "🧬 Clonando Estilo (Sin inventar)..."
+        # Feedback visual exacto
+        tipo = "CASO NARRATIVO" if "Con Caso" in engine.structure_type else "ENUNCIADO TÉCNICO"
+        msg = f"🧠 Generando {engine.questions_per_case} pregunta(s) con formato {tipo}..."
         
         with st.spinner(msg):
             data = engine.generate_case()
@@ -372,7 +367,6 @@ if st.session_state.page == 'game':
                 st.stop()
 
     data = st.session_state.current_data
-    # Renderizado condicional: Si narrativa_caso es muy corta (técnica), se ve diferente
     narrativa = data.get('narrativa_caso','Error')
     st.markdown(f"<div class='narrative-box'><h4>🏛️ {engine.entity}</h4>{narrativa}</div>", unsafe_allow_html=True)
     
