@@ -3,7 +3,6 @@ import google.generativeai as genai
 import json
 import random
 import time
-import re
 import requests
 from collections import Counter
 
@@ -16,8 +15,8 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# --- CONFIGURACIÓN VISUAL (ESTÉTICA DE LUJO) ---
-st.set_page_config(page_title="TITÁN v33 - Universal", page_icon="🌎", layout="wide")
+# --- CONFIGURACIÓN VISUAL (LA QUE YA TE GUSTABA) ---
+st.set_page_config(page_title="TITÁN v36 - Flexible", page_icon="🏛️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #0d47a1; color: white;}
@@ -38,25 +37,14 @@ def load_embedding_model():
 
 dl_model = load_embedding_model()
 
-# --- LISTADO DE ENTIDADES (COMPLETO) ---
+# --- LISTADO DE ENTIDADES ---
 ENTIDADES_CO = [
-    "Contraloría General de la República", 
-    "Fiscalía General de la Nación",
-    "Procuraduría General de la Nación", 
-    "Defensoría del Pueblo",
-    "Dirección de Impuestos y Aduanas Nacionales (DIAN)", 
-    "Registraduría Nacional del Estado Civil", 
-    "Consejo Superior de la Judicatura",
-    "Corte Suprema de Justicia", 
-    "Consejo de Estado", 
-    "Corte Constitucional",
-    "Policía Nacional de Colombia", 
-    "Ejército Nacional de Colombia", 
-    "Instituto Colombiano de Bienestar Familiar (ICBF)", 
-    "Servicio Nacional de Aprendizaje (SENA)", 
-    "Ministerio de Educación Nacional", 
-    "Ministerio de Salud y Protección Social", 
-    "Departamento Administrativo Nacional de Estadística (DANE)",
+    "Contraloría General de la República", "Fiscalía General de la Nación",
+    "Procuraduría General de la Nación", "Defensoría del Pueblo",
+    "DIAN", "Registraduría Nacional", "Consejo Superior de la Judicatura",
+    "Corte Suprema de Justicia", "Consejo de Estado", "Corte Constitucional",
+    "Policía Nacional", "Ejército Nacional", "ICBF", "SENA", 
+    "Ministerio de Educación", "Ministerio de Salud", "DANE",
     "Otra (Manual) / Agregar +"
 ]
 
@@ -77,10 +65,9 @@ class LegalEngineTITAN:
         self.model = None 
         self.current_temperature = 0.2
         self.last_failed_embedding = None
-        # VARIABLES DE ESTRATEGIA (DINÁMICAS)
-        self.study_phase = "Pre-Guía" 
+        # ESTRATEGIA FLEXIBLE
+        self.guide_text = "" # Aquí se pega cualquier guía
         self.job_functions = ""
-        self.guide_methodology = ""
         self.thematic_axis = "General"
 
     def configure_api(self, key):
@@ -129,36 +116,31 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- REGLAS DE ORO (MUDEZ + ALEATORIEDAD) ---
+    # --- REGLAS DE ORO (LAS QUE YA FUNCIONABAN) ---
     def get_strict_rules(self):
         return """
-        🛑 PROTOCOLO DE MUDEZ SELECTIVA Y ALEATORIEDAD:
-        
-        1. ESTRUCTURA DE LA PREGUNTA:
-           - La pregunta DEBE ser: [Referencia al Sujeto] + [Referencia a Fecha/Documento] + [Interrogante Jurídico].
-           - PROHIBIDO: Usar frases explicativas intermedias que describan la acción o la conducta (SPOILERS).
-        
-        2. DEPENDENCIA TOTAL:
-           - El usuario NO DEBE saber qué pasó en esa fecha si no lee el texto.
-           
-        3. ALEATORIEDAD DE RESPUESTAS (OBLIGATORIO):
-           - La respuesta correcta NO DEBE SER SIEMPRE LA "A".
-           - Debes distribuir aleatoriamente la respuesta correcta entre las opciones A, B y C.
+        🛑 REGLAS DE ORO OBLIGATORIAS:
+        1. NO SPOILERS: La pregunta NO debe describir la conducta ilegal ni dar la respuesta.
+           - Malo: "Dado que el funcionario robó..."
+           - Bueno: "Frente a la actuación descrita en el párrafo 2..."
+        2. DEPENDENCIA: El usuario debe estar obligado a leer el texto para responder.
+        3. ALEATORIEDAD: La respuesta correcta NO puede ser siempre la A. Distribúyela.
         """
 
+    # --- MENÚ DE CALIBRACIÓN COMPLETO (RESTAURADO) ---
     def get_calibration_instructions(self):
         if not self.feedback_history: return ""
         counts = Counter(self.feedback_history)
         instructions = []
-        if counts['desconexion'] > 0: instructions.append("🔴 ERROR CRÍTICO: Desconexión temática. ¡ORDEN!: Las preguntas DEBEN basarse 100% en los hechos del caso.")
-        if counts['recorte'] > 0: instructions.append("🔴 INTEGRIDAD: ¡PROHIBIDO RESUMIR! Usa los requisitos COMPLETOS de la norma.")
-        if counts['spoiler'] > 0: instructions.append("🔴 ALERTA SPOILER: ¡PROHIBIDO describir la conducta en la pregunta! Solo usa fechas/nombres.")
-        if counts['sesgo_longitud'] > 0: instructions.append("🔴 VISUAL: ¡ALERTA! Las opciones deben tener la misma longitud visual.")
-        if counts['respuesta_obvia'] > 0: instructions.append("🔴 DIFICULTAD: Usa 'Trampas de Pertinencia'. Prohibido preguntas que se respondan sin leer el caso.")
-        if counts['pregunta_facil'] > 0: instructions.append("🔴 NIVEL EXPERTO: La clave debe ser un detalle minúsculo.")
-        if counts['repetitivo'] > 0: self.current_temperature = 0.9; instructions.append("🔴 CREATIVIDAD: ¡CAMBIA TODO!: Nombres, cargos, situaciones.")
-        if counts['alucinacion'] > 0: self.current_temperature = 0.0; instructions.append("🔴 FUENTE CERRADA: ¡ESTRICTO! No inventes leyes. Cíñete SOLO al texto.")
-        if counts['incoherente'] > 0: instructions.append("🔴 CLARIDAD: Escribe con sintaxis jurídica perfecta.")
+        if counts['desconexion'] > 0: instructions.append("🔴 ERROR: Desconexión temática. ¡Cíñete al caso!")
+        if counts['recorte'] > 0: instructions.append("🔴 ERROR: Respuesta incompleta. ¡Usa la norma taxativa!")
+        if counts['spoiler'] > 0: instructions.append("🔴 ERROR: Spoiler. ¡No describas la conducta en la pregunta!")
+        if counts['respuesta_obvia'] > 0: instructions.append("🔴 ERROR: Muy obvio. ¡Sube la dificultad!")
+        if counts['alucinacion'] > 0: instructions.append("🔴 ERROR: Alucinación. ¡Solo usa la ley provista!")
+        if counts['sesgo_longitud'] > 0: instructions.append("🔴 ERROR: Opciones desiguales. ¡Equilibra la longitud!")
+        if counts['pregunta_facil'] > 0: instructions.append("🔴 ERROR: Demasiado fácil. ¡Pon trampas!")
+        if counts['repetitivo'] > 0: self.current_temperature = 0.9; instructions.append("🔴 ERROR: Repetitivo. ¡Sé más creativo!")
+        if counts['incoherente'] > 0: instructions.append("🔴 ERROR: Redacción. ¡Mejora la sintaxis!")
         return "\n".join(instructions)
 
     def generate_case(self):
@@ -173,45 +155,53 @@ class LegalEngineTITAN:
             if candidatos: idx = candidatos[0][0]
         
         if idx == -1: idx = random.choice(range(len(self.chunks)))
-        
         self.current_chunk_idx = idx
         
-        # --- CONTEXTO DINÁMICO ---
-        contexto_adicional = f"\nEJE TEMÁTICO A EVALUAR: {self.thematic_axis.upper()}\n"
+        # --- CEREBRO ADAPTATIVO (LEE TU GUÍA) ---
+        # Aquí está la magia: La IA analiza lo que pegaste y decide cómo preguntar
+        strategy_prompt = ""
+        if self.guide_text:
+            strategy_prompt = f"""
+            📢 INSTRUCCIÓN PRIORITARIA (METODOLOGÍA DE EVALUACIÓN):
+            El usuario ha proporcionado el siguiente extracto de la GUÍA DE ORIENTACIÓN del concurso:
+            '''{self.guide_text}'''
+            
+            TU OBLIGACIÓN ES ADAPTAR EL FORMATO A ESA GUÍA:
+            1. Si la guía pide "Juicio Situacional", crea una historia con personajes.
+            2. Si la guía pide "Análisis" o "Bloom", crea un contexto técnico/jurídico.
+            3. Si la guía menciona 3 opciones, da 3. Si menciona 4, da 4.
+            4. IGNORA cualquier configuración por defecto y OBEDECE AL TEXTO DE LA GUÍA.
+            """
         
-        if self.study_phase == "Pre-Guía":
-            # Fase 1: Sin Guía (Usa Funciones)
-            contexto_adicional += f"\nENFOQUE (PRE-GUÍA): Relaciona la norma cargada con las siguientes FUNCIONES DEL CARGO: '{self.job_functions}'. El caso debe poner al aspirante a resolver problemas típicos de estas funciones.\n"
-        else:
-            # Fase 2: Con Guía (Usa el texto que el usuario pegó)
-            contexto_adicional += f"\nENFOQUE (POST-GUÍA - METODOLOGÍA OFICIAL): Debes ignorar tu estilo por defecto y aplicar ESTRICTAMENTE la siguiente metodología de evaluación provista por la Guía del concurso: '{self.guide_methodology}'.\n"
+        if self.job_functions:
+            strategy_prompt += f"\nCONTEXTO DEL CARGO: Las funciones son: '{self.job_functions}'. Relaciona el caso con esto."
 
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS (NIVEL {self.level.upper()}).
-        ENTIDAD CONVOCANTE: {self.entity.upper()}.
+        ENTIDAD: {self.entity.upper()}. EJE: {self.thematic_axis.upper()}.
         
-        {contexto_adicional}
+        {strategy_prompt}
         
-        NORMA BASE: "{self.chunks[idx][:6000]}"
+        NORMA BASE: "{self.chunks[idx][:7000]}"
         
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
         
         TAREA:
-        1. Redacta un CASO SITUACIONAL complejo (Fechas, Nombres, Documentos).
-        2. Genera 4 PREGUNTAS (Estilo Críptico/Mudo y Aleatorio).
+        1. Redacta el Caso/Contexto (según el estilo detectado en la guía).
+        2. Genera 4 preguntas (o las que diga la guía).
         
-        FORMATO DE EXPLICACIÓN OBLIGATORIO (ESTRICTO):
-        En el campo "explicacion", DEBES seguir esta estructura exacta:
-        "NORMA TAXATIVA: [Cita textual entre comillas] ... ANÁLISIS: [Explicación de por qué aplica al caso] ... DESCARTES: [Por qué las otras opciones no aplican]"
+        FORMATO DE RESPUESTA OBLIGATORIO (ESTUDIO):
+        En "explicacion", usa EXACTAMENTE este formato:
+        "NORMA TAXATIVA: [Cita textual] ... ANÁLISIS: [Explicación] ... DESCARTES: [Por qué no son las otras]"
         
         JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "Texto...",
+            "narrativa_caso": "...",
             "preguntas": [
                 {{
                     "enunciado": "...", 
-                    "opciones": {{"A": "..", "B": "..", "C": ".."}}, 
+                    "opciones": {{"A": "...", "B": "...", "C": "..."}}, 
                     "respuesta": "A", 
                     "explicacion": "NORMA TAXATIVA: ... ANÁLISIS: ... DESCARTES: ..."
                 }}
@@ -231,7 +221,7 @@ class LegalEngineTITAN:
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
                         "model": "llama-3.3-70b-versatile",
-                        "messages": [{"role": "system", "content": "JSON ONLY. STRICT RULES."}, {"role": "user", "content": prompt}],
+                        "messages": [{"role": "system", "content": "JSON ONLY."}, {"role": "user", "content": prompt}],
                         "temperature": self.current_temperature,
                         "response_format": {"type": "json_object"}
                     }
@@ -243,7 +233,7 @@ class LegalEngineTITAN:
                     if match: text_resp = match.group(1).strip()
                 return json.loads(text_resp)
             except Exception as e:
-                time.sleep(5); attempts += 1
+                time.sleep(2); attempts += 1
         return {"error": "Saturado."}
 
 # --- INTERFAZ ---
@@ -254,7 +244,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v33 (Universal)")
+    st.title("⚙️ TITÁN v36 (Restaurado)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -264,29 +254,16 @@ with st.sidebar:
     
     st.divider()
     
-    # --- PANEL DE ESTRATEGIA (UNIVERSAL) ---
-    st.markdown("### 📋 ESTRATEGIA DE ESTUDIO")
-    
-    # Selector de Fase
-    fase = st.radio("Fase de Preparación:", ["Pre-Guía", "Post-Guía"], index=0, help="Pre-Guía: Estudia funciones. Post-Guía: Aplica metodología específica del concurso.")
-    engine.study_phase = fase
-
-    with st.expander("Configurar Contexto", expanded=True):
-        if fase == "Pre-Guía":
-            st.info("📌 Modo Funcional: Pega tus funciones aquí.")
-            engine.job_functions = st.text_area("Funciones del Cargo:", placeholder="Ej: Sustanciar procesos, Atención al usuario...", height=100)
-            engine.guide_methodology = "" 
-        else:
-            st.warning("📌 Modo Metodológico: Pega el texto de la Guía.")
-            engine.guide_methodology = st.text_area("Pega aquí la Metodología de la Guía (Copia/Pega del PDF):", 
-                                                  placeholder="Ej: 'Las preguntas serán de Juicio Situacional con 3 opciones de respuesta...'",
-                                                  height=150)
-            engine.job_functions = "" 
+    # --- PANEL DE ESTRATEGIA (SIMPLE Y FLEXIBLE) ---
+    st.markdown("### 📋 CONFIGURACIÓN DE CONCURSO")
+    with st.expander("1. Definir Reglas del Juego (Guía)", expanded=True):
+        engine.job_functions = st.text_area("Tus Funciones (Opcional):", height=70, placeholder="Ej: Atender peticiones, Sustanciar fallos...")
+        engine.guide_text = st.text_area("📜 PEGA AQUÍ LA GUÍA (Metodología):", height=150, placeholder="Copia y pega el párrafo de la guía que dice cómo son las preguntas (Ej: 'Juicio Situacional con 3 opciones' o 'Análisis de Bloom con 4 opciones'). La IA leerá esto y se adaptará.")
 
     st.divider()
     
-    with st.expander("📂 Cargar Avance", expanded=True):
-        upl = st.file_uploader("Backup JSON:", type=['json'])
+    with st.expander("2. Cargar Normas", expanded=True):
+        upl = st.file_uploader("Cargar Backup JSON:", type=['json'])
         if upl:
             d = json.load(upl)
             engine.chunks = d['chunks']
@@ -331,8 +308,9 @@ if st.session_state.page == 'game':
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
-        msg = "🧠 Analizando..."
-        if engine.study_phase == "Post-Guía": msg = "🧠 Aplicando Metodología Personalizada..."
+        # Feedback visual de qué está haciendo la IA
+        msg = "🧠 Analizando norma..."
+        if engine.guide_text: msg = "🧠 Adaptando formato según tu Guía..."
         
         with st.spinner(msg):
             data = engine.generate_case()
@@ -352,10 +330,15 @@ if st.session_state.page == 'game':
         st.write(f"### Pregunta {st.session_state.q_idx + 1}")
         
         with st.form(key=f"q_{st.session_state.q_idx}"):
-            sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in q['opciones'].items()])
+            # Filtramos opciones vacías por si la guía pide 3 y la IA genera un campo D vacío
+            opciones_validas = {k: v for k, v in q['opciones'].items() if v}
+            sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()])
+            
             if st.form_submit_button("Validar"):
-                if sel[0] == q['respuesta']: st.success("✅ ¡Correcto!"); engine.mastery_tracker[engine.current_chunk_idx] += 1
+                letra_sel = sel.split(")")[0]
+                if letra_sel == q['respuesta']: st.success("✅ ¡Correcto!"); engine.mastery_tracker[engine.current_chunk_idx] += 1
                 else: st.error(f"Incorrecto. Era {q['respuesta']}"); engine.failed_indices.add(engine.current_chunk_idx)
+                # Aquí sale el formato TAXATIVO que te gusta
                 st.info(q['explicacion']); st.session_state.answered = True
 
         if st.session_state.answered:
@@ -364,7 +347,7 @@ if st.session_state.page == 'game':
             else:
                 if st.button("Nuevo Caso"): st.session_state.current_data = None; st.rerun()
         
-        # --- CALIBRACIÓN COMPLETA ---
+        # --- CALIBRACIÓN COMPLETA (RESTAURADA) ---
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
             reasons_map = {
