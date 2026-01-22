@@ -16,10 +16,10 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v45 - Control Total", page_icon="🎛️", layout="wide")
+st.set_page_config(page_title="TITÁN v46 - GPT-4o Integrado", page_icon="🧠", layout="wide")
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #10a37f; color: white;}
     .narrative-box {
         background-color: #f5f5f5; padding: 25px; border-radius: 12px; 
         border-left: 6px solid #424242; margin-bottom: 25px;
@@ -66,7 +66,7 @@ class LegalEngineTITAN:
         self.current_temperature = 0.2
         self.last_failed_embedding = None
         
-        # --- NUEVAS VARIABLES DE CONTROL ---
+        # --- VARIABLES DE CONTROL ---
         self.study_phase = "Pre-Guía" 
         self.example_question = "" 
         self.job_functions = ""    
@@ -78,9 +78,14 @@ class LegalEngineTITAN:
     def configure_api(self, key):
         key = key.strip()
         self.api_key = key
+        
+        # DETECCIÓN AUTOMÁTICA DE PROVEEDOR
         if key.startswith("gsk_"):
             self.provider = "Groq"
-            return True, "🚀 Motor GROQ Activado"
+            return True, "🚀 Motor GROQ (Llama 3) Activado"
+        elif key.startswith("sk-") and not key.startswith("sk-ant"): # Identifica OpenAI
+            self.provider = "OpenAI"
+            return True, "🤖 Motor CHATGPT (GPT-4o) Activado"
         else:
             self.provider = "Google"
             try:
@@ -193,10 +198,29 @@ class LegalEngineTITAN:
         attempts = 0
         while attempts < max_retries:
             try:
-                if self.provider == "Google":
+                # --- MOTOR 1: OPENAI (ChatGPT) ---
+                if self.provider == "OpenAI":
+                    headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+                    data = {
+                        "model": "gpt-4o", # Modelo Inteligente
+                        "messages": [
+                            {"role": "system", "content": "You are a specialized legal assistant. Output valid JSON only."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": self.current_temperature,
+                        "response_format": {"type": "json_object"}
+                    }
+                    resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+                    if resp.status_code != 200: return {"error": f"Error OpenAI: {resp.text}"}
+                    text_resp = resp.json()['choices'][0]['message']['content']
+
+                # --- MOTOR 2: GOOGLE (Gemini) ---
+                elif self.provider == "Google":
                     safety = [{"category": f"HARM_CATEGORY_{c}", "threshold": "BLOCK_NONE"} for c in ["HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT"]]
                     res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature}, safety_settings=safety)
                     text_resp = res.text.strip()
+                
+                # --- MOTOR 3: GROQ (Llama) ---
                 else:
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
@@ -208,10 +232,12 @@ class LegalEngineTITAN:
                     resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
                     text_resp = resp.json()['choices'][0]['message']['content']
 
+                # Limpieza de markdown si el modelo lo añade
                 if "```" in text_resp:
                     match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
                     if match: text_resp = match.group(1).strip()
                 return json.loads(text_resp)
+
             except Exception as e:
                 time.sleep(2); attempts += 1
         return {"error": "Saturado."}
@@ -224,9 +250,9 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v45 (Control Total)")
+    st.title("⚙️ TITÁN v46 (ChatGPT)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
-        key = st.text_input("API Key:", type="password")
+        key = st.text_input("API Key (Google, Groq o OpenAI):", type="password")
         if key:
             ok, msg = engine.configure_api(key)
             if ok: st.success(msg)
@@ -237,18 +263,15 @@ with st.sidebar:
     # --- PANEL DE ESTRATEGIA ---
     st.markdown("### 📋 ESTRATEGIA DE ESTUDIO")
     
-    # Mantenemos Fase como un "Preset", pero abajo está el control real
     fase_default = 0 if engine.study_phase == "Pre-Guía" else 1
     fase = st.radio("Fase de Preparación:", ["Pre-Guía", "Post-Guía"], index=fase_default)
     engine.study_phase = fase
 
-    # --- AQUÍ ESTÁ EL CONTROL MANUAL QUE PEDISTE ---
+    # --- CONTROL MANUAL ---
     st.markdown("#### 🔧 CONFIGURACIÓN DE ESTRUCTURA")
-    st.caption("Tú defines las reglas, la IA obedece.")
     
     col1, col2 = st.columns(2)
     with col1:
-        # Recuperamos valor previo
         idx_struct = 0 if "Sin Caso" in engine.structure_type else 1
         estilo = st.radio("Tipo de Enunciado:", 
                          ["Técnico / Normativo (Sin Caso)", "Narrativo / Situacional (Con Caso)"], 
@@ -271,7 +294,7 @@ with st.sidebar:
 
     st.divider()
     
-    # --- LOGICA DE CARGA (MANTENIENDO EL FIX DE LA v43) ---
+    # --- LOGICA DE CARGA ---
     with st.expander("2. Cargar Normas", expanded=True):
         upl = st.file_uploader("Cargar Backup JSON:", type=['json'])
         if upl is not None:
@@ -287,7 +310,6 @@ with st.sidebar:
                     engine.level = d.get('lvl', "Profesional")
                     engine.study_phase = d.get('phase', "Pre-Guía")
                     
-                    # Recuperamos los controles nuevos
                     engine.structure_type = d.get('struct_type', "Técnico / Normativo (Sin Caso)")
                     engine.questions_per_case = d.get('q_per_case', 1)
                     
@@ -312,7 +334,7 @@ with st.sidebar:
         if st.button("▶️ IR AL SIMULACRO", type="primary"): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
 
     st.divider()
-    # Recuperación visual de selectboxes
+    
     try: lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
     except: lvl_idx = 0
     engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=lvl_idx)
@@ -341,7 +363,6 @@ with st.sidebar:
             "chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices),
             "feed": engine.feedback_history, "ent": engine.entity, "axis": engine.thematic_axis,
             "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
-            # Guardamos los controles nuevos
             "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case
         }
         st.download_button("💾 Guardar Progreso Completo", json.dumps(full_save_data), "backup_titan_full.json")
@@ -353,7 +374,6 @@ if st.session_state.page == 'game':
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
-        # Feedback visual exacto
         tipo = "CASO NARRATIVO" if "Con Caso" in engine.structure_type else "ENUNCIADO TÉCNICO"
         msg = f"🧠 Generando {engine.questions_per_case} pregunta(s) con formato {tipo}..."
         
@@ -363,7 +383,7 @@ if st.session_state.page == 'game':
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
             else:
-                st.error("Error generación"); st.button("Reintentar", on_click=st.rerun)
+                st.error("Error generación: " + str(data.get('error', 'Desconocido'))); st.button("Reintentar", on_click=st.rerun)
                 st.stop()
 
     data = st.session_state.current_data
@@ -396,7 +416,7 @@ if st.session_state.page == 'game':
             reasons_map = {
                 "Preguntas no tienen que ver con el Caso": "desconexion",
                 "Respuesta Incompleta": "recorte",
-                "Spoiler (Regala dato)": "spoiler",
+                "Spoiler": "spoiler",
                 "Respuesta Obvia": "respuesta_obvia",
                 "Alucinación": "alucinacion",
                 "Opciones Desiguales": "sesgo_longitud",
