@@ -7,10 +7,7 @@ import re
 import requests
 from collections import Counter
 
-# --- GESTIÓN DE DEPENDENCIAS (PROFESIONAL) ---
-# Intentamos cargar las librerías avanzadas. Si no están, la App NO se rompe,
-# simplemente deshabilita esas funciones específicas.
-
+# --- GESTIÓN DE DEPENDENCIAS ---
 try:
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -19,20 +16,14 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-try:
-    import PyPDF2
-    PDF_AVAILABLE = True
-except ImportError:
-    PDF_AVAILABLE = False
-
 # --- CONFIGURACIÓN VISUAL (ESTÉTICA DE LUJO) ---
-st.set_page_config(page_title="TITÁN v31 - Web App Limpia", page_icon="✨", layout="wide")
+st.set_page_config(page_title="TITÁN v33 - Universal", page_icon="🌎", layout="wide")
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #0d47a1; color: white;}
     .narrative-box {
-        background-color: #eceff1; padding: 25px; border-radius: 12px; 
-        border-left: 6px solid #263238; margin-bottom: 25px;
+        background-color: #e3f2fd; padding: 25px; border-radius: 12px; 
+        border-left: 6px solid #1565c0; margin-bottom: 25px;
         font-family: 'Georgia', serif; font-size: 1.15em; line-height: 1.6;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
@@ -86,6 +77,8 @@ class LegalEngineTITAN:
         self.model = None 
         self.current_temperature = 0.2
         self.last_failed_embedding = None
+        # VARIABLES DE ESTRATEGIA (DINÁMICAS)
+        self.study_phase = "Pre-Guía" 
         self.job_functions = ""
         self.guide_methodology = ""
         self.thematic_axis = "General"
@@ -108,35 +101,6 @@ class LegalEngineTITAN:
                 return True, f"🧠 Motor GOOGLE ({target}) Activado"
             except Exception as e:
                 return False, f"Error: {str(e)}"
-
-    def extract_methodology_from_pdf(self, pdf_file):
-        if not PDF_AVAILABLE: return "Error: Librería PDF no disponible."
-        try:
-            reader = PyPDF2.PdfReader(pdf_file)
-            text = ""
-            # Leemos primeras 20 páginas para no saturar
-            for i in range(min(len(reader.pages), 20)):
-                text += reader.pages[i].extract_text()
-            
-            prompt = f"""
-            ACTÚA COMO UN EXPERTO EN PSICOMETRÍA Y CONCURSOS CNSC.
-            Analiza el siguiente texto extraído de una Guía de Orientación:
-            TEXTO: "{text[:25000]}"
-            TAREA: Extrae y resume en un solo párrafo la METODOLOGÍA DE EVALUACIÓN.
-            Busca: ¿Cómo son las preguntas? ¿Cuántas opciones? ¿Qué competencia evalúa?
-            Responde SOLO con el párrafo resumen.
-            """
-            
-            if self.provider == "Google":
-                res = self.model.generate_content(prompt)
-                return res.text
-            else:
-                headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-                data = {"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}]}
-                resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
-                return resp.json()['choices'][0]['message']['content']
-        except Exception as e:
-            return f"Error leyendo PDF: {str(e)}"
 
     def process_law(self, text, axis_name, append=False):
         text = text.replace('\r', '')
@@ -165,14 +129,14 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- REGLAS DE ORO (MUDEZ + ALEATORIEDAD + FORMALIDAD) ---
+    # --- REGLAS DE ORO (MUDEZ + ALEATORIEDAD) ---
     def get_strict_rules(self):
         return """
         🛑 PROTOCOLO DE MUDEZ SELECTIVA Y ALEATORIEDAD:
         
         1. ESTRUCTURA DE LA PREGUNTA:
            - La pregunta DEBE ser: [Referencia al Sujeto] + [Referencia a Fecha/Documento] + [Interrogante Jurídico].
-           - PROHIBIDO: Usar frases explicativas intermedias que describan la acción o la conducta.
+           - PROHIBIDO: Usar frases explicativas intermedias que describan la acción o la conducta (SPOILERS).
         
         2. DEPENDENCIA TOTAL:
            - El usuario NO DEBE saber qué pasó en esa fecha si no lee el texto.
@@ -212,17 +176,19 @@ class LegalEngineTITAN:
         
         self.current_chunk_idx = idx
         
-        contexto_adicional = ""
-        if self.job_functions:
-            contexto_adicional += f"\nCONTEXTO DEL CARGO: {self.job_functions}.\n"
-        if self.guide_methodology:
-            contexto_adicional += f"\nMETODOLOGÍA OBLIGATORIA (GUÍA): Aplica estrictamente: '{self.guide_methodology}'.\n"
+        # --- CONTEXTO DINÁMICO ---
+        contexto_adicional = f"\nEJE TEMÁTICO A EVALUAR: {self.thematic_axis.upper()}\n"
         
-        contexto_adicional += f"\nEJE TEMÁTICO: {self.thematic_axis.upper()}\n"
+        if self.study_phase == "Pre-Guía":
+            # Fase 1: Sin Guía (Usa Funciones)
+            contexto_adicional += f"\nENFOQUE (PRE-GUÍA): Relaciona la norma cargada con las siguientes FUNCIONES DEL CARGO: '{self.job_functions}'. El caso debe poner al aspirante a resolver problemas típicos de estas funciones.\n"
+        else:
+            # Fase 2: Con Guía (Usa el texto que el usuario pegó)
+            contexto_adicional += f"\nENFOQUE (POST-GUÍA - METODOLOGÍA OFICIAL): Debes ignorar tu estilo por defecto y aplicar ESTRICTAMENTE la siguiente metodología de evaluación provista por la Guía del concurso: '{self.guide_methodology}'.\n"
 
         prompt = f"""
-        ACTÚA COMO EXPERTO CNSC. NIVEL: {self.level.upper()}.
-        ESCENARIO: {self.entity.upper()}.
+        ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS (NIVEL {self.level.upper()}).
+        ENTIDAD CONVOCANTE: {self.entity.upper()}.
         
         {contexto_adicional}
         
@@ -288,7 +254,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v31")
+    st.title("⚙️ TITÁN v33 (Universal)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -298,30 +264,29 @@ with st.sidebar:
     
     st.divider()
     
-    # --- PANEL DE ESTRATEGIA (INTELIGENTE) ---
+    # --- PANEL DE ESTRATEGIA (UNIVERSAL) ---
     st.markdown("### 📋 ESTRATEGIA DE ESTUDIO")
-    with st.expander("1. Configurar Contexto", expanded=False):
-        engine.job_functions = st.text_area("Funciones del Cargo:", placeholder="Ej: Atención al ciudadano...", height=80)
-        
-        # LÓGICA CONDICIONAL: Solo muestra el uploader si PyPDF2 está instalado en el servidor
-        if PDF_AVAILABLE:
-            uploaded_pdf = st.file_uploader("Subir Guía de Orientación (PDF)", type="pdf")
-            if uploaded_pdf is not None:
-                if st.button("🔍 Extraer Metodología del PDF"):
-                    with st.spinner("Leyendo y analizando Guía..."):
-                        extracted = engine.extract_methodology_from_pdf(uploaded_pdf)
-                        engine.guide_methodology = extracted
-                        st.success("¡Metodología Extraída!")
+    
+    # Selector de Fase
+    fase = st.radio("Fase de Preparación:", ["Pre-Guía", "Post-Guía"], index=0, help="Pre-Guía: Estudia funciones. Post-Guía: Aplica metodología específica del concurso.")
+    engine.study_phase = fase
+
+    with st.expander("Configurar Contexto", expanded=True):
+        if fase == "Pre-Guía":
+            st.info("📌 Modo Funcional: Pega tus funciones aquí.")
+            engine.job_functions = st.text_area("Funciones del Cargo:", placeholder="Ej: Sustanciar procesos, Atención al usuario...", height=100)
+            engine.guide_methodology = "" 
         else:
-            st.warning("⚠️ Módulo PDF no detectado (PyPDF2). Pega la guía manualmente:")
-            
-        # Campo editable (siempre visible para correcciones manuales o pegado directo)
-        engine.guide_methodology = st.text_area("Metodología Activa:", value=engine.guide_methodology, height=150)
+            st.warning("📌 Modo Metodológico: Pega el texto de la Guía.")
+            engine.guide_methodology = st.text_area("Pega aquí la Metodología de la Guía (Copia/Pega del PDF):", 
+                                                  placeholder="Ej: 'Las preguntas serán de Juicio Situacional con 3 opciones de respuesta...'",
+                                                  height=150)
+            engine.job_functions = "" 
 
     st.divider()
     
-    with st.expander("2. Cargar Normas", expanded=True):
-        upl = st.file_uploader("Cargar Backup JSON:", type=['json'])
+    with st.expander("📂 Cargar Avance", expanded=True):
+        upl = st.file_uploader("Backup JSON:", type=['json'])
         if upl:
             d = json.load(upl)
             engine.chunks = d['chunks']
@@ -346,7 +311,7 @@ with st.sidebar:
         engine.entity = ent_selection
 
     st.markdown("---")
-    axis_input = st.text_input("Nombre Eje Temático:", value="General")
+    axis_input = st.text_input("Eje Temático:", value="General")
     txt = st.text_area("📜 Pegar Norma:", height=150)
     
     if st.button("🚀 PROCESAR NORMA"):
@@ -366,11 +331,10 @@ if st.session_state.page == 'game':
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
-        # Mensaje de carga
-        loading_msg = f"🧠 {engine.provider} analizando..."
-        if engine.guide_methodology: loading_msg = "🧠 Aplicando Metodología de la Guía..."
+        msg = "🧠 Analizando..."
+        if engine.study_phase == "Post-Guía": msg = "🧠 Aplicando Metodología Personalizada..."
         
-        with st.spinner(loading_msg):
+        with st.spinner(msg):
             data = engine.generate_case()
             if data and "preguntas" in data:
                 st.session_state.current_data = data
@@ -400,7 +364,7 @@ if st.session_state.page == 'game':
             else:
                 if st.button("Nuevo Caso"): st.session_state.current_data = None; st.rerun()
         
-        # --- CALIBRACIÓN MANUAL (INTACTA) ---
+        # --- CALIBRACIÓN COMPLETA ---
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
             reasons_map = {
