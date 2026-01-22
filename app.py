@@ -15,14 +15,14 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# --- CONFIGURACIÓN VISUAL (ESTÉTICA DE LUJO) ---
-st.set_page_config(page_title="TITÁN v38 - Clonador", page_icon="🧬", layout="wide")
+# --- CONFIGURACIÓN VISUAL ---
+st.set_page_config(page_title="TITÁN v39 - Pre/Post & Clonación", page_icon="⚖️", layout="wide")
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #2e7d32; color: white;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #1a237e; color: white;}
     .narrative-box {
-        background-color: #e8f5e9; padding: 25px; border-radius: 12px; 
-        border-left: 6px solid #1b5e20; margin-bottom: 25px;
+        background-color: #e8eaf6; padding: 25px; border-radius: 12px; 
+        border-left: 6px solid #283593; margin-bottom: 25px;
         font-family: 'Georgia', serif; font-size: 1.15em; line-height: 1.6;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
@@ -65,8 +65,10 @@ class LegalEngineTITAN:
         self.model = None 
         self.current_temperature = 0.2
         self.last_failed_embedding = None
-        # --- NUEVA ESTRATEGIA: CLONACIÓN ---
-        self.example_question = "" # Aquí guardamos tu ejemplo
+        # --- ESTRATEGIA DEFINITIVA ---
+        self.study_phase = "Pre-Guía" 
+        self.example_question = "" # Para clonar en Post-Guía
+        self.job_functions = ""    # Para contexto en Pre-Guía
         self.thematic_axis = "General"
 
     def configure_api(self, key):
@@ -74,7 +76,7 @@ class LegalEngineTITAN:
         self.api_key = key
         if key.startswith("gsk_"):
             self.provider = "Groq"
-            return True, "🚀 Motor GROQ (Llama 3.3) Activado"
+            return True, "🚀 Motor GROQ Activado"
         else:
             self.provider = "Google"
             try:
@@ -143,38 +145,49 @@ class LegalEngineTITAN:
         if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
         
-        # --- AQUÍ ESTÁ EL CEREBRO CLONADOR ---
-        cloning_instruction = ""
-        if self.example_question:
-            cloning_instruction = f"""
-            🧬 MODO CLONACIÓN DE ESTILO (PRIORIDAD ABSOLUTA):
-            El usuario ha proporcionado el siguiente EJEMPLO REAL de pregunta:
-            
-            '''{self.example_question}'''
-            
-            TU MISIÓN ES HACER INGENIERÍA INVERSA DE ESE EJEMPLO Y APLICARLO A LA NORMA ACTUAL:
-            1. Analiza el TONO: ¿Es técnico/jurídico o es una historia narrativa? -> ¡IMÍTALO!
-            2. Analiza la ESTRUCTURA: ¿Empieza con una definición? ¿Usa conectores específicos? -> ¡ÚSALOS!
-            3. Analiza las OPCIONES: ¿Son 3 o 4? -> ¡GENERA LA MISMA CANTIDAD!
-            4. Si el ejemplo no tiene personajes, NO LOS INVENTES. Si el ejemplo es abstracto, SÉ ABSTRACTO.
+        # --- CEREBRO DUÁL (LA LÓGICA QUE PEDISTE) ---
+        instruction_prompt = ""
+        
+        if self.study_phase == "Pre-Guía":
+            # CEREBRO A: ESTÁNDAR CNSC (Lo común hoy en día)
+            # Situacional, 3 opciones, Narrativa.
+            instruction_prompt = f"""
+            MODO: PRE-GUÍA (JUICIO SITUACIONAL ESTÁNDAR).
+            INSTRUCCIÓN: Genera un caso típico de concurso CNSC.
+            1. ENUNCIADO: Crea una situación laboral hipotética (narrativa con roles).
+               - Contexto Funcional: '{self.job_functions}'
+            2. OPCIONES: Genera exactamente TRES (3) opciones (A, B, C).
+            3. ESTILO: Evalúa competencias del "Hacer" y "Ser" aplicando la norma.
             """
         else:
-            cloning_instruction = "MODO ESTÁNDAR: Genera un caso situacional profesional."
+            # CEREBRO B: CLONACIÓN POST-GUÍA (Lo específico)
+            # Copia el estilo del ejemplo pegado.
+            instruction_prompt = f"""
+            MODO: POST-GUÍA (CLONACIÓN DE ESTILO).
+            El usuario proporcionó este EJEMPLO REAL DE PREGUNTA:
+            '''{self.example_question}'''
+            
+            INSTRUCCIÓN SUPREMA:
+            1. ANALIZA el ejemplo: ¿Es técnico o narrativo? ¿Tiene 3 o 4 opciones?
+            2. REPLICA ese estilo exacto usando la norma base cargada.
+            3. Si el ejemplo es técnico (CGR), NO inventes historias. Si es narrativo, úsalo.
+            4. Respeta rigurosamente el número de opciones del ejemplo.
+            """
 
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}. EJE: {self.thematic_axis.upper()}.
         
-        {cloning_instruction}
+        {instruction_prompt}
         
-        NORMA BASE A EVALUAR: "{self.chunks[idx][:7000]}"
+        NORMA BASE: "{self.chunks[idx][:7000]}"
         
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
         
         TAREA:
-        1. Redacta el Enunciado (Siguiendo estrictamente el estilo del ejemplo clonado).
-        2. Genera las Preguntas (Siguiendo el número de opciones del ejemplo clonado).
+        1. Redacta el Enunciado.
+        2. Genera las Preguntas (3 o 4 según el modo).
         
         FORMATO JSON OBLIGATORIO:
         {{
@@ -188,7 +201,7 @@ class LegalEngineTITAN:
                 }}
             ]
         }}
-        (Nota: Ajusta las claves del diccionario de opciones según la cantidad requerida: A,B,C o A,B,C,D).
+        (Nota: Ajusta las claves A,B,C o A,B,C,D según corresponda).
         """
         
         max_retries = 3
@@ -226,7 +239,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v38 (Clonador)")
+    st.title("⚙️ TITÁN v39 (Final)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -236,10 +249,25 @@ with st.sidebar:
     
     st.divider()
     
-    # --- PANEL DE CLONACIÓN DE ESTILO (SIMPLIFICADO) ---
-    st.markdown("### 🧬 ADN DE LA PRUEBA")
-    st.info("Pega aquí UN SOLO ejemplo de pregunta de tu guía. La IA copiará su estilo, tono y número de opciones.")
-    engine.example_question = st.text_area("Ejemplo de Pregunta:", height=180, placeholder="Pega aquí el texto completo del ejemplo (Enunciado + Opciones)...")
+    # --- PANEL DE ESTRATEGIA (CON FASES + CLONACIÓN) ---
+    st.markdown("### 📋 ESTRATEGIA DE ESTUDIO")
+    
+    # 1. Selector de Fase (Restaurado)
+    fase = st.radio("Fase de Preparación:", ["Pre-Guía", "Post-Guía"], index=0, 
+                   help="Pre-Guía: Aplica Juicio Situacional Estándar (3 opciones). Post-Guía: Clona el estilo de tu ejemplo.")
+    engine.study_phase = fase
+
+    # 2. Configuración según Fase
+    with st.expander("Configurar Contexto", expanded=True):
+        if fase == "Pre-Guía":
+            st.info("📌 MODO ESTÁNDAR (CNSC): Juicio Situacional (3 Opciones).")
+            engine.job_functions = st.text_area("Funciones del Cargo (Opcional):", height=80, placeholder="Ej: Atención al ciudadano...")
+            engine.example_question = "" # Limpiar
+        else:
+            st.warning("📌 MODO CLONACIÓN: Pegar Ejemplo.")
+            engine.example_question = st.text_area("🧬 PEGA AQUÍ UN EJEMPLO DE PREGUNTA:", height=180, 
+                                                 placeholder="Copia y pega la pregunta de la guía (Enunciado + Opciones). La IA copiará ese estilo exacto.")
+            engine.job_functions = "" # Limpiar
 
     st.divider()
     
@@ -290,8 +318,8 @@ if st.session_state.page == 'game':
 
     if not st.session_state.get('current_data'):
         # Mensaje de carga inteligente
-        msg = "🧠 Analizando norma..."
-        if engine.example_question: msg = "🧬 Clonando estilo del ejemplo..."
+        msg = "🧠 Generando caso Situacional (Pre-Guía)..."
+        if engine.study_phase == "Post-Guía": msg = "🧬 Clonando estilo de tu ejemplo..."
         
         with st.spinner(msg):
             data = engine.generate_case()
@@ -311,7 +339,7 @@ if st.session_state.page == 'game':
         st.write(f"### Pregunta {st.session_state.q_idx + 1}")
         
         with st.form(key=f"q_{st.session_state.q_idx}"):
-            # Filtro inteligente de opciones vacías (Detecta si la IA generó 3 o 4)
+            # Filtro inteligente de opciones vacías
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()])
             
