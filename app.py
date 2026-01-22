@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v41 - Clonación Real", page_icon="🧬", layout="wide")
+st.set_page_config(page_title="TITÁN v42 - Carga Corregida", page_icon="🧬", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
@@ -145,11 +145,11 @@ class LegalEngineTITAN:
         if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
         
-        # --- CEREBRO DUÁL (AHORA SÍ, PERFECTO) ---
+        # --- CEREBRO DUÁL ---
         instruction_prompt = ""
         
         if self.study_phase == "Pre-Guía":
-            # CEREBRO A: ESTÁNDAR CNSC (Lo seguro mientras sale la guía)
+            # CEREBRO A: ESTÁNDAR CNSC
             instruction_prompt = f"""
             MODO: PRE-GUÍA (JUICIO SITUACIONAL ESTÁNDAR).
             INSTRUCCIÓN: Genera un CASO con TRES (3) preguntas derivadas.
@@ -159,8 +159,7 @@ class LegalEngineTITAN:
             3. OPCIONES: 3 Opciones (A, B, C).
             """
         else:
-            # CEREBRO B: CLONACIÓN PURA (Sin límites predefinidos)
-            # Aquí es donde la IA cuenta y copia.
+            # CEREBRO B: CLONACIÓN PURA
             instruction_prompt = f"""
             MODO: POST-GUÍA (CLONACIÓN EXACTA).
             El usuario proporcionó este EJEMPLO REAL:
@@ -241,7 +240,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v41 (Clonador Real)")
+    st.title("⚙️ TITÁN v42 (Fix Carga)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -273,17 +272,35 @@ with st.sidebar:
 
     st.divider()
     
+    # --- AQUÍ ESTÁ EL ARREGLO DEL "GUARDAR/CARGAR" ---
     with st.expander("2. Cargar Normas", expanded=True):
         upl = st.file_uploader("Cargar Backup JSON:", type=['json'])
-        if upl:
-            d = json.load(upl)
-            engine.chunks = d['chunks']
-            engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
-            engine.failed_indices = set(d['failed'])
-            engine.feedback_history = d.get('feed', [])
-            engine.entity = d.get('ent', "")
-            st.success("¡Cargado!")
-            if engine.api_key: time.sleep(0.5); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+        # FIX: Verificamos si ya cargamos este archivo para no entrar en bucle
+        if upl is not None:
+            if 'last_loaded' not in st.session_state or st.session_state.last_loaded != upl.name:
+                try:
+                    d = json.load(upl)
+                    engine.chunks = d['chunks']
+                    engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
+                    engine.failed_indices = set(d['failed'])
+                    engine.feedback_history = d.get('feed', [])
+                    engine.entity = d.get('ent', "")
+                    
+                    # Recuperar memoria neuronal si es posible (Opcional pero recomendado)
+                    if DL_AVAILABLE:
+                         with st.spinner("🧠 Recuperando memoria neuronal..."):
+                            engine.chunk_embeddings = dl_model.encode(engine.chunks)
+
+                    st.session_state.last_loaded = upl.name # Marcamos como cargado
+                    st.success("¡Backup Cargado Exitosamente!")
+                    
+                    if engine.api_key: 
+                        time.sleep(1)
+                        st.session_state.page = 'game'
+                        st.session_state.current_data = None
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Error al leer archivo: {e}")
 
     if engine.chunks and engine.api_key and st.session_state.page == 'setup':
         st.divider()
@@ -340,7 +357,6 @@ if st.session_state.page == 'game':
         st.write(f"### Pregunta {st.session_state.q_idx + 1}")
         
         with st.form(key=f"q_{st.session_state.q_idx}"):
-            # Filtro inteligente de opciones vacías
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()])
             
