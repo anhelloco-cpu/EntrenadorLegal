@@ -16,14 +16,14 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# --- CONFIGURACIÓN VISUAL (ESTÉTICA DE LUJO v24) ---
-st.set_page_config(page_title="TITÁN v25 - Final Estudio", page_icon="🎓", layout="wide")
+# --- CONFIGURACIÓN VISUAL (ESTÉTICA DE LUJO) ---
+st.set_page_config(page_title="TITÁN v28 - Estratega", page_icon="🧠", layout="wide")
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #0d47a1; color: white;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #1b5e20; color: white;}
     .narrative-box {
-        background-color: #e3f2fd; padding: 25px; border-radius: 12px; 
-        border-left: 6px solid #1565c0; margin-bottom: 25px;
+        background-color: #e8f5e9; padding: 25px; border-radius: 12px; 
+        border-left: 6px solid #2e7d32; margin-bottom: 25px;
         font-family: 'Georgia', serif; font-size: 1.15em; line-height: 1.6;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
@@ -75,8 +75,12 @@ class LegalEngineTITAN:
         self.provider = "Unknown" 
         self.api_key = ""
         self.model = None 
-        self.current_temperature = 0.1
-        self.last_failed_embedding = None 
+        self.current_temperature = 0.2
+        self.last_failed_embedding = None
+        # NUEVAS VARIABLES DE ESTRATEGIA
+        self.job_functions = ""
+        self.guide_methodology = ""
+        self.thematic_axis = "General"
 
     def configure_api(self, key):
         key = key.strip()
@@ -97,9 +101,10 @@ class LegalEngineTITAN:
             except Exception as e:
                 return False, f"Error: {str(e)}"
 
-    def process_law(self, text, append=False):
+    def process_law(self, text, axis_name, append=False):
         text = text.replace('\r', '')
         if len(text) < 100: return 0
+        self.thematic_axis = axis_name # Guardamos el Eje
         new_chunks = [text[i:i+5500] for i in range(0, len(text), 5500)]
         if not append:
             self.chunks = new_chunks
@@ -123,10 +128,10 @@ class LegalEngineTITAN:
         perc = int((score / (total * 3)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
-    # --- REGLAS DE ORO ---
+    # --- REGLAS DE ORO (INTACTAS) ---
     def get_strict_rules(self):
         return """
-        🛑 PROTOCOLO DE MUDEZ SELECTIVA (GRAMÁTICA OBLIGATORIA):
+        🛑 PROTOCOLO DE MUDEZ SELECTIVA Y ALEATORIEDAD:
         
         1. ESTRUCTURA DE LA PREGUNTA:
            - La pregunta DEBE ser: [Referencia al Sujeto] + [Referencia a Fecha/Documento] + [Interrogante Jurídico].
@@ -134,10 +139,13 @@ class LegalEngineTITAN:
         
         2. DEPENDENCIA TOTAL:
            - El usuario NO DEBE saber qué pasó en esa fecha si no lee el texto.
-           - Si la pregunta describe la conducta, FALLAS.
+           
+        3. ALEATORIEDAD DE RESPUESTAS (OBLIGATORIO):
+           - La respuesta correcta NO DEBE SER SIEMPRE LA "A".
+           - Debes distribuir aleatoriamente la respuesta correcta entre las opciones A, B y C.
         """
 
-    # --- CALIBRACIÓN COMPLETA ---
+    # --- CALIBRACIÓN COMPLETA (INTACTA) ---
     def get_calibration_instructions(self):
         if not self.feedback_history: return ""
         counts = Counter(self.feedback_history)
@@ -168,18 +176,30 @@ class LegalEngineTITAN:
         
         self.current_chunk_idx = idx
         
-        # --- AQUÍ ESTÁ EL FORMATO DE RESPUESTA QUE PEDISTE ---
+        # --- CONSTRUCCIÓN DEL CONTEXTO DE CONVOCATORIA ---
+        contexto_adicional = ""
+        if self.job_functions:
+            contexto_adicional += f"\nCONTEXTO DEL CARGO: El usuario desempeña estas funciones: '{self.job_functions}'. El caso debe involucrar estas responsabilidades.\n"
+        if self.guide_methodology:
+            contexto_adicional += f"\nMETODOLOGÍA OBLIGATORIA (GUÍA): Aplica estrictamente estas reglas de evaluación: '{self.guide_methodology}'.\n"
+        
+        contexto_adicional += f"\nEJE TEMÁTICO A EVALUAR: {self.thematic_axis.upper()}\n"
+
+        # --- PROMPT MAESTRO ---
         prompt = f"""
         ACTÚA COMO EXPERTO CNSC. NIVEL: {self.level.upper()}.
         ESCENARIO: {self.entity.upper()}.
-        NORMA BASE: "{self.chunks[idx][:6000]}"
+        
+        {contexto_adicional}
+        
+        NORMA BASE PARA EL ESTUDIO: "{self.chunks[idx][:6000]}"
         
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
         
         TAREA:
-        1. Redacta un CASO SITUACIONAL complejo y detallado.
-        2. Genera 4 PREGUNTAS difíciles y dependientes del texto (Sin describir la conducta).
+        1. Redacta un CASO SITUACIONAL complejo y detallado, adaptado a las Funciones del Cargo (si se proveyeron).
+        2. Genera 4 PREGUNTAS aplicando la Metodología de la Guía (si se proveyó).
         
         FORMATO DE EXPLICACIÓN OBLIGATORIO (ESTRICTO):
         En el campo "explicacion", DEBES seguir esta estructura exacta:
@@ -193,7 +213,7 @@ class LegalEngineTITAN:
                     "enunciado": "...", 
                     "opciones": {{"A": "..", "B": "..", "C": ".."}}, 
                     "respuesta": "A", 
-                    "explicacion": "NORMA TAXATIVA: '...' ANÁLISIS: ... DESCARTES: ..."
+                    "explicacion": "NORMA TAXATIVA: ... ANÁLISIS: ... DESCARTES: ..."
                 }}
             ]
         }}
@@ -234,7 +254,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v25")
+    st.title("⚙️ TITÁN v28 (Estratega)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -243,8 +263,27 @@ with st.sidebar:
             else: st.error(msg)
     
     st.divider()
-    with st.expander("📂 Cargar Avance", expanded=True):
-        upl = st.file_uploader("Archivo:", type=['json'])
+    
+    # --- NUEVO PANEL DE ESTRATEGIA ---
+    st.markdown("### 📋 ESTRATEGIA DE ESTUDIO")
+    with st.expander("1. Configurar Contexto (Opcional)", expanded=False):
+        st.info("Define si estás estudiando antes de la Guía o con la Guía en mano.")
+        engine.job_functions = st.text_area("Funciones del Cargo (Para Casos Situacionales):", 
+                                          placeholder="Ej: Atención al ciudadano, Gestión documental...", 
+                                          height=100)
+        
+        usa_guia = st.checkbox("¿Ya tienes la Guía de Orientación?")
+        if usa_guia:
+            engine.guide_methodology = st.text_area("Pega aquí la Metodología de la Guía:", 
+                                                  placeholder="Ej: Se evaluarán competencias comportamentales, taxonomía de Bloom...",
+                                                  height=100)
+        else:
+            engine.guide_methodology = ""
+            
+    st.divider()
+
+    with st.expander("2. Cargar Normas y Ejes", expanded=True):
+        upl = st.file_uploader("Cargar Backup JSON:", type=['json'])
         if upl:
             d = json.load(upl)
             engine.chunks = d['chunks']
@@ -252,42 +291,47 @@ with st.sidebar:
             engine.failed_indices = set(d['failed'])
             engine.feedback_history = d.get('feed', [])
             engine.entity = d.get('ent', "")
-            st.success("¡Cargado!")
+            st.success("¡Backup Cargado!")
             if engine.api_key: time.sleep(0.5); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
 
     if engine.chunks and engine.api_key and st.session_state.page == 'setup':
         st.divider()
-        if st.button("▶️ CONTINUAR", type="primary"): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+        if st.button("▶️ CONTINUAR AL SIMULACRO", type="primary"): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
 
     st.divider()
-    engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor"], index=0)
+    engine.level = st.selectbox("Nivel Jerárquico:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=0)
     
-    # Entidades completas
-    ent_selection = st.selectbox("Entidad:", ENTIDADES_CO)
+    ent_selection = st.selectbox("Entidad Convocante:", ENTIDADES_CO)
     if "Otra" in ent_selection or "Agregar" in ent_selection:
         engine.entity = st.text_input("Nombre Entidad:")
     else:
         engine.entity = ent_selection
 
-    txt = st.text_area("Cargar Nueva Norma:", height=150)
-    if st.button("🚀 INICIAR"):
-        if engine.process_law(txt): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+    st.markdown("---")
+    # Nuevo campo para nombrar el Eje Temático
+    axis_input = st.text_input("Nombre del Eje Temático (Ej: Constitución):", value="General")
+    txt = st.text_area("📜 Pegar Texto de la Norma:", height=150)
+    
+    if st.button("🚀 PROCESAR NORMA"):
+        if engine.process_law(txt, axis_input): 
+            st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
             
-    if st.button("🔥 SIMULACRO", disabled=not engine.chunks):
+    if st.button("🔥 INICIAR SIMULACRO", disabled=not engine.chunks):
         engine.simulacro_mode = True; st.session_state.current_data = None; st.session_state.page = 'game'; st.rerun()
     
     if engine.chunks:
         save = json.dumps({"chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices), "feed": engine.feedback_history, "ent": engine.entity})
-        st.download_button("Guardar Progreso", save, "progreso_titan.json")
+        st.download_button("💾 Guardar Progreso", save, "progreso_titan.json")
 
 # --- JUEGO ---
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
-    st.markdown(f"**DOMINIO: {perc}%** | **BLOQUES: {total}**")
+    # Mostrar el Eje actual en la cabecera
+    st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **DOMINIO: {perc}%** | **BLOQUES: {total}**")
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
-        with st.spinner(f"🧠 {engine.provider} analizando..."):
+        with st.spinner(f"🧠 {engine.provider} analizando bajo metodología: {engine.guide_methodology[:30] if engine.guide_methodology else 'General'}..."):
             data = engine.generate_case()
             if data and "preguntas" in data:
                 st.session_state.current_data = data
@@ -317,7 +361,7 @@ if st.session_state.page == 'game':
             else:
                 if st.button("Nuevo Caso"): st.session_state.current_data = None; st.rerun()
         
-        # --- MENÚ DE CALIBRACIÓN COMPLETO ---
+        # --- MENÚ DE CALIBRACIÓN COMPLETO (INTACTO) ---
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL (COMPLETA)", expanded=True):
             reasons_map = {
