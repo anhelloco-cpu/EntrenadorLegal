@@ -16,7 +16,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v42 - Carga Corregida", page_icon="🧬", layout="wide")
+st.set_page_config(page_title="TITÁN v43 - Guardado Perfecto", page_icon="💾", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
@@ -240,7 +240,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v42 (Fix Carga)")
+    st.title("⚙️ TITÁN v43 (Guardado FULL)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key:", type="password")
         if key:
@@ -250,49 +250,56 @@ with st.sidebar:
     
     st.divider()
     
-    # --- PANEL DE ESTRATEGIA ---
+    # --- PANEL DE ESTRATEGIA (CON PERSISTENCIA) ---
     st.markdown("### 📋 ESTRATEGIA DE ESTUDIO")
     
-    # 1. Selector de Fase
-    fase = st.radio("Fase de Preparación:", ["Pre-Guía", "Post-Guía"], index=0, 
-                   help="Pre-Guía: CNSC Estándar (3 Preguntas). Post-Guía: Clona EXACTAMENTE tu ejemplo (1 o varias preguntas).")
+    # Recuperamos el valor de la fase del motor si ya existe
+    fase_idx = 0 if engine.study_phase == "Pre-Guía" else 1
+    fase = st.radio("Fase de Preparación:", ["Pre-Guía", "Post-Guía"], index=fase_idx, 
+                   help="Pre-Guía: CNSC Estándar (3 Preguntas). Post-Guía: Clona EXACTAMENTE tu ejemplo.")
     engine.study_phase = fase
 
-    # 2. Configuración
     with st.expander("Configurar Contexto", expanded=True):
         if fase == "Pre-Guía":
             st.info("📌 MODO ESTÁNDAR (CNSC): Juicio Situacional (3 Preguntas).")
-            engine.job_functions = st.text_area("Funciones del Cargo (Opcional):", height=80, placeholder="Ej: Atención al ciudadano...")
+            # El valor por defecto viene del engine (recuperado al cargar)
+            engine.job_functions = st.text_area("Funciones del Cargo (Opcional):", value=engine.job_functions, height=80, placeholder="Ej: Atención al ciudadano...")
             engine.example_question = "" 
         else:
             st.warning("📌 MODO CLONACIÓN: Imitación exacta del ejemplo.")
-            engine.example_question = st.text_area("🧬 PEGA EL EJEMPLO MODELO:", height=180, 
-                                                 placeholder="Pega el ejemplo completo. Si tiene 1 pregunta, haré 1. Si tiene 5, haré 5.")
+            engine.example_question = st.text_area("🧬 PEGA EL EJEMPLO MODELO:", value=engine.example_question, height=180, 
+                                                 placeholder="Pega el ejemplo completo...")
             engine.job_functions = "" 
 
     st.divider()
     
-    # --- AQUÍ ESTÁ EL ARREGLO DEL "GUARDAR/CARGAR" ---
+    # --- LÓGICA DE CARGA CORREGIDA ---
     with st.expander("2. Cargar Normas", expanded=True):
         upl = st.file_uploader("Cargar Backup JSON:", type=['json'])
-        # FIX: Verificamos si ya cargamos este archivo para no entrar en bucle
         if upl is not None:
             if 'last_loaded' not in st.session_state or st.session_state.last_loaded != upl.name:
                 try:
                     d = json.load(upl)
+                    # 1. Recuperamos la memoria pesada
                     engine.chunks = d['chunks']
                     engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
                     engine.failed_indices = set(d['failed'])
                     engine.feedback_history = d.get('feed', [])
-                    engine.entity = d.get('ent', "")
                     
-                    # Recuperar memoria neuronal si es posible (Opcional pero recomendado)
+                    # 2. RECUPERAMOS LA CONFIGURACIÓN (LO QUE FALTABA)
+                    engine.entity = d.get('ent', "")
+                    engine.thematic_axis = d.get('axis', "General") # ¡AQUÍ ESTÁ LA SOLUCIÓN!
+                    engine.level = d.get('lvl', "Profesional")
+                    engine.study_phase = d.get('phase', "Pre-Guía")
+                    engine.example_question = d.get('ex_q', "")
+                    engine.job_functions = d.get('job', "")
+                    
                     if DL_AVAILABLE:
                          with st.spinner("🧠 Recuperando memoria neuronal..."):
                             engine.chunk_embeddings = dl_model.encode(engine.chunks)
 
-                    st.session_state.last_loaded = upl.name # Marcamos como cargado
-                    st.success("¡Backup Cargado Exitosamente!")
+                    st.session_state.last_loaded = upl.name
+                    st.success("¡Configuración y Progreso Restaurados!")
                     
                     if engine.api_key: 
                         time.sleep(1)
@@ -300,23 +307,39 @@ with st.sidebar:
                         st.session_state.current_data = None
                         st.rerun()
                 except Exception as e:
-                    st.error(f"Error al leer archivo: {e}")
+                    st.error(f"Error al leer: {e}")
 
     if engine.chunks and engine.api_key and st.session_state.page == 'setup':
         st.divider()
         if st.button("▶️ IR AL SIMULACRO", type="primary"): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
 
     st.divider()
-    engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=0)
     
-    ent_selection = st.selectbox("Entidad:", ENTIDADES_CO)
+    # Recuperamos el índice del nivel para que el selectbox coincida con lo cargado
+    niveles_posibles = ["Profesional", "Asesor", "Técnico", "Asistencial"]
+    try:
+        lvl_idx = niveles_posibles.index(engine.level)
+    except:
+        lvl_idx = 0
+        
+    engine.level = st.selectbox("Nivel:", niveles_posibles, index=lvl_idx)
+    
+    # Entidad recuperada
+    try:
+        ent_idx = ENTIDADES_CO.index(engine.entity)
+        ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
+    except:
+        ent_selection = st.selectbox("Entidad:", ENTIDADES_CO)
+        if engine.entity: st.caption(f"Entidad cargada: {engine.entity}")
+
     if "Otra" in ent_selection or "Agregar" in ent_selection:
-        engine.entity = st.text_input("Nombre Entidad:")
+        engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
     else:
         engine.entity = ent_selection
 
     st.markdown("---")
-    axis_input = st.text_input("Eje Temático:", value="General")
+    # Eje temático recuperado
+    axis_input = st.text_input("Eje Temático:", value=engine.thematic_axis)
     txt = st.text_area("📜 Pegar Norma:", height=150)
     
     if st.button("🚀 PROCESAR NORMA"):
@@ -325,9 +348,23 @@ with st.sidebar:
     if st.button("🔥 INICIAR SIMULACRO", disabled=not engine.chunks):
         engine.simulacro_mode = True; st.session_state.current_data = None; st.session_state.page = 'game'; st.rerun()
     
+    # --- BOTÓN DE GUARDADO CORREGIDO (AHORA GUARDA TODO) ---
     if engine.chunks:
-        save = json.dumps({"chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices), "feed": engine.feedback_history, "ent": engine.entity})
-        st.download_button("💾 Guardar Progreso", save, "progreso_titan.json")
+        full_save_data = {
+            "chunks": engine.chunks,
+            "mastery": engine.mastery_tracker,
+            "failed": list(engine.failed_indices),
+            "feed": engine.feedback_history,
+            "ent": engine.entity,
+            # NUEVOS CAMPOS GUARDADOS:
+            "axis": engine.thematic_axis,
+            "lvl": engine.level,
+            "phase": engine.study_phase,
+            "ex_q": engine.example_question,
+            "job": engine.job_functions
+        }
+        save = json.dumps(full_save_data)
+        st.download_button("💾 Guardar Progreso Completo", save, "backup_titan_full.json")
 
 # --- JUEGO ---
 if st.session_state.page == 'game':
