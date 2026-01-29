@@ -4,6 +4,7 @@ import json
 import random
 import time
 import requests
+import re
 from collections import Counter
 
 # --- GESTIÓN DE DEPENDENCIAS ---
@@ -16,10 +17,10 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v46 - GPT-4o Integrado", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="TITÁN v50 - Mimetismo Sintáctico", page_icon="🧬", layout="wide")
 st.markdown("""
 <style>
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #10a37f; color: white;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
     .narrative-box {
         background-color: #f5f5f5; padding: 25px; border-radius: 12px; 
         border-left: 6px solid #424242; margin-bottom: 25px;
@@ -71,7 +72,6 @@ class LegalEngineTITAN:
         self.example_question = "" 
         self.job_functions = ""    
         self.thematic_axis = "General"
-        # VARIABLES DE ESTRUCTURA FIJA
         self.structure_type = "Técnico / Normativo (Sin Caso)" 
         self.questions_per_case = 1 
 
@@ -79,17 +79,18 @@ class LegalEngineTITAN:
         key = key.strip()
         self.api_key = key
         
-        # DETECCIÓN AUTOMÁTICA DE PROVEEDOR
+        # DETECCIÓN AUTOMÁTICA
         if key.startswith("gsk_"):
             self.provider = "Groq"
-            return True, "🚀 Motor GROQ (Llama 3) Activado"
-        elif key.startswith("sk-") and not key.startswith("sk-ant"): # Identifica OpenAI
+            return True, "🚀 Motor GROQ Activado"
+        elif key.startswith("sk-") and not key.startswith("sk-ant"): 
             self.provider = "OpenAI"
             return True, "🤖 Motor CHATGPT (GPT-4o) Activado"
         else:
             self.provider = "Google"
             try:
                 genai.configure(api_key=key)
+                # Validación rápida
                 model_list = genai.list_models()
                 models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
                 target = next((m for m in models if 'gemini-1.5-pro' in m), 
@@ -97,7 +98,7 @@ class LegalEngineTITAN:
                 self.model = genai.GenerativeModel(target)
                 return True, f"🧠 Motor GOOGLE ({target}) Activado"
             except Exception as e:
-                return False, f"Error: {str(e)}"
+                return False, f"Error con la llave: {str(e)}"
 
     def process_law(self, text, axis_name):
         text = text.replace('\r', '')
@@ -153,39 +154,50 @@ class LegalEngineTITAN:
         if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
         
-        # --- CEREBRO CON CONTROL TOTAL ---
+        # --- PROMPT CORREGIDO: MIMETISMO SINTÁCTICO ---
         
-        # 1. Definir Estilo del Contexto
         if "Sin Caso" in self.structure_type:
-            tipo_contexto = "TÉCNICO / NORMATIVO. Prohibido usar personajes o historias. Redacta un párrafo analítico o cita normativa."
+            # Lógica para preguntas técnicas tipo CGR
+            instruccion_estilo = f"""
+            ESTILO: TÉCNICO / NORMATIVO (SIN HISTORIAS).
+            1. Si hay un EJEMPLO DE USUARIO abajo, COPIA SU SINTAXIS EXACTA:
+               - ¿El ejemplo usa signos de interrogación '¿?'? -> Si NO los usa, TÚ TAMPOCO.
+               - ¿El ejemplo termina en dos puntos ':'? -> TU ENUNCIADO DEBE TERMINAR EN DOS PUNTOS.
+               - ¿El ejemplo usa conectores como "En ese sentido...", "Por consiguiente..."? -> ÚSALOS.
+            2. FUSIÓN: No separes "Contexto" y "Pregunta" si el ejemplo es un solo bloque corrido.
+            3. OBJETIVO: Que la pregunta parezca sacada del mismo examen del ejemplo.
+            """
         else:
-            tipo_contexto = f"NARRATIVO / SITUACIONAL. Crea una historia laboral realista usando estas funciones: '{self.job_functions}'."
+            instruccion_estilo = f"""
+            ESTILO: NARRATIVO / SITUACIONAL.
+            1. Crea una historia laboral realista con roles definidos.
+            2. Funciones/Rol a usar: '{self.job_functions}'
+            """
 
-        # 2. Definir Cantidad
-        cantidad_instruccion = f"Genera EXACTAMENTE {self.questions_per_case} pregunta(s) basada(s) en ese contexto."
+        cantidad_instruccion = f"Genera EXACTAMENTE {self.questions_per_case} ítem(s)."
 
-        # 3. Prompt Maestro
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}. EJE: {self.thematic_axis.upper()}.
         
-        INSTRUCCIONES DE ESTRUCTURA (OBLIGATORIAS):
-        1. TIPO DE CONTEXTO: {tipo_contexto}
-        2. CANTIDAD DE PREGUNTAS: {cantidad_instruccion}
-        3. SI HAY EJEMPLO CLONADO: Úsalo solo para imitar el tono de redacción y la dificultad, pero respeta la estructura de arriba (Sin caso/Con caso) que el usuario forzó.
-           Ejemplo usuario: '''{self.example_question}'''
+        {instruccion_estilo}
         
-        NORMA BASE: "{self.chunks[idx][:7000]}"
+        CANTIDAD REQUERIDA: {cantidad_instruccion}
+        
+        EJEMPLO DE ESTILO DEL USUARIO (IMITAR SINTAXIS):
+        '''{self.example_question}'''
+        
+        NORMA BASE A EVALUAR: "{self.chunks[idx][:7000]}"
         
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "Texto del contexto...",
+            "narrativa_caso": "Si es estilo TÉCNICO, pon aquí el párrafo inicial o contexto normativo. Si es NARRATIVO, pon la historia.",
             "preguntas": [
                 {{
-                    "enunciado": "...", 
+                    "enunciado": "Aquí va el conector y la pregunta final (ej: 'En ese sentido, es correcto afirmar:')...", 
                     "opciones": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, 
                     "respuesta": "A", 
                     "explicacion": "..."
@@ -198,11 +210,11 @@ class LegalEngineTITAN:
         attempts = 0
         while attempts < max_retries:
             try:
-                # --- MOTOR 1: OPENAI (ChatGPT) ---
+                # MOTOR OPENAI
                 if self.provider == "OpenAI":
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
-                        "model": "gpt-4o", # Modelo Inteligente
+                        "model": "gpt-4o", 
                         "messages": [
                             {"role": "system", "content": "You are a specialized legal assistant. Output valid JSON only."},
                             {"role": "user", "content": prompt}
@@ -214,13 +226,13 @@ class LegalEngineTITAN:
                     if resp.status_code != 200: return {"error": f"Error OpenAI: {resp.text}"}
                     text_resp = resp.json()['choices'][0]['message']['content']
 
-                # --- MOTOR 2: GOOGLE (Gemini) ---
+                # MOTOR GOOGLE
                 elif self.provider == "Google":
                     safety = [{"category": f"HARM_CATEGORY_{c}", "threshold": "BLOCK_NONE"} for c in ["HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT"]]
                     res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature}, safety_settings=safety)
                     text_resp = res.text.strip()
                 
-                # --- MOTOR 3: GROQ (Llama) ---
+                # MOTOR GROQ
                 else:
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
@@ -232,7 +244,6 @@ class LegalEngineTITAN:
                     resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
                     text_resp = resp.json()['choices'][0]['message']['content']
 
-                # Limpieza de markdown si el modelo lo añade
                 if "```" in text_resp:
                     match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
                     if match: text_resp = match.group(1).strip()
@@ -250,9 +261,9 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v46 (ChatGPT)")
+    st.title("⚙️ TITÁN v50 (Clon Real)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
-        key = st.text_input("API Key (Google, Groq o OpenAI):", type="password")
+        key = st.text_input("Pega tu API Key (Cualquiera):", type="password")
         if key:
             ok, msg = engine.configure_api(key)
             if ok: st.success(msg)
@@ -260,41 +271,38 @@ with st.sidebar:
     
     st.divider()
     
-    # --- PANEL DE ESTRATEGIA ---
-    st.markdown("### 📋 ESTRATEGIA DE ESTUDIO")
-    
+    # --- ESTRATEGIA ---
+    st.markdown("### 📋 ESTRATEGIA")
     fase_default = 0 if engine.study_phase == "Pre-Guía" else 1
-    fase = st.radio("Fase de Preparación:", ["Pre-Guía", "Post-Guía"], index=fase_default)
+    fase = st.radio("Fase:", ["Pre-Guía", "Post-Guía"], index=fase_default)
     engine.study_phase = fase
 
     # --- CONTROL MANUAL ---
-    st.markdown("#### 🔧 CONFIGURACIÓN DE ESTRUCTURA")
+    st.markdown("#### 🔧 ESTRUCTURA")
     
     col1, col2 = st.columns(2)
     with col1:
         idx_struct = 0 if "Sin Caso" in engine.structure_type else 1
-        estilo = st.radio("Tipo de Enunciado:", 
+        estilo = st.radio("Enunciado:", 
                          ["Técnico / Normativo (Sin Caso)", "Narrativo / Situacional (Con Caso)"], 
                          index=idx_struct)
         engine.structure_type = estilo
     
     with col2:
-        cant = st.number_input("Preguntas por Bloque:", min_value=1, max_value=5, value=engine.questions_per_case)
+        cant = st.number_input("Preguntas:", min_value=1, max_value=5, value=engine.questions_per_case)
         engine.questions_per_case = cant
 
-    with st.expander("Detalles del Contexto", expanded=True):
+    with st.expander("Detalles", expanded=True):
         if "Con Caso" in estilo:
-            st.info("📝 Se creará una historia. Define roles:")
             engine.job_functions = st.text_area("Funciones / Rol:", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...")
             engine.example_question = ""
         else:
-            st.warning("⚖️ Se creará análisis puro. (Opcional: Pega ejemplo de estilo)")
             engine.example_question = st.text_area("Ejemplo de Estilo (Opcional):", value=engine.example_question, height=70, placeholder="Pega un enunciado técnico...")
             engine.job_functions = ""
 
     st.divider()
     
-    # --- LOGICA DE CARGA ---
+    # --- CARGA ---
     with st.expander("2. Cargar Normas", expanded=True):
         upl = st.file_uploader("Cargar Backup JSON:", type=['json'])
         if upl is not None:
@@ -312,7 +320,6 @@ with st.sidebar:
                     
                     engine.structure_type = d.get('struct_type', "Técnico / Normativo (Sin Caso)")
                     engine.questions_per_case = d.get('q_per_case', 1)
-                    
                     engine.example_question = d.get('ex_q', "")
                     engine.job_functions = d.get('job', "")
                     
@@ -375,7 +382,7 @@ if st.session_state.page == 'game':
 
     if not st.session_state.get('current_data'):
         tipo = "CASO NARRATIVO" if "Con Caso" in engine.structure_type else "ENUNCIADO TÉCNICO"
-        msg = f"🧠 Generando {engine.questions_per_case} pregunta(s) con formato {tipo}..."
+        msg = f"🧠 Generando {engine.questions_per_case} pregunta(s) ({tipo}) usando {engine.provider.split()[0]}..."
         
         with st.spinner(msg):
             data = engine.generate_case()
@@ -383,11 +390,15 @@ if st.session_state.page == 'game':
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
             else:
-                st.error("Error generación: " + str(data.get('error', 'Desconocido'))); st.button("Reintentar", on_click=st.rerun)
+                err = data.get('error', 'Desconocido')
+                st.error(f"Error: {err}"); st.button("Reintentar", on_click=st.rerun)
                 st.stop()
 
     data = st.session_state.current_data
+    # Renderizado condicional del bloque narrativo
     narrativa = data.get('narrativa_caso','Error')
+    # Si es técnico, a veces el "narrativa_caso" es el mismo enunciado.
+    # El CSS narrative-box es grande, si es técnico se ve bien como bloque de contexto.
     st.markdown(f"<div class='narrative-box'><h4>🏛️ {engine.entity}</h4>{narrativa}</div>", unsafe_allow_html=True)
     
     q_list = data.get('preguntas', [])
