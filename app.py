@@ -17,7 +17,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v52 - Segmentación Inteligente", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="TITÁN v53 - Mapa & Calidad", page_icon="💎", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
@@ -74,8 +74,8 @@ class LegalEngineTITAN:
         self.structure_type = "Técnico / Normativo (Sin Caso)" 
         self.questions_per_case = 1 
         
-        # --- NUEVO: ESTRUCTURA SEGMENTADA (TU CÓDIGO) ---
-        self.sections_map = {} # Diccionario { "TÍTULO I": "texto...", "CAPÍTULO II": "texto..." }
+        # --- MAPA DE LA LEY ---
+        self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
 
     def configure_api(self, key):
@@ -101,20 +101,17 @@ class LegalEngineTITAN:
             except Exception as e:
                 return False, f"Error con la llave: {str(e)}"
 
-    # --- AQUÍ ESTÁ LA INTEGRACIÓN DE TU CÓDIGO DE COLAB ---
     def smart_segmentation(self, full_text):
         """
-        Aplica los patrones Regex de tu Colab para detectar Títulos, Capítulos y Artículos,
-        y segmenta el texto en bloques lógicos.
+        MODIFICACIÓN 1: Lógica de 'Look Ahead' (Offset) restaurada de tu Colab
+        para capturar descripciones en la línea siguiente.
         """
         lineas = full_text.split('\n')
-        secciones = {"Todo el Documento": full_text} # Opción por defecto
+        secciones = {"Todo el Documento": full_text}
         
-        current_label = "Preámbulo/Inicio"
+        current_label = "Inicio"
         current_content = []
         
-        # TUS PATRONES EXACTOS
-        patron_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*\d+'
         patron_cap = r'^\s*(CAPÍTULO|CAPITULO)\b'
         patron_tit_txt = r'^\s*(TÍTULO|TITULO|LIBRO|PARTE)\b'
         patron_romano_punto = r'^\s*([IVXLCDM]+)\.\s+(.+)'
@@ -127,51 +124,79 @@ class LegalEngineTITAN:
                 idx += 1
                 continue
             
-            tipo_detectado = None
             etiqueta_nueva = None
+            offset = 0
 
-            # 1. ROMANO + PUNTO ("I. DISPOSICIONES")
-            match_romano = re.match(patron_romano_punto, linea, re.IGNORECASE)
-            if match_romano:
-                etiqueta_nueva = f"TÍTULO {match_romano.group(1)}: {match_romano.group(2)[:30]}..."
-                tipo_detectado = 'TÍTULO'
-
-            # 2. TÍTULO EXPLÍCITO ("TÍTULO I")
+            # Lógica de detección + Búsqueda de descripción abajo
+            if re.match(patron_romano_punto, linea, re.IGNORECASE):
+                # Caso fácil: "I. DISPOSICIONES"
+                match = re.match(patron_romano_punto, linea, re.IGNORECASE)
+                etiqueta_nueva = f"{match.group(1)}. {match.group(2)}"
+            
             elif re.match(patron_tit_txt, linea, re.IGNORECASE):
-                etiqueta_nueva = linea[:50]
-                tipo_detectado = 'TÍTULO'
+                # Caso difícil: "TÍTULO I" (y abajo dice el nombre)
+                etiqueta_nueva = linea
+                if len(linea) < 60: # Si es corto, miramos abajo
+                    temp_offset = 1
+                    while (idx + temp_offset) < len(lineas):
+                        siguiente = lineas[idx + temp_offset].strip()
+                        if not siguiente: 
+                            temp_offset += 1
+                            continue
+                        # Si la siguiente NO es otro título, la sumamos
+                        if not re.match(r'^(ART|CAP|TIT|[IVX]+\.)', siguiente, re.IGNORECASE):
+                            etiqueta_nueva = f"{linea} - {siguiente}"
+                            offset = temp_offset # Saltamos esa línea porque ya la usamos en el título
+                        break
+            
+            elif re.match(patron_cap, linea, re.IGNORECASE):
+                # Mismo caso para capítulos
+                etiqueta_nueva = linea
+                if len(linea) < 60:
+                    temp_offset = 1
+                    while (idx + temp_offset) < len(lineas):
+                        siguiente = lineas[idx + temp_offset].strip()
+                        if not siguiente: 
+                            temp_offset += 1
+                            continue
+                        if not re.match(r'^(ART|CAP|TIT|[IVX]+\.)', siguiente, re.IGNORECASE):
+                            etiqueta_nueva = f"{linea} - {siguiente}"
+                            offset = temp_offset
+                        break
 
-            # 3. ROMANO SOLO ("I")
             elif re.match(patron_romano_solo, linea, re.IGNORECASE):
                 palabra = linea.split()[0].upper().replace('.', '')
                 if palabra in ['I','II','III','IV','V','VI','VII','VIII','IX','X','L','C','D','M']:
                     etiqueta_nueva = f"SECCIÓN {palabra}"
-                    tipo_detectado = 'SECCIÓN'
+                    # Aquí también podríamos mirar abajo
+                    if len(linea) < 10:
+                        temp_offset = 1
+                        while (idx + temp_offset) < len(lineas):
+                            siguiente = lineas[idx + temp_offset].strip()
+                            if not siguiente: 
+                                temp_offset += 1
+                                continue
+                            if not re.match(r'^(ART|CAP|TIT)', siguiente, re.IGNORECASE):
+                                etiqueta_nueva = f"SECCIÓN {palabra} - {siguiente}"
+                                offset = temp_offset
+                            break
 
-            # 4. CAPÍTULO ("CAPÍTULO II")
-            elif re.match(patron_cap, linea, re.IGNORECASE):
-                etiqueta_nueva = linea[:50]
-                tipo_detectado = 'CAPÍTULO'
-
-            # 5. ARTÍCULO (Opcional: Si quieres hilar muy fino, descomenta abajo. 
-            # Por ahora agrupamos por Capítulos/Títulos para no tener 300 opciones)
-            # elif re.match(patron_art, linea, re.IGNORECASE):
-            #     etiqueta_nueva = linea[:20]
-            #     tipo_detectado = 'ARTÍCULO'
-
-            if tipo_detectado and etiqueta_nueva:
-                # Guardar lo anterior
+            # Si detectamos una nueva sección
+            if etiqueta_nueva:
+                # 1. Guardar lo que traíamos en la sección anterior
                 if current_content:
-                    # Si ya existe la clave, anexamos (raro, pero posible)
-                    texto_acumulado = "\n".join(current_content)
-                    if current_label in secciones:
-                        secciones[current_label] += "\n" + texto_acumulado
-                    else:
-                        secciones[current_label] = texto_acumulado
+                    txt_previo = "\n".join(current_content)
+                    if current_label in secciones: secciones[current_label] += "\n" + txt_previo
+                    else: secciones[current_label] = txt_previo
                 
-                # Iniciar nueva sección
-                current_label = etiqueta_nueva
-                current_content = [linea] # Incluir el título en el contenido
+                # 2. Iniciar la nueva
+                # Limpieza visual del título (cortar si es muy largo para el menú)
+                display_label = etiqueta_nueva[:90] + "..." if len(etiqueta_nueva) > 90 else etiqueta_nueva
+                current_label = display_label
+                current_content = [linea] 
+                
+                # Aplicar el salto si consumimos la línea de abajo
+                idx += offset 
             else:
                 current_content.append(linea)
             
@@ -179,8 +204,7 @@ class LegalEngineTITAN:
         
         # Guardar el último bloque
         if current_content:
-             texto_acumulado = "\n".join(current_content)
-             secciones[current_label] = texto_acumulado
+             secciones[current_label] = "\n".join(current_content)
              
         return secciones
 
@@ -189,26 +213,20 @@ class LegalEngineTITAN:
         if len(text) < 100: return 0
         self.thematic_axis = axis_name 
         
-        # 1. EJECUTAR TU LÓGICA DE SEGMENTACIÓN
         self.sections_map = self.smart_segmentation(text)
-        
-        # 2. PREPARAR CHUNKS (Por defecto carga TODO)
-        # Si el usuario elige una sección específica, actualizaremos self.chunks en la UI
         self.chunks = [text[i:i+6000] for i in range(0, len(text), 6000)]
         self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
         
         if dl_model: 
-            with st.spinner("🧠 Analizando estructura de la norma..."): 
+            with st.spinner("🧠 Analizando estructura..."): 
                 self.chunk_embeddings = dl_model.encode(self.chunks)
         return len(self.chunks)
 
     def update_chunks_by_section(self, section_name):
-        """Actualiza los chunks para que la IA solo vea la sección elegida"""
         if section_name in self.sections_map:
             texto_seccion = self.sections_map[section_name]
-            # Reprocesar solo ese texto
             self.chunks = [texto_seccion[i:i+6000] for i in range(0, len(texto_seccion), 6000)]
-            self.mastery_tracker = {i: 0 for i in range(len(self.chunks))} # Reset mastery for new view
+            self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.active_section_name = section_name
             if dl_model:
                  self.chunk_embeddings = dl_model.encode(self.chunks)
@@ -231,19 +249,18 @@ class LegalEngineTITAN:
         """
 
     def get_calibration_instructions(self):
-        if not self.feedback_history: return ""
-        counts = Counter(self.feedback_history)
-        instructions = []
-        if counts['desconexion'] > 0: instructions.append("🔴 ERROR: Desconexión temática. ¡Cíñete al caso!")
-        if counts['recorte'] > 0: instructions.append("🔴 ERROR: Respuesta incompleta. ¡Usa la norma taxativa!")
-        if counts['spoiler'] > 0: instructions.append("🔴 ERROR: Spoiler. ¡No describas la conducta en la pregunta!")
-        if counts['respuesta_obvia'] > 0: instructions.append("🔴 ERROR: Muy obvio. ¡Sube la dificultad!")
-        if counts['alucinacion'] > 0: instructions.append("🔴 ERROR: Alucinación. ¡Solo usa la ley provista!")
-        if counts['sesgo_longitud'] > 0: instructions.append("🔴 ERROR: Opciones desiguales. ¡Equilibra la longitud!")
-        if counts['pregunta_facil'] > 0: instructions.append("🔴 ERROR: Demasiado fácil. ¡Pon trampas!")
-        if counts['repetitivo'] > 0: self.current_temperature = 0.9; instructions.append("🔴 ERROR: Repetitivo. ¡Sé más creativo!")
-        if counts['incoherente'] > 0: instructions.append("🔴 ERROR: Redacción. ¡Mejora la sintaxis!")
-        return "\n".join(instructions)
+        # MODIFICACIÓN 2 y 3: Prompt Anti-Repetición y Anti-Chivato
+        return """
+        🔴 INSTRUCCIONES CRÍTICAS DE REDACCIÓN:
+        1. NO REPETIR: Está TERMINANTEMENTE PROHIBIDO copiar y pegar el texto de 'narrativa_caso' dentro del 'enunciado'.
+           - 'narrativa_caso': Lleva el contexto legal completo (el "ladrillo").
+           - 'enunciado': Lleva SOLO el conector o la frase detonante (ej: "En ese sentido, es correcto afirmar:", "Por consiguiente:", "Se infiere que:").
+        
+        2. NO CHIVATEAR LA SECCIÓN:
+           - Aunque internamente sepas que estamos en el '{self.active_section_name}', NO lo escribas en la pregunta.
+           - MAL: "Según el Capítulo III de las Faltas..."
+           - BIEN: "Según la normativa disciplinaria vigente..." o "Conforme al régimen aplicable..."
+        """
 
     def generate_case(self):
         if not self.api_key: return {"error": "Falta Llave"}
@@ -259,21 +276,20 @@ class LegalEngineTITAN:
         if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
         
-        # --- PROMPT ---
         if "Sin Caso" in self.structure_type:
             instruccion_estilo = f"""
             ESTILO: TÉCNICO / NORMATIVO.
-            1. COPIA LA SINTAXIS EXACTA DEL EJEMPLO DE USUARIO (Si existe):
-               - ¿El ejemplo NO usa signos de interrogación '¿?'? -> TÚ TAMPOCO.
-               - ¿El ejemplo termina en dos puntos ':'? -> TÚ TAMBIÉN.
-               - ¿Usa conectores como "En ese sentido..."? -> ÚSALOS.
-            2. FUSIÓN: Genera un solo bloque de texto continuo (Contexto + Enunciado).
+            1. COPIA LA SINTAXIS DEL EJEMPLO (Si existe).
+            2. DIVISIÓN DE JSON:
+               - Campo 'narrativa_caso': Pon aquí todo el contexto, la definición o el artículo analizado.
+               - Campo 'enunciado': Pon aquí SOLO la frase final que da pie a las opciones (ej: "Lo anterior implica que:").
             """
         else:
             instruccion_estilo = f"""
             ESTILO: NARRATIVO / SITUACIONAL.
-            1. Crea una historia laboral realista con roles definidos.
-            2. Funciones/Rol a usar: '{self.job_functions}'
+            1. Crea una historia laboral realista.
+            2. Campo 'narrativa_caso': La historia completa.
+            3. Campo 'enunciado': La pregunta final sobre la historia.
             """
 
         cantidad_instruccion = f"Genera EXACTAMENTE {self.questions_per_case} ítem(s)."
@@ -281,26 +297,25 @@ class LegalEngineTITAN:
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}. EJE: {self.thematic_axis.upper()}.
-        SECCIÓN DE ESTUDIO ACTUAL: {self.active_section_name}
         
         {instruccion_estilo}
         
         CANTIDAD REQUERIDA: {cantidad_instruccion}
         
-        EJEMPLO SINTÁCTICO A COPIAR:
+        EJEMPLO DE ESTILO:
         '''{self.example_question}'''
         
         NORMA BASE (TEXTO REAL): "{self.chunks[idx][:7000]}"
         
         {self.get_strict_rules()}
-        {self.get_calibration_instructions()}
+        {self.get_calibration_instructions()} 
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "Si es estilo TÉCNICO, pon el párrafo de contexto. Si es NARRATIVO, pon la historia.",
+            "narrativa_caso": "Texto largo de contexto o historia...",
             "preguntas": [
                 {{
-                    "enunciado": "Conector y enunciado final...", 
+                    "enunciado": "Frase conectora final...", 
                     "opciones": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, 
                     "respuesta": "A", 
                     "explicacion": "..."
@@ -364,7 +379,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v52 (Segmentado)")
+    st.title("⚙️ TITÁN v53 (Pulido)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
         if key:
@@ -439,7 +454,6 @@ with st.sidebar:
                     engine.example_question = d.get('ex_q', "")
                     engine.job_functions = d.get('job', "")
                     
-                    # RECUPERAR SECCIONES
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
 
@@ -456,26 +470,23 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error al leer: {e}")
 
-    # --- NUEVO SELECTOR DE SECCIÓN (SOLO SI HAY SECCIONES) ---
+    # --- NUEVO SELECTOR DE SECCIÓN ---
     if engine.sections_map and len(engine.sections_map) > 1:
         st.divider()
         st.markdown("### 📍 MAPA DE LA LEY")
-        # Creamos lista ordenada (keys) pero asegurando que "Todo el Documento" esté primero
         opciones = list(engine.sections_map.keys())
         if "Todo el Documento" in opciones:
             opciones.remove("Todo el Documento")
             opciones.insert(0, "Todo el Documento")
         
-        # Recuperar índice actual
         try: idx_sec = opciones.index(engine.active_section_name)
         except: idx_sec = 0
             
         seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec)
         
-        # Si cambia la selección, actualizamos los chunks
         if seleccion != engine.active_section_name:
             if engine.update_chunks_by_section(seleccion):
-                st.session_state.current_data = None # Limpiar pregunta anterior
+                st.session_state.current_data = None
                 st.toast(f"Cambiado a: {seleccion}", icon="✅")
                 time.sleep(0.5)
                 st.rerun()
@@ -508,7 +519,6 @@ with st.sidebar:
             "feed": engine.feedback_history, "ent": engine.entity, "axis": engine.thematic_axis,
             "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
             "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case,
-            # GUARDAR SECCIONES
             "sections": engine.sections_map, "act_sec": engine.active_section_name
         }
         st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
@@ -516,7 +526,6 @@ with st.sidebar:
 # --- JUEGO ---
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
-    # Mostrar qué sección se está estudiando
     subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
     st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **{subtitulo}**")
     st.progress(perc/100)
