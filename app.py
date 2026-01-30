@@ -17,7 +17,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v63 - Final Corregido", page_icon="🏛️", layout="wide")
+st.set_page_config(page_title="TITÁN v61.5 - Progreso Visible", page_icon="📊", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
@@ -31,6 +31,9 @@ st.markdown("""
         background-color: #ffcccc; color: #990000; padding: 4px 8px; 
         border-radius: 4px; font-size: 0.9em; font-weight: bold; margin-right: 5px;
         border: 1px solid #cc0000; display: inline-block;
+    }
+    .stat-box {
+        text-align: center; padding: 10px; background: #ffffff; border-radius: 8px; border: 1px solid #e0e0e0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -83,7 +86,7 @@ class LegalEngineTITAN:
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
         
-        # --- FRANCOTIRADOR ---
+        # --- FRANCOTIRADOR (Memoria de Artículos) ---
         self.seen_articles = set()    
         self.failed_articles = set()  
         self.current_article_label = "General"
@@ -112,6 +115,9 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     def smart_segmentation(self, full_text):
+        """
+        Segmentación Jerárquica: Libro -> Título -> Capítulo -> Sección -> Artículo.
+        """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
         
@@ -218,6 +224,7 @@ class LegalEngineTITAN:
         if not self.chunks: return {"error": "Falta Norma"}
         
         idx = -1
+        # Lógica de recuperación de fallos (REPASO)
         if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
             candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 3]
@@ -229,7 +236,8 @@ class LegalEngineTITAN:
         
         texto_base = self.chunks[idx]
         
-        # --- FRANCOTIRADOR CON ANCLAJE (Regex Start of Line) ---
+        # --- FRANCOTIRADOR CON ANCLAJE Y CORTE EXACTO ---
+        # 1. Encontrar todos los artículos (Regex Anclado)
         patron_articulo = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[A-Z]?)'
         matches = list(re.finditer(patron_articulo, texto_base, re.IGNORECASE | re.MULTILINE))
         
@@ -237,28 +245,41 @@ class LegalEngineTITAN:
         etiqueta_articulo = "General / Sin Artículo Detectado"
         
         if matches:
+            # 2. Filtrar ya vistos
             candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles]
+            
             if not candidatos:
                 candidatos = matches
                 self.seen_articles.clear()
             
             seleccion = random.choice(candidatos)
+            etiqueta_articulo = seleccion.group(0).upper().strip()
             
-            # MEMORIA (para no repetir)
-            temp_label = seleccion.group(0).upper().strip()
-            self.seen_articles.add(temp_label)
+            self.seen_articles.add(etiqueta_articulo)
+            self.current_article_label = etiqueta_articulo
             
-            # --- FOCUS ESTRICTO (CORTE DE TEXTO) ---
+            # --- 3. LÓGICA DE CORTE EXACTO (STOP-AT-NEXT) ---
             start_pos = seleccion.start()
-            end_pos = min(len(texto_base), start_pos + 3500)
+            
+            # Buscamos cuál es el índice de este match en la lista original
+            current_match_index = matches.index(seleccion)
+            
+            # Si hay un artículo después, cortamos justo antes de que empiece
+            if current_match_index + 1 < len(matches):
+                end_pos = matches[current_match_index + 1].start()
+            else:
+                # Si es el último, le damos hasta el final (o 4000 caracteres si es muy largo)
+                end_pos = min(len(texto_base), start_pos + 4000)
+
             texto_final_ia = texto_base[start_pos:end_pos] 
         else:
-            texto_final_ia = texto_base[:3500]
+            self.current_article_label = "General"
+            texto_final_ia = texto_base[:4000]
 
-        # Configuración de Dificultad
+        # PROMPT DE DIFICULTAD
         dificultad_prompt = ""
         if self.level == "Asistencial":
-            dificultad_prompt = "NIVEL: ASISTENCIAL. Preguntas de memoria, archivo y plazos exactos."
+            dificultad_prompt = "NIVEL: ASISTENCIAL. Preguntas de memoria, archivo y plazos exactos. Literalidad."
         elif self.level == "Técnico":
             dificultad_prompt = "NIVEL: TÉCNICO. Aplicación de procesos y requisitos."
         elif self.level == "Profesional":
@@ -266,10 +287,9 @@ class LegalEngineTITAN:
         elif self.level == "Asesor":
             dificultad_prompt = "NIVEL: ASESOR. Muy Alta dificultad. Estrategia y jurisprudencia."
 
-        # --- CORRECCIÓN DEL NOMBRE DE VARIABLE ---
-        instruccion_estilo = "ESTILO: TÉCNICO." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO."
+        instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
 
-        # --- PROMPT V63 (CON VARIABLE CORREGIDA) ---
+        # --- PROMPT MAESTRO (CON LA REGLA DE 4 OPCIONES CORREGIDA) ---
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -277,14 +297,14 @@ class LegalEngineTITAN:
         {dificultad_prompt}
         {instruccion_estilo}
         
-        Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en el texto proporcionado.
+        Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
         
-        REGLAS DE ORO:
-        1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones (A, B, C, D).
-        2. ESTILO: Si hay ejemplo abajo, COPIA su estructura.
-        3. FUENTE (NUEVO): Debes decirme explícitamente qué artículo principal usaste para la pregunta.
+        REGLAS DE OBLIGATORIO CUMPLIMIENTO:
+        1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones de respuesta (A, B, C, D).
+        2. ESTILO DEL USUARIO: Si hay un ejemplo abajo, COPIA su estructura de redacción y conectores.
+        3. FOCO: No inventes artículos que no estén en el fragmento.
         
-        EJEMPLO A IMITAR:
+        EJEMPLO A IMITAR (ESTILO Y FORMATO):
         '''{self.example_question}'''
         
         NORMA (Fragmento de Estudio): "{texto_final_ia}"
@@ -294,12 +314,16 @@ class LegalEngineTITAN:
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "articulo_fuente": "NOMBRE DEL ARTÍCULO (Ej: ARTÍCULO 23)",
-            "narrativa_caso": "Texto...",
+            "narrativa_caso": "Texto de contexto o historia...",
             "preguntas": [
                 {{
-                    "enunciado": "...", 
-                    "opciones": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, 
+                    "enunciado": "Pregunta o conector final...", 
+                    "opciones": {{
+                        "A": "...", 
+                        "B": "...", 
+                        "C": "...", 
+                        "D": "..."
+                    }}, 
                     "respuesta": "A", 
                     "explicacion": "..."
                 }}
@@ -311,21 +335,29 @@ class LegalEngineTITAN:
         attempts = 0
         while attempts < max_retries:
             try:
+                # OPENAI
                 if self.provider == "OpenAI":
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
                         "model": "gpt-4o", 
-                        "messages": [{"role": "system", "content": "JSON ONLY"}, {"role": "user", "content": prompt}],
+                        "messages": [
+                            {"role": "system", "content": "You are a helpful assistant. OUTPUT JSON ONLY."},
+                            {"role": "user", "content": prompt}
+                        ],
                         "temperature": self.current_temperature,
                         "response_format": {"type": "json_object"}
                     }
                     resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
                     if resp.status_code != 200: return {"error": f"OpenAI Error {resp.status_code}: {resp.text}"}
                     text_resp = resp.json()['choices'][0]['message']['content']
+
+                # GOOGLE
                 elif self.provider == "Google":
                     safety = [{"category": f"HARM_CATEGORY_{c}", "threshold": "BLOCK_NONE"} for c in ["HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT"]]
                     res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature}, safety_settings=safety)
                     text_resp = res.text.strip()
+                
+                # GROQ
                 else:
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
@@ -340,14 +372,7 @@ class LegalEngineTITAN:
                 if "```" in text_resp:
                     match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
                     if match: text_resp = match.group(1).strip()
-                
-                final_json = json.loads(text_resp)
-                if "articulo_fuente" in final_json:
-                    self.current_article_label = final_json["articulo_fuente"].upper()
-                else:
-                    self.current_article_label = "ARTÍCULO GENERADO"
-                    
-                return final_json
+                return json.loads(text_resp)
 
             except Exception as e:
                 time.sleep(1); attempts += 1
@@ -362,7 +387,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🤖 TITÁN v63 (Corregido)")
+    st.title("📊 TITÁN v61.5 (Stats)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
         if key:
@@ -372,6 +397,7 @@ with st.sidebar:
     
     st.divider()
     
+    # VISUALIZACIÓN DE ERRORES (LISTA NEGRA)
     if engine.failed_articles:
         st.markdown("### ⚠️ ARTÍCULOS A REPASAR")
         html_fail = ""
@@ -440,6 +466,7 @@ with st.sidebar:
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
                     
+                    # Recuperar datos nuevos
                     engine.seen_articles = set(d.get('seen_arts', []))
                     engine.failed_articles = set(d.get('failed_arts', []))
 
@@ -495,6 +522,7 @@ with st.sidebar:
             "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
             "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case,
             "sections": engine.sections_map, "act_sec": engine.active_section_name,
+            # Guardar datos nuevos
             "seen_arts": list(engine.seen_articles), "failed_arts": list(engine.failed_articles)
         }
         st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
@@ -504,12 +532,23 @@ if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
     subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
     
+    # VISUALIZACIÓN DEL FRANCOTIRADOR
+    foco_msg = f"🎯 ENFOQUE ACTUAL: **{engine.current_article_label}**"
+    st.info(foco_msg)
+    
+    # --- AQUÍ ESTÁ EL CAMBIO: TABLERO DE ESTADÍSTICAS ---
+    c1, c2, c3 = st.columns(3)
+    c1.metric("📊 Dominio Global", f"{perc}%")
+    c2.metric("❌ Preguntas Falladas", f"{fails}")
+    c3.metric("📉 Bloques Vistos", f"{len([x for x in engine.mastery_tracker.values() if x > 0])}/{total}")
+    # ---------------------------------------------------
+
     st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **{subtitulo}**")
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
         tipo = "CASO NARRATIVO" if "Con Caso" in engine.structure_type else "ENUNCIADO TÉCNICO"
-        msg = f"🧠 Generando pregunta ({tipo}) - NIVEL {engine.level.upper()}..."
+        msg = f"🧠 Analizando {engine.current_article_label} - NIVEL {engine.level.upper()}..."
         
         with st.spinner(msg):
             data = engine.generate_case()
@@ -522,10 +561,6 @@ if st.session_state.page == 'game':
                 st.stop()
 
     data = st.session_state.current_data
-    
-    foco_msg = f"🎯 ENFOQUE CONFIRMADO: **{engine.current_article_label}**"
-    st.info(foco_msg)
-
     narrativa = data.get('narrativa_caso','Error')
     st.markdown(f"<div class='narrative-box'><h4>🏛️ {engine.entity}</h4>{narrativa}</div>", unsafe_allow_html=True)
     
@@ -546,6 +581,12 @@ if st.session_state.page == 'game':
                 else: 
                     st.error(f"Incorrecto. Era {q['respuesta']}")
                     engine.failed_indices.add(engine.current_chunk_idx)
+                    
+                    # --- RESTAURADO: GUARDAR HUELLA DEL ERROR PARA REPASO ---
+                    if engine.chunk_embeddings is not None:
+                        engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
+                    
+                    # AGREGAR A LISTA NEGRA DE ARTÍCULOS
                     if engine.current_article_label != "General":
                         engine.failed_articles.add(engine.current_article_label)
                 
