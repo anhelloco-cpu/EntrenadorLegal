@@ -17,7 +17,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v57 - Francotirador", page_icon="🎯", layout="wide")
+st.set_page_config(page_title="TITÁN v59 - Focus Estricto", page_icon="🔭", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
@@ -82,10 +82,10 @@ class LegalEngineTITAN:
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
         
-        # --- NUEVO v57: FRANCOTIRADOR DE ARTÍCULOS ---
-        self.seen_articles = set()    # Artículos ya estudiados (para no repetir)
-        self.failed_articles = set()  # Artículos donde fallaste (Lista Negra)
-        self.current_article_label = "General" # Etiqueta actual (ej: "ARTÍCULO 45")
+        # FRANCOTIRADOR
+        self.seen_articles = set()    
+        self.failed_articles = set()  
+        self.current_article_label = "General"
 
     def configure_api(self, key):
         key = key.strip()
@@ -113,7 +113,6 @@ class LegalEngineTITAN:
     def smart_segmentation(self, full_text):
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
-        
         active_hierarchy = {"LIBRO": None, "TÍTULO": None, "CAPÍTULO": None, "SECCIÓN": None, "ARTÍCULO": None}
 
         patron_libro = r'^\s*(LIBRO)\s+[IVXLCDM]+\b'
@@ -187,8 +186,6 @@ class LegalEngineTITAN:
             self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.active_section_name = section_name
             if dl_model: self.chunk_embeddings = dl_model.encode(self.chunks)
-            
-            # Resetear memoria de artículos vistos al cambiar de sección
             self.seen_articles.clear()
             return True
         return False
@@ -215,7 +212,6 @@ class LegalEngineTITAN:
         if not self.chunks: return {"error": "Falta Norma"}
         
         idx = -1
-        # Lógica de chunk fallido (secundaria ahora)
         if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
             candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 3]
@@ -227,37 +223,34 @@ class LegalEngineTITAN:
         
         texto_base = self.chunks[idx]
         
-        # --- LÓGICA V57: FRANCOTIRADOR DE ARTÍCULOS ---
-        # 1. Escanear artículos en este bloque
-        patron_articulo = r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[A-Z]?)'
-        matches = list(re.finditer(patron_articulo, texto_base, re.IGNORECASE))
+        # --- LÓGICA V59: FOCUS ESTRICTO (MÁXIMO 4000 CARACTERES) ---
+        patron_articulo = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[A-Z]?)'
+        matches = list(re.finditer(patron_articulo, texto_base, re.IGNORECASE | re.MULTILINE))
         
         texto_final_ia = texto_base
         etiqueta_articulo = "General / Sin Artículo Detectado"
         
         if matches:
-            # 2. Filtrar los que ya vimos
-            candidatos = [m for m in matches if m.group(0).upper() not in self.seen_articles]
-            
-            # Si ya vimos todos, reseteamos para volver a empezar
+            candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles]
             if not candidatos:
                 candidatos = matches
-                self.seen_articles.clear() # Reinicio de ciclo
+                self.seen_articles.clear()
             
-            # 3. Elegir uno AL AZAR (Ruleta)
             seleccion = random.choice(candidatos)
-            etiqueta_articulo = seleccion.group(0).upper() # ej: "ARTÍCULO 45"
-            
-            # 4. MEMORIA: Guardar que ya vimos este
+            etiqueta_articulo = seleccion.group(0).upper().strip()
             self.seen_articles.add(etiqueta_articulo)
             self.current_article_label = etiqueta_articulo
             
-            # 5. EL RECORTE (La Magia): Cortamos el texto para que empiece JUSTO ahí
+            # EL CORTE Y LA LIMITACIÓN DE VENTANA (EL CAMBIO CLAVE)
             start_pos = seleccion.start()
-            # Enviamos desde ahí hasta el final (o max 40k chars para no saturar)
-            texto_final_ia = texto_base[start_pos:] 
+            # En vez de enviar hasta el final, enviamos MÁXIMO 4000 caracteres (aprox 1.5 páginas)
+            # Esto impide que la IA lea artículos lejanos (como el Art 29 si estamos en el 4).
+            end_pos = min(len(texto_base), start_pos + 4000)
+            texto_final_ia = texto_base[start_pos:end_pos] 
         else:
             self.current_article_label = "General"
+            # Si no hay artículos, también limitamos el texto para que no se disperse
+            texto_final_ia = texto_base[:4000]
 
         # PROMPT DE DIFICULTAD
         dificultad_prompt = ""
@@ -282,10 +275,11 @@ class LegalEngineTITAN:
         {dificultad_prompt}
         {instruccion_estilo}
         
-        Genera {self.questions_per_case} preguntas basándote PRINCIPALMENTE en el inicio del texto proporcionado.
-        Si hay ejemplo: '''{self.example_question}''', imita su sintaxis.
+        Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
+        No uses conocimiento externo ni inventes artículos que no estén en este fragmento.
+        Si el texto es corto, profundiza en él.
         
-        NORMA (Fragmento): "{texto_final_ia[:40000]}"
+        NORMA (Fragmento de Estudio): "{texto_final_ia}"
         
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
@@ -308,7 +302,6 @@ class LegalEngineTITAN:
         attempts = 0
         while attempts < max_retries:
             try:
-                # OPENAI
                 if self.provider == "OpenAI":
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
@@ -323,14 +316,10 @@ class LegalEngineTITAN:
                     resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
                     if resp.status_code != 200: return {"error": f"OpenAI Error {resp.status_code}: {resp.text}"}
                     text_resp = resp.json()['choices'][0]['message']['content']
-
-                # GOOGLE
                 elif self.provider == "Google":
                     safety = [{"category": f"HARM_CATEGORY_{c}", "threshold": "BLOCK_NONE"} for c in ["HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT"]]
                     res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature}, safety_settings=safety)
                     text_resp = res.text.strip()
-                
-                # GROQ
                 else:
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
@@ -346,7 +335,6 @@ class LegalEngineTITAN:
                     match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
                     if match: text_resp = match.group(1).strip()
                 return json.loads(text_resp)
-
             except Exception as e:
                 time.sleep(1); attempts += 1
                 if attempts == max_retries: return {"error": f"Fallo Crítico: {str(e)}"}
@@ -360,63 +348,38 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🎯 TITÁN v57 (Francotirador)")
+    st.title("🔭 TITÁN v59 (Focus)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
         if key:
             ok, msg = engine.configure_api(key)
             if ok: st.success(msg)
             else: st.error(msg)
-    
     st.divider()
-    
-    # VISUALIZACIÓN DE ERRORES (LISTA NEGRA)
     if engine.failed_articles:
         st.markdown("### ⚠️ ARTÍCULOS A REPASAR")
         html_fail = ""
-        for fail in engine.failed_articles:
-            html_fail += f"<span class='failed-tag'>{fail}</span>"
-        st.markdown(html_fail, unsafe_allow_html=True)
-        st.divider()
-
+        for fail in engine.failed_articles: html_fail += f"<span class='failed-tag'>{fail}</span>"
+        st.markdown(html_fail, unsafe_allow_html=True); st.divider()
     st.markdown("### 📋 ESTRATEGIA")
-    fase_default = 0 if engine.study_phase == "Pre-Guía" else 1
-    fase = st.radio("Fase:", ["Pre-Guía", "Post-Guía"], index=fase_default)
-    engine.study_phase = fase
-
+    fase = st.radio("Fase:", ["Pre-Guía", "Post-Guía"], index=0 if engine.study_phase == "Pre-Guía" else 1); engine.study_phase = fase
     st.markdown("#### 🔧 ESTRUCTURA")
     col1, col2 = st.columns(2)
-    with col1:
-        idx_struct = 0 if "Sin Caso" in engine.structure_type else 1
-        estilo = st.radio("Enunciado:", ["Técnico / Normativo (Sin Caso)", "Narrativo / Situacional (Con Caso)"], index=idx_struct)
-        engine.structure_type = estilo
-    with col2:
-        cant = st.number_input("Preguntas:", min_value=1, max_value=5, value=engine.questions_per_case)
-        engine.questions_per_case = cant
-
+    with col1: estilo = st.radio("Enunciado:", ["Técnico / Normativo (Sin Caso)", "Narrativo / Situacional (Con Caso)"], index=0 if "Sin Caso" in engine.structure_type else 1); engine.structure_type = estilo
+    with col2: cant = st.number_input("Preguntas:", min_value=1, max_value=5, value=engine.questions_per_case); engine.questions_per_case = cant
     with st.expander("Detalles", expanded=True):
-        if "Con Caso" in estilo:
-            engine.job_functions = st.text_area("Funciones / Rol:", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...")
-        else:
-            engine.example_question = st.text_area("Ejemplo de Estilo:", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
-
+        if "Con Caso" in estilo: engine.job_functions = st.text_area("Funciones / Rol:", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...")
+        else: engine.example_question = st.text_area("Ejemplo de Estilo:", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
     st.divider()
-    
     tab1, tab2 = st.tabs(["📝 NUEVA NORMA", "📂 CARGAR BACKUP"])
-    
     with tab1:
         st.caption("Pega aquí el texto. El sistema detectará Jerarquía Completa.")
         axis_input = st.text_input("Eje Temático:", value=engine.thematic_axis)
         txt = st.text_area("Texto de la Norma:", height=150)
-        
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             if engine.process_law(txt, axis_input): 
-                st.session_state.page = 'game'
-                st.session_state.current_data = None
-                st.success(f"¡Norma Procesada! {len(engine.sections_map)} secciones maestras.")
-                time.sleep(1)
-                st.rerun()
-
+                st.session_state.page = 'game'; st.session_state.current_data = None
+                st.success(f"¡Norma Procesada! {len(engine.sections_map)} secciones maestras."); time.sleep(1); st.rerun()
     with tab2:
         st.caption("Carga un archivo .json guardado previamente.")
         upl = st.file_uploader("Archivo JSON:", type=['json'])
@@ -424,70 +387,42 @@ with st.sidebar:
             if 'last_loaded' not in st.session_state or st.session_state.last_loaded != upl.name:
                 try:
                     d = json.load(upl)
-                    engine.chunks = d['chunks']
-                    engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
-                    engine.failed_indices = set(d['failed'])
-                    engine.feedback_history = d.get('feed', [])
-                    engine.entity = d.get('ent', "")
-                    engine.thematic_axis = d.get('axis', "General")
-                    engine.level = d.get('lvl', "Profesional")
-                    engine.study_phase = d.get('phase', "Pre-Guía")
+                    engine.chunks = d['chunks']; engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
+                    engine.failed_indices = set(d['failed']); engine.feedback_history = d.get('feed', [])
+                    engine.entity = d.get('ent', ""); engine.thematic_axis = d.get('axis', "General")
+                    engine.level = d.get('lvl', "Profesional"); engine.study_phase = d.get('phase', "Pre-Guía")
                     engine.structure_type = d.get('struct_type', "Técnico / Normativo (Sin Caso)")
-                    engine.questions_per_case = d.get('q_per_case', 1)
-                    engine.example_question = d.get('ex_q', "")
-                    engine.job_functions = d.get('job', "")
-                    engine.sections_map = d.get('sections', {})
+                    engine.questions_per_case = d.get('q_per_case', 1); engine.example_question = d.get('ex_q', "")
+                    engine.job_functions = d.get('job', ""); engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
-                    
-                    # Recuperar datos nuevos v57
-                    engine.seen_articles = set(d.get('seen_arts', []))
-                    engine.failed_articles = set(d.get('failed_arts', []))
-
+                    engine.seen_articles = set(d.get('seen_arts', [])); engine.failed_articles = set(d.get('failed_arts', []))
                     if DL_AVAILABLE:
                          with st.spinner("🧠 Recuperando memoria neuronal..."): engine.chunk_embeddings = dl_model.encode(engine.chunks)
-
-                    st.session_state.last_loaded = upl.name
-                    st.success("¡Backup Cargado!")
-                    time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+                    st.session_state.last_loaded = upl.name; st.success("¡Backup Cargado!"); time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
                 except Exception as e: st.error(f"Error al leer: {e}")
-
     if engine.sections_map and len(engine.sections_map) > 1:
-        st.divider()
-        st.markdown("### 📍 MAPA DE LA LEY")
+        st.divider(); st.markdown("### 📍 MAPA DE LA LEY")
         opciones = list(engine.sections_map.keys())
         if "Todo el Documento" in opciones: opciones.remove("Todo el Documento"); opciones.insert(0, "Todo el Documento")
-        
         try: idx_sec = opciones.index(engine.active_section_name)
         except: idx_sec = 0
-            
         seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec)
-        
         if seleccion != engine.active_section_name:
             if engine.update_chunks_by_section(seleccion):
-                st.session_state.current_data = None
-                st.toast(f"Cambiado a: {seleccion}", icon="✅")
-                time.sleep(0.5); st.rerun()
-
+                st.session_state.current_data = None; st.toast(f"Cambiado a: {seleccion}", icon="✅"); time.sleep(0.5); st.rerun()
     if engine.chunks and engine.api_key and st.session_state.page == 'setup':
         st.divider()
         if st.button("▶️ IR AL SIMULACRO", type="primary"): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
-
     st.divider()
-    
     try: lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
     except: lvl_idx = 0
     engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=lvl_idx)
-    
     try: ent_idx = ENTIDADES_CO.index(engine.entity)
     except: ent_idx = 0
-    
     ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
     if "Otra" in ent_selection or "Agregar" in ent_selection: engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
     else: engine.entity = ent_selection
-            
-    if st.button("🔥 INICIAR SIMULACRO", disabled=not engine.chunks):
-        engine.simulacro_mode = True; st.session_state.current_data = None; st.session_state.page = 'game'; st.rerun()
-    
+    if st.button("🔥 INICIAR SIMULACRO", disabled=not engine.chunks): engine.simulacro_mode = True; st.session_state.current_data = None; st.session_state.page = 'game'; st.rerun()
     if engine.chunks:
         full_save_data = {
             "chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices),
@@ -495,86 +430,53 @@ with st.sidebar:
             "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
             "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case,
             "sections": engine.sections_map, "act_sec": engine.active_section_name,
-            # Guardar datos nuevos
             "seen_arts": list(engine.seen_articles), "failed_arts": list(engine.failed_articles)
         }
         st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
 
-# --- JUEGO ---
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
     subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
-    
-    # VISUALIZACIÓN DEL FRANCOTIRADOR
     foco_msg = f"🎯 ENFOQUE ACTUAL: **{engine.current_article_label}**"
     st.info(foco_msg)
-    
     st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **{subtitulo}**")
     st.progress(perc/100)
-
     if not st.session_state.get('current_data'):
         tipo = "CASO NARRATIVO" if "Con Caso" in engine.structure_type else "ENUNCIADO TÉCNICO"
         msg = f"🧠 Analizando {engine.current_article_label} - NIVEL {engine.level.upper()}..."
-        
         with st.spinner(msg):
             data = engine.generate_case()
             if data and "preguntas" in data:
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
             else:
-                err = data.get('error', 'Desconocido')
-                st.error(f"Error: {err}"); st.button("Reintentar", on_click=st.rerun)
-                st.stop()
-
+                err = data.get('error', 'Desconocido'); st.error(f"Error: {err}"); st.button("Reintentar", on_click=st.rerun); st.stop()
     data = st.session_state.current_data
     narrativa = data.get('narrativa_caso','Error')
     st.markdown(f"<div class='narrative-box'><h4>🏛️ {engine.entity}</h4>{narrativa}</div>", unsafe_allow_html=True)
-    
     q_list = data.get('preguntas', [])
     if q_list:
         q = q_list[st.session_state.q_idx]
         st.write(f"### Pregunta {st.session_state.q_idx + 1}")
-        
         with st.form(key=f"q_{st.session_state.q_idx}"):
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()])
-            
             if st.form_submit_button("Validar"):
                 letra_sel = sel.split(")")[0]
-                if letra_sel == q['respuesta']: 
-                    st.success("✅ ¡Correcto!") 
-                    engine.mastery_tracker[engine.current_chunk_idx] += 1
+                if letra_sel == q['respuesta']: st.success("✅ ¡Correcto!"); engine.mastery_tracker[engine.current_chunk_idx] += 1
                 else: 
-                    st.error(f"Incorrecto. Era {q['respuesta']}")
-                    engine.failed_indices.add(engine.current_chunk_idx)
-                    # AGREGAR A LISTA NEGRA DE ARTÍCULOS
-                    if engine.current_article_label != "General":
-                        engine.failed_articles.add(engine.current_article_label)
-                
+                    st.error(f"Incorrecto. Era {q['respuesta']}"); engine.failed_indices.add(engine.current_chunk_idx)
+                    if engine.current_article_label != "General": engine.failed_articles.add(engine.current_article_label)
                 st.info(q['explicacion']); st.session_state.answered = True
-
         if st.session_state.answered:
             if st.session_state.q_idx < len(q_list) - 1:
                 if st.button("Siguiente"): st.session_state.q_idx += 1; st.session_state.answered = False; st.rerun()
             else:
                 if st.button("Nuevo Caso"): st.session_state.current_data = None; st.rerun()
-        
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
-            reasons_map = {
-                "Preguntas no tienen que ver con el Caso": "desconexion",
-                "Respuesta Incompleta": "recorte",
-                "Spoiler": "spoiler",
-                "Respuesta Obvia": "respuesta_obvia",
-                "Alucinación": "alucinacion",
-                "Opciones Desiguales": "sesgo_longitud",
-                "Muy Fácil": "pregunta_facil",
-                "Repetitivo": "repetitivo",
-                "Incoherente": "incoherente"
-            }
+            reasons_map = {"Preguntas no tienen que ver con el Caso": "desconexion", "Respuesta Incompleta": "recorte", "Spoiler": "spoiler", "Respuesta Obvia": "respuesta_obvia", "Alucinación": "alucinacion", "Opciones Desiguales": "sesgo_longitud", "Muy Fácil": "pregunta_facil", "Repetitivo": "repetitivo", "Incoherente": "incoherente"}
             errores_sel = st.multiselect("Reportar fallos:", list(reasons_map.keys()))
             if st.button("¡Castigar y Corregir!"):
-                for r in errores_sel:
-                    code = reasons_map[r]
-                    engine.feedback_history.append(code)
+                for r in errores_sel: code = reasons_map[r]; engine.feedback_history.append(code)
                 st.toast(f"Feedback enviado: {len(errores_sel)} error(es)", icon="🛡️")
