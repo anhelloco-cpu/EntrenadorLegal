@@ -22,8 +22,8 @@ except ImportError:
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v64 - Progreso Real", 
-    page_icon="📈", 
+    page_title="TITÁN v65 - Master Final", 
+    page_icon="🏛️", 
     layout="wide"
 )
 
@@ -292,9 +292,7 @@ class LegalEngineTITAN:
         if not self.chunks: return 0, 0, 0
         total = len(self.chunks)
         
-        # --- AJUSTE MATEMÁTICO IMPORTANTE ---
-        # Aumentamos el umbral de maestría a 50 puntos.
-        # Esto hace que el porcentaje suba mucho más lento y realista.
+        # --- AJUSTE MATEMÁTICO (50 Puntos para llenado lento) ---
         SCORE_THRESHOLD = 50
         
         score = sum([min(v, SCORE_THRESHOLD) for v in self.mastery_tracker.values()])
@@ -332,7 +330,7 @@ class LegalEngineTITAN:
         
         texto_base = self.chunks[idx]
         
-        # --- FRANCOTIRADOR v61: Lógica Anclada ---
+        # --- FRANCOTIRADOR CON ANCLAJE (Regex Start of Line) ---
         patron_articulo = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[A-Z]?)'
         matches = list(re.finditer(patron_articulo, texto_base, re.IGNORECASE | re.MULTILINE))
         
@@ -340,7 +338,7 @@ class LegalEngineTITAN:
         etiqueta_articulo = "General / Sin Artículo Detectado"
         
         if matches:
-            # Filtrar artículos ya vistos en esta sesión
+            # Filtrar artículos ya vistos
             candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles]
             if not candidatos:
                 candidatos = matches
@@ -352,7 +350,7 @@ class LegalEngineTITAN:
             self.seen_articles.add(etiqueta_articulo)
             self.current_article_label = etiqueta_articulo
             
-            # --- CORTE EXACTO (Start to Next) ---
+            # --- FOCUS ESTRICTO (CORTE EXACTO) ---
             start_pos = seleccion.start()
             current_match_index = matches.index(seleccion)
             
@@ -360,7 +358,6 @@ class LegalEngineTITAN:
             if current_match_index + 1 < len(matches):
                 end_pos = matches[current_match_index + 1].start()
             else:
-                # Si es el último, limitamos por seguridad
                 end_pos = min(len(texto_base), start_pos + 4000)
 
             texto_final_ia = texto_base[start_pos:end_pos] 
@@ -395,6 +392,7 @@ class LegalEngineTITAN:
         1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones de respuesta (A, B, C, D).
         2. ESTILO DEL USUARIO: Si hay un ejemplo abajo, COPIA su estructura de redacción y conectores.
         3. FOCO: No inventes artículos que no estén en el fragmento.
+        4. FUENTE: Dime qué artículo usaste.
         
         EJEMPLO A IMITAR (ESTILO Y FORMATO):
         '''{self.example_question}'''
@@ -406,10 +404,11 @@ class LegalEngineTITAN:
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "Texto de contexto o historia...",
+            "articulo_fuente": "ARTÍCULO X",
+            "narrativa_caso": "Texto de contexto...",
             "preguntas": [
                 {{
-                    "enunciado": "Pregunta o conector final...", 
+                    "enunciado": "Pregunta...", 
                     "opciones": {{
                         "A": "...", 
                         "B": "...", 
@@ -440,7 +439,6 @@ class LegalEngineTITAN:
                         "response_format": {"type": "json_object"}
                     }
                     resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-                    if resp.status_code != 200: return {"error": f"OpenAI Error {resp.status_code}: {resp.text}"}
                     text_resp = resp.json()['choices'][0]['message']['content']
 
                 # --- LLAMADA A GOOGLE ---
@@ -464,7 +462,36 @@ class LegalEngineTITAN:
                 if "```" in text_resp:
                     match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
                     if match: text_resp = match.group(1).strip()
-                return json.loads(text_resp)
+                
+                final_json = json.loads(text_resp)
+                
+                # --- AUTO-FUENTE ---
+                if "articulo_fuente" in final_json:
+                    self.current_article_label = final_json["articulo_fuente"].upper()
+
+                # --- BARAJADOR AUTOMÁTICO (ANTÍDOTO CONTRA LA "A") v65 ---
+                for q in final_json['preguntas']:
+                    opciones_raw = list(q['opciones'].items()) 
+                    respuesta_correcta_texto = q['opciones'][q['respuesta']]
+                    
+                    random.shuffle(opciones_raw) # Barajar opciones
+                    
+                    # Reasignar letras A, B, C, D
+                    nuevas_opciones = {}
+                    nueva_letra_respuesta = "A"
+                    letras = ['A', 'B', 'C', 'D']
+                    
+                    for i, (old_key, text) in enumerate(opciones_raw):
+                        if i < 4:
+                            letra = letras[i]
+                            nuevas_opciones[letra] = text
+                            if text == respuesta_correcta_texto:
+                                nueva_letra_respuesta = letra
+                    
+                    q['opciones'] = nuevas_opciones
+                    q['respuesta'] = nueva_letra_respuesta
+
+                return final_json
 
             except Exception as e:
                 time.sleep(1); attempts += 1
@@ -475,13 +502,14 @@ class LegalEngineTITAN:
 # INTERFAZ DE USUARIO (SIDEBAR Y MAIN)
 # ==========================================
 if 'engine' not in st.session_state: st.session_state.engine = LegalEngineTITAN()
+if 'case_id' not in st.session_state: st.session_state.case_id = 0 # ID para evitar fantasmas
 if 'page' not in st.session_state: st.session_state.page = 'setup'
 if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
 if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("📊 TITÁN v64 (Progreso Real)")
+    st.title("🏛️ TITÁN v65 (Master)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -561,7 +589,7 @@ with st.sidebar:
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
                     
-                    # Recuperar datos de progreso y lista negra
+                    # Recuperar datos nuevos
                     engine.seen_articles = set(d.get('seen_arts', []))
                     engine.failed_articles = set(d.get('failed_arts', []))
 
@@ -630,15 +658,15 @@ if st.session_state.page == 'game':
     subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
     
     # VISUALIZACIÓN DEL FRANCOTIRADOR
-    foco_msg = f"🎯 ENFOQUE ACTUAL: **{engine.current_article_label}**"
+    foco_msg = f"🎯 ENFOQUE CONFIRMADO: **{engine.current_article_label}**"
     st.info(foco_msg)
     
-    # --- TABLERO DE ESTADÍSTICAS (v61.5) ---
+    # --- TABLERO DE ESTADÍSTICAS ---
     c1, c2, c3 = st.columns(3)
     c1.metric("📊 Dominio Global", f"{perc}%")
     c2.metric("❌ Preguntas Falladas", f"{fails}")
     c3.metric("📉 Bloques Vistos", f"{len([x for x in engine.mastery_tracker.values() if x > 0])}/{total}")
-    # ---------------------------------------------------
+    # -------------------------------
 
     st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **{subtitulo}**")
     st.progress(perc/100)
@@ -650,6 +678,8 @@ if st.session_state.page == 'game':
         with st.spinner(msg):
             data = engine.generate_case()
             if data and "preguntas" in data:
+                # --- MEJORA CRÍTICA: ID INCREMENTAL ---
+                st.session_state.case_id += 1
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
             else:
@@ -666,28 +696,35 @@ if st.session_state.page == 'game':
         q = q_list[st.session_state.q_idx]
         st.write(f"### Pregunta {st.session_state.q_idx + 1}")
         
-        with st.form(key=f"q_{st.session_state.q_idx}"):
+        # --- MEJORA CRÍTICA: CLAVE ÚNICA PARA RESETEAR BOTONES ---
+        form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
+        
+        with st.form(key=form_key):
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
-            sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()])
+            # index=None para arrancar vacío
+            sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()], index=None)
             
             if st.form_submit_button("Validar"):
-                letra_sel = sel.split(")")[0]
-                if letra_sel == q['respuesta']: 
-                    st.success("✅ ¡Correcto!") 
-                    engine.mastery_tracker[engine.current_chunk_idx] += 1
-                else: 
-                    st.error(f"Incorrecto. Era {q['respuesta']}")
-                    engine.failed_indices.add(engine.current_chunk_idx)
+                if not sel:
+                    st.warning("⚠️ Debes seleccionar una opción primero.")
+                else:
+                    letra_sel = sel.split(")")[0]
+                    if letra_sel == q['respuesta']: 
+                        st.success("✅ ¡Correcto!") 
+                        engine.mastery_tracker[engine.current_chunk_idx] += 1
+                    else: 
+                        st.error(f"Incorrecto. Era {q['respuesta']}")
+                        engine.failed_indices.add(engine.current_chunk_idx)
+                        
+                        # Guardar huella de repaso
+                        if engine.chunk_embeddings is not None:
+                            engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
+                        
+                        # Agregar a Lista Negra
+                        if engine.current_article_label != "General":
+                            engine.failed_articles.add(engine.current_article_label)
                     
-                    # --- REPASO INTELIGENTE (Restaurado) ---
-                    if engine.chunk_embeddings is not None:
-                        engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
-                    
-                    # Agregar a Lista Negra
-                    if engine.current_article_label != "General":
-                        engine.failed_articles.add(engine.current_article_label)
-                
-                st.info(q['explicacion']); st.session_state.answered = True
+                    st.info(q['explicacion']); st.session_state.answered = True
 
         if st.session_state.answered:
             if st.session_state.q_idx < len(q_list) - 1:
