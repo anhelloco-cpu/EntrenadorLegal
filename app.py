@@ -17,7 +17,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v51 - Carga Flexible", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="TITÁN v52 - Segmentación Inteligente", page_icon="🧠", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
@@ -73,12 +73,15 @@ class LegalEngineTITAN:
         self.thematic_axis = "General"
         self.structure_type = "Técnico / Normativo (Sin Caso)" 
         self.questions_per_case = 1 
+        
+        # --- NUEVO: ESTRUCTURA SEGMENTADA (TU CÓDIGO) ---
+        self.sections_map = {} # Diccionario { "TÍTULO I": "texto...", "CAPÍTULO II": "texto..." }
+        self.active_section_name = "Todo el Documento"
 
     def configure_api(self, key):
         key = key.strip()
         self.api_key = key
         
-        # DETECCIÓN AUTOMÁTICA
         if key.startswith("gsk_"):
             self.provider = "Groq"
             return True, "🚀 Motor GROQ Activado"
@@ -98,15 +101,119 @@ class LegalEngineTITAN:
             except Exception as e:
                 return False, f"Error con la llave: {str(e)}"
 
+    # --- AQUÍ ESTÁ LA INTEGRACIÓN DE TU CÓDIGO DE COLAB ---
+    def smart_segmentation(self, full_text):
+        """
+        Aplica los patrones Regex de tu Colab para detectar Títulos, Capítulos y Artículos,
+        y segmenta el texto en bloques lógicos.
+        """
+        lineas = full_text.split('\n')
+        secciones = {"Todo el Documento": full_text} # Opción por defecto
+        
+        current_label = "Preámbulo/Inicio"
+        current_content = []
+        
+        # TUS PATRONES EXACTOS
+        patron_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*\d+'
+        patron_cap = r'^\s*(CAPÍTULO|CAPITULO)\b'
+        patron_tit_txt = r'^\s*(TÍTULO|TITULO|LIBRO|PARTE)\b'
+        patron_romano_punto = r'^\s*([IVXLCDM]+)\.\s+(.+)'
+        patron_romano_solo = r'^\s*([IVXLCDM]+)\s*$'
+
+        idx = 0
+        while idx < len(lineas):
+            linea = lineas[idx].strip()
+            if not linea:
+                idx += 1
+                continue
+            
+            tipo_detectado = None
+            etiqueta_nueva = None
+
+            # 1. ROMANO + PUNTO ("I. DISPOSICIONES")
+            match_romano = re.match(patron_romano_punto, linea, re.IGNORECASE)
+            if match_romano:
+                etiqueta_nueva = f"TÍTULO {match_romano.group(1)}: {match_romano.group(2)[:30]}..."
+                tipo_detectado = 'TÍTULO'
+
+            # 2. TÍTULO EXPLÍCITO ("TÍTULO I")
+            elif re.match(patron_tit_txt, linea, re.IGNORECASE):
+                etiqueta_nueva = linea[:50]
+                tipo_detectado = 'TÍTULO'
+
+            # 3. ROMANO SOLO ("I")
+            elif re.match(patron_romano_solo, linea, re.IGNORECASE):
+                palabra = linea.split()[0].upper().replace('.', '')
+                if palabra in ['I','II','III','IV','V','VI','VII','VIII','IX','X','L','C','D','M']:
+                    etiqueta_nueva = f"SECCIÓN {palabra}"
+                    tipo_detectado = 'SECCIÓN'
+
+            # 4. CAPÍTULO ("CAPÍTULO II")
+            elif re.match(patron_cap, linea, re.IGNORECASE):
+                etiqueta_nueva = linea[:50]
+                tipo_detectado = 'CAPÍTULO'
+
+            # 5. ARTÍCULO (Opcional: Si quieres hilar muy fino, descomenta abajo. 
+            # Por ahora agrupamos por Capítulos/Títulos para no tener 300 opciones)
+            # elif re.match(patron_art, linea, re.IGNORECASE):
+            #     etiqueta_nueva = linea[:20]
+            #     tipo_detectado = 'ARTÍCULO'
+
+            if tipo_detectado and etiqueta_nueva:
+                # Guardar lo anterior
+                if current_content:
+                    # Si ya existe la clave, anexamos (raro, pero posible)
+                    texto_acumulado = "\n".join(current_content)
+                    if current_label in secciones:
+                        secciones[current_label] += "\n" + texto_acumulado
+                    else:
+                        secciones[current_label] = texto_acumulado
+                
+                # Iniciar nueva sección
+                current_label = etiqueta_nueva
+                current_content = [linea] # Incluir el título en el contenido
+            else:
+                current_content.append(linea)
+            
+            idx += 1
+        
+        # Guardar el último bloque
+        if current_content:
+             texto_acumulado = "\n".join(current_content)
+             secciones[current_label] = texto_acumulado
+             
+        return secciones
+
     def process_law(self, text, axis_name):
         text = text.replace('\r', '')
         if len(text) < 100: return 0
         self.thematic_axis = axis_name 
+        
+        # 1. EJECUTAR TU LÓGICA DE SEGMENTACIÓN
+        self.sections_map = self.smart_segmentation(text)
+        
+        # 2. PREPARAR CHUNKS (Por defecto carga TODO)
+        # Si el usuario elige una sección específica, actualizaremos self.chunks en la UI
         self.chunks = [text[i:i+6000] for i in range(0, len(text), 6000)]
         self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
+        
         if dl_model: 
-            with st.spinner("🧠 Procesando norma..."): self.chunk_embeddings = dl_model.encode(self.chunks)
+            with st.spinner("🧠 Analizando estructura de la norma..."): 
+                self.chunk_embeddings = dl_model.encode(self.chunks)
         return len(self.chunks)
+
+    def update_chunks_by_section(self, section_name):
+        """Actualiza los chunks para que la IA solo vea la sección elegida"""
+        if section_name in self.sections_map:
+            texto_seccion = self.sections_map[section_name]
+            # Reprocesar solo ese texto
+            self.chunks = [texto_seccion[i:i+6000] for i in range(0, len(texto_seccion), 6000)]
+            self.mastery_tracker = {i: 0 for i in range(len(self.chunks))} # Reset mastery for new view
+            self.active_section_name = section_name
+            if dl_model:
+                 self.chunk_embeddings = dl_model.encode(self.chunks)
+            return True
+        return False
 
     def get_stats(self):
         if not self.chunks: return 0, 0, 0
@@ -174,6 +281,7 @@ class LegalEngineTITAN:
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}. EJE: {self.thematic_axis.upper()}.
+        SECCIÓN DE ESTUDIO ACTUAL: {self.active_section_name}
         
         {instruccion_estilo}
         
@@ -182,7 +290,7 @@ class LegalEngineTITAN:
         EJEMPLO SINTÁCTICO A COPIAR:
         '''{self.example_question}'''
         
-        NORMA BASE: "{self.chunks[idx][:7000]}"
+        NORMA BASE (TEXTO REAL): "{self.chunks[idx][:7000]}"
         
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
@@ -256,7 +364,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v51 (Flexible)")
+    st.title("⚙️ TITÁN v52 (Segmentado)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
         if key:
@@ -272,7 +380,6 @@ with st.sidebar:
     fase = st.radio("Fase:", ["Pre-Guía", "Post-Guía"], index=fase_default)
     engine.study_phase = fase
 
-    # --- CONTROL MANUAL ---
     st.markdown("#### 🔧 ESTRUCTURA")
     col1, col2 = st.columns(2)
     with col1:
@@ -296,20 +403,19 @@ with st.sidebar:
 
     st.divider()
     
-    # --- PESTAÑAS DE CARGA (AQUÍ ESTÁ EL ARREGLO) ---
+    # --- PESTAÑAS DE CARGA ---
     tab1, tab2 = st.tabs(["📝 NUEVA NORMA", "📂 CARGAR BACKUP"])
     
     with tab1:
-        st.caption("Pega aquí el texto de la Ley o Decreto para estudiar.")
+        st.caption("Pega aquí el texto. El sistema detectará Títulos y Capítulos automáticamente.")
         axis_input = st.text_input("Eje Temático:", value=engine.thematic_axis)
         txt = st.text_area("Texto de la Norma:", height=150)
         
-        if st.button("🚀 PROCESAR NUEVA NORMA"):
-            # RESETEO TOTAL AL PROCESAR NUEVA
+        if st.button("🚀 PROCESAR Y SEGMENTAR"):
             if engine.process_law(txt, axis_input): 
                 st.session_state.page = 'game'
                 st.session_state.current_data = None
-                st.success("¡Norma Procesada!")
+                st.success(f"¡Norma Procesada! Se encontraron {len(engine.sections_map)} secciones.")
                 time.sleep(1)
                 st.rerun()
 
@@ -333,6 +439,10 @@ with st.sidebar:
                     engine.example_question = d.get('ex_q', "")
                     engine.job_functions = d.get('job', "")
                     
+                    # RECUPERAR SECCIONES
+                    engine.sections_map = d.get('sections', {})
+                    engine.active_section_name = d.get('act_sec', "Todo el Documento")
+
                     if DL_AVAILABLE:
                          with st.spinner("🧠 Recuperando memoria neuronal..."):
                             engine.chunk_embeddings = dl_model.encode(engine.chunks)
@@ -345,6 +455,30 @@ with st.sidebar:
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al leer: {e}")
+
+    # --- NUEVO SELECTOR DE SECCIÓN (SOLO SI HAY SECCIONES) ---
+    if engine.sections_map and len(engine.sections_map) > 1:
+        st.divider()
+        st.markdown("### 📍 MAPA DE LA LEY")
+        # Creamos lista ordenada (keys) pero asegurando que "Todo el Documento" esté primero
+        opciones = list(engine.sections_map.keys())
+        if "Todo el Documento" in opciones:
+            opciones.remove("Todo el Documento")
+            opciones.insert(0, "Todo el Documento")
+        
+        # Recuperar índice actual
+        try: idx_sec = opciones.index(engine.active_section_name)
+        except: idx_sec = 0
+            
+        seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec)
+        
+        # Si cambia la selección, actualizamos los chunks
+        if seleccion != engine.active_section_name:
+            if engine.update_chunks_by_section(seleccion):
+                st.session_state.current_data = None # Limpiar pregunta anterior
+                st.toast(f"Cambiado a: {seleccion}", icon="✅")
+                time.sleep(0.5)
+                st.rerun()
 
     if engine.chunks and engine.api_key and st.session_state.page == 'setup':
         st.divider()
@@ -373,19 +507,23 @@ with st.sidebar:
             "chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices),
             "feed": engine.feedback_history, "ent": engine.entity, "axis": engine.thematic_axis,
             "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
-            "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case
+            "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case,
+            # GUARDAR SECCIONES
+            "sections": engine.sections_map, "act_sec": engine.active_section_name
         }
         st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
 
 # --- JUEGO ---
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
-    st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **DOMINIO: {perc}%** | **BLOQUES: {total}**")
+    # Mostrar qué sección se está estudiando
+    subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
+    st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **{subtitulo}**")
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
         tipo = "CASO NARRATIVO" if "Con Caso" in engine.structure_type else "ENUNCIADO TÉCNICO"
-        msg = f"🧠 Generando {engine.questions_per_case} pregunta(s) ({tipo}) usando {engine.provider.split()[0]}..."
+        msg = f"🧠 Generando {engine.questions_per_case} pregunta(s) ({tipo}) sobre {engine.active_section_name}..."
         
         with st.spinner(msg):
             data = engine.generate_case()
