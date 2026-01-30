@@ -17,7 +17,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v53 - Mapa & Calidad", page_icon="💎", layout="wide")
+st.set_page_config(page_title="TITÁN v54 - Niveles Reales", page_icon="🎚️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
@@ -102,13 +102,8 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     def smart_segmentation(self, full_text):
-        """
-        MODIFICACIÓN 1: Lógica de 'Look Ahead' (Offset) restaurada de tu Colab
-        para capturar descripciones en la línea siguiente.
-        """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": full_text}
-        
         current_label = "Inicio"
         current_content = []
         
@@ -127,30 +122,25 @@ class LegalEngineTITAN:
             etiqueta_nueva = None
             offset = 0
 
-            # Lógica de detección + Búsqueda de descripción abajo
             if re.match(patron_romano_punto, linea, re.IGNORECASE):
-                # Caso fácil: "I. DISPOSICIONES"
                 match = re.match(patron_romano_punto, linea, re.IGNORECASE)
                 etiqueta_nueva = f"{match.group(1)}. {match.group(2)}"
             
             elif re.match(patron_tit_txt, linea, re.IGNORECASE):
-                # Caso difícil: "TÍTULO I" (y abajo dice el nombre)
                 etiqueta_nueva = linea
-                if len(linea) < 60: # Si es corto, miramos abajo
+                if len(linea) < 60:
                     temp_offset = 1
                     while (idx + temp_offset) < len(lineas):
                         siguiente = lineas[idx + temp_offset].strip()
                         if not siguiente: 
                             temp_offset += 1
                             continue
-                        # Si la siguiente NO es otro título, la sumamos
                         if not re.match(r'^(ART|CAP|TIT|[IVX]+\.)', siguiente, re.IGNORECASE):
                             etiqueta_nueva = f"{linea} - {siguiente}"
-                            offset = temp_offset # Saltamos esa línea porque ya la usamos en el título
+                            offset = temp_offset
                         break
             
             elif re.match(patron_cap, linea, re.IGNORECASE):
-                # Mismo caso para capítulos
                 etiqueta_nueva = linea
                 if len(linea) < 60:
                     temp_offset = 1
@@ -168,7 +158,6 @@ class LegalEngineTITAN:
                 palabra = linea.split()[0].upper().replace('.', '')
                 if palabra in ['I','II','III','IV','V','VI','VII','VIII','IX','X','L','C','D','M']:
                     etiqueta_nueva = f"SECCIÓN {palabra}"
-                    # Aquí también podríamos mirar abajo
                     if len(linea) < 10:
                         temp_offset = 1
                         while (idx + temp_offset) < len(lineas):
@@ -181,28 +170,21 @@ class LegalEngineTITAN:
                                 offset = temp_offset
                             break
 
-            # Si detectamos una nueva sección
             if etiqueta_nueva:
-                # 1. Guardar lo que traíamos en la sección anterior
                 if current_content:
                     txt_previo = "\n".join(current_content)
                     if current_label in secciones: secciones[current_label] += "\n" + txt_previo
                     else: secciones[current_label] = txt_previo
                 
-                # 2. Iniciar la nueva
-                # Limpieza visual del título (cortar si es muy largo para el menú)
                 display_label = etiqueta_nueva[:90] + "..." if len(etiqueta_nueva) > 90 else etiqueta_nueva
                 current_label = display_label
                 current_content = [linea] 
-                
-                # Aplicar el salto si consumimos la línea de abajo
                 idx += offset 
             else:
                 current_content.append(linea)
             
             idx += 1
         
-        # Guardar el último bloque
         if current_content:
              secciones[current_label] = "\n".join(current_content)
              
@@ -249,17 +231,11 @@ class LegalEngineTITAN:
         """
 
     def get_calibration_instructions(self):
-        # MODIFICACIÓN 2 y 3: Prompt Anti-Repetición y Anti-Chivato
+        # INSTRUCCIONES ESTÉTICAS (Se mantienen)
         return """
         🔴 INSTRUCCIONES CRÍTICAS DE REDACCIÓN:
         1. NO REPETIR: Está TERMINANTEMENTE PROHIBIDO copiar y pegar el texto de 'narrativa_caso' dentro del 'enunciado'.
-           - 'narrativa_caso': Lleva el contexto legal completo (el "ladrillo").
-           - 'enunciado': Lleva SOLO el conector o la frase detonante (ej: "En ese sentido, es correcto afirmar:", "Por consiguiente:", "Se infiere que:").
-        
-        2. NO CHIVATEAR LA SECCIÓN:
-           - Aunque internamente sepas que estamos en el '{self.active_section_name}', NO lo escribas en la pregunta.
-           - MAL: "Según el Capítulo III de las Faltas..."
-           - BIEN: "Según la normativa disciplinaria vigente..." o "Conforme al régimen aplicable..."
+        2. NO CHIVATEAR: No digas "Según el Título X". Di "Según la norma".
         """
 
     def generate_case(self):
@@ -276,27 +252,63 @@ class LegalEngineTITAN:
         if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
         
+        # --- NUEVA LÓGICA DE DIFICULTAD REAL ---
+        # Definimos qué significa "Dificultad" para la IA según lo que eligió el usuario
+        dificultad_prompt = ""
+        
+        if self.level == "Asistencial":
+            dificultad_prompt = """
+            NIVEL: ASISTENCIAL (Apoyo Operativo).
+            - ENFOQUE: Memoria, archivo, plazos exactos, pasos de un procedimiento.
+            - TIPO DE PREGUNTA: Literal o de ejecución directa.
+            - OPCIONES: Claras, donde el error sea evidente por cambio de una cifra o palabra clave.
+            """
+        elif self.level == "Técnico":
+            dificultad_prompt = """
+            NIVEL: TÉCNICO (Procesos y Procedimientos).
+            - ENFOQUE: Aplicación de normas, validación de requisitos, rutas de atención.
+            - TIPO DE PREGUNTA: ¿Cuál es el paso correcto a seguir? ¿Qué requisito falta?
+            """
+        elif self.level == "Profesional":
+            dificultad_prompt = """
+            NIVEL: PROFESIONAL (Análisis y Toma de Decisiones).
+            - DIFICULTAD: ALTA.
+            - ENFOQUE: Interpretación de principios, resolución de conflictos normativos, vacíos legales.
+            - PROHIBIDO: Preguntas de memoria simple (fechas, números de artículos).
+            - OPCIONES: Todas deben parecer correctas (distractores plausibles). Solo una es técnicamente precisa.
+            """
+        elif self.level == "Asesor":
+            dificultad_prompt = """
+            NIVEL: ASESOR (Estratégico y Alta Dirección).
+            - DIFICULTAD: MUY ALTA / EXPERTA.
+            - ENFOQUE: Impacto institucional, responsabilidad fiscal/disciplinaria, jurisprudencia.
+            - TIPO DE PREGUNTA: Casuística compleja donde hay que ponderar derechos.
+            """
+
         if "Sin Caso" in self.structure_type:
             instruccion_estilo = f"""
             ESTILO: TÉCNICO / NORMATIVO.
             1. COPIA LA SINTAXIS DEL EJEMPLO (Si existe).
             2. DIVISIÓN DE JSON:
                - Campo 'narrativa_caso': Pon aquí todo el contexto, la definición o el artículo analizado.
-               - Campo 'enunciado': Pon aquí SOLO la frase final que da pie a las opciones (ej: "Lo anterior implica que:").
+               - Campo 'enunciado': Pon aquí SOLO la frase final que da pie a las opciones.
             """
         else:
             instruccion_estilo = f"""
             ESTILO: NARRATIVO / SITUACIONAL.
-            1. Crea una historia laboral realista.
+            1. Crea una historia laboral realista acorde al NIVEL {self.level.upper()}.
             2. Campo 'narrativa_caso': La historia completa.
-            3. Campo 'enunciado': La pregunta final sobre la historia.
+            3. Campo 'enunciado': La pregunta final.
             """
 
         cantidad_instruccion = f"Genera EXACTAMENTE {self.questions_per_case} ítem(s)."
 
         prompt = f"""
-        ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS (NIVEL {self.level.upper()}).
+        ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS DE COLOMBIA.
         ENTIDAD: {self.entity.upper()}. EJE: {self.thematic_axis.upper()}.
+        
+        INSTRUCCIONES DE DIFICULTAD (CÚMPLELAS ESTRICTAMENTE):
+        {dificultad_prompt}
         
         {instruccion_estilo}
         
@@ -312,10 +324,10 @@ class LegalEngineTITAN:
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "Texto largo de contexto o historia...",
+            "narrativa_caso": "Texto...",
             "preguntas": [
                 {{
-                    "enunciado": "Frase conectora final...", 
+                    "enunciado": "...", 
                     "opciones": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, 
                     "respuesta": "A", 
                     "explicacion": "..."
@@ -379,7 +391,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v53 (Pulido)")
+    st.title("⚙️ TITÁN v54 (Dificultad)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
         if key:
@@ -470,7 +482,7 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error al leer: {e}")
 
-    # --- NUEVO SELECTOR DE SECCIÓN ---
+    # --- SELECTOR DE SECCIÓN ---
     if engine.sections_map and len(engine.sections_map) > 1:
         st.divider()
         st.markdown("### 📍 MAPA DE LA LEY")
@@ -532,7 +544,7 @@ if st.session_state.page == 'game':
 
     if not st.session_state.get('current_data'):
         tipo = "CASO NARRATIVO" if "Con Caso" in engine.structure_type else "ENUNCIADO TÉCNICO"
-        msg = f"🧠 Generando {engine.questions_per_case} pregunta(s) ({tipo}) sobre {engine.active_section_name}..."
+        msg = f"🧠 Generando {engine.questions_per_case} pregunta(s) ({tipo}) - NIVEL {engine.level.upper()}..."
         
         with st.spinner(msg):
             data = engine.generate_case()
@@ -582,8 +594,11 @@ if st.session_state.page == 'game':
                 "Repetitivo": "repetitivo",
                 "Incoherente": "incoherente"
             }
-            r = st.selectbox("¿Qué estuvo mal?", list(reasons_map.keys()))
+            # NUEVO: Multiselect para reportar varios errores a la vez
+            errores_sel = st.multiselect("Reportar fallos:", list(reasons_map.keys()))
+            
             if st.button("¡Castigar y Corregir!"):
-                code = reasons_map[r]
-                engine.feedback_history.append(code)
-                st.toast(f"Calibración enviada: {code}", icon="🛡️")
+                for r in errores_sel:
+                    code = reasons_map[r]
+                    engine.feedback_history.append(code)
+                st.toast(f"Feedback enviado: {len(errores_sel)} error(es)", icon="🛡️")
