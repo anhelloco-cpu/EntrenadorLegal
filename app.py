@@ -17,7 +17,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v54 - Niveles Reales", page_icon="🎚️", layout="wide")
+st.set_page_config(page_title="TITÁN v56 - Jerarquía Total", page_icon="🏛️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
@@ -63,10 +63,10 @@ class LegalEngineTITAN:
         self.provider = "Unknown" 
         self.api_key = ""
         self.model = None 
-        self.current_temperature = 0.2
+        self.current_temperature = 0.3 # Temperatura estable
         self.last_failed_embedding = None
         
-        # --- VARIABLES DE CONTROL ---
+        # VARIABLES DE CONTROL
         self.study_phase = "Pre-Guía" 
         self.example_question = "" 
         self.job_functions = ""    
@@ -74,7 +74,7 @@ class LegalEngineTITAN:
         self.structure_type = "Técnico / Normativo (Sin Caso)" 
         self.questions_per_case = 1 
         
-        # --- MAPA DE LA LEY ---
+        # MAPA DE LA LEY (JERÁRQUICO)
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
 
@@ -85,7 +85,7 @@ class LegalEngineTITAN:
         if key.startswith("gsk_"):
             self.provider = "Groq"
             return True, "🚀 Motor GROQ Activado"
-        elif key.startswith("sk-") and not key.startswith("sk-ant"): 
+        elif key.startswith("sk-") or key.startswith("sk-proj-"): 
             self.provider = "OpenAI"
             return True, "🤖 Motor CHATGPT (GPT-4o) Activado"
         else:
@@ -102,93 +102,116 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     def smart_segmentation(self, full_text):
+        """
+        NUEVA LÓGICA DE 'CAJAS ANIDADAS' (Nesting).
+        Cada línea se agrega a su contenedor padre (Libro -> Título -> Capítulo...).
+        """
         lineas = full_text.split('\n')
-        secciones = {"Todo el Documento": full_text}
-        current_label = "Inicio"
-        current_content = []
         
-        patron_cap = r'^\s*(CAPÍTULO|CAPITULO)\b'
-        patron_tit_txt = r'^\s*(TÍTULO|TITULO|LIBRO|PARTE)\b'
-        patron_romano_punto = r'^\s*([IVXLCDM]+)\.\s+(.+)'
-        patron_romano_solo = r'^\s*([IVXLCDM]+)\s*$'
+        # Diccionario donde acumularemos el texto de cada sección encontrada
+        # Inicializamos con el documento completo
+        secciones = {"Todo el Documento": []} 
+        
+        # Estado actual de la jerarquía (Qué caja está abierta)
+        active_hierarchy = {
+            "LIBRO": None,
+            "TÍTULO": None,
+            "CAPÍTULO": None,
+            "SECCIÓN": None,
+            "ARTÍCULO": None
+        }
 
-        idx = 0
-        while idx < len(lineas):
-            linea = lineas[idx].strip()
-            if not linea:
-                idx += 1
-                continue
+        # Patrones Regex
+        patron_libro = r'^\s*(LIBRO)\s+[IVXLCDM]+\b'
+        patron_titulo_romano = r'^\s*([IVXLCDM]+)\.\s+(.+)' # "I. DISPOSICIONES"
+        patron_titulo_txt = r'^\s*(TÍTULO|TITULO)\s+[IVXLCDM]+\b'
+        patron_capitulo = r'^\s*(CAPÍTULO|CAPITULO)\s+[IVXLCDM0-9]+\b'
+        patron_seccion_txt = r'^\s*(SECCIÓN|SECCION)\s+'
+        patron_romano_solo = r'^\s*([IVXLCDM]+)\s*$' # Posible sección
+        patron_articulo = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*\d+'
+
+        for idx, linea in enumerate(lineas):
+            linea_limpia = linea.strip()
+            if not linea_limpia: continue # Saltar vacíos
+
+            # --- 1. DETECCIÓN DE JERARQUÍA ---
             
-            etiqueta_nueva = None
-            offset = 0
+            # NIVEL 1: LIBRO
+            if re.match(patron_libro, linea_limpia, re.IGNORECASE):
+                label = linea_limpia[:100]
+                active_hierarchy["LIBRO"] = label
+                # Al abrir libro, se cierran los hijos anteriores
+                active_hierarchy["TÍTULO"] = None
+                active_hierarchy["CAPÍTULO"] = None
+                active_hierarchy["SECCIÓN"] = None
+                secciones[label] = [] # Iniciar lista para este libro
 
-            if re.match(patron_romano_punto, linea, re.IGNORECASE):
-                match = re.match(patron_romano_punto, linea, re.IGNORECASE)
-                etiqueta_nueva = f"{match.group(1)}. {match.group(2)}"
-            
-            elif re.match(patron_tit_txt, linea, re.IGNORECASE):
-                etiqueta_nueva = linea
-                if len(linea) < 60:
-                    temp_offset = 1
-                    while (idx + temp_offset) < len(lineas):
-                        siguiente = lineas[idx + temp_offset].strip()
-                        if not siguiente: 
-                            temp_offset += 1
-                            continue
-                        if not re.match(r'^(ART|CAP|TIT|[IVX]+\.)', siguiente, re.IGNORECASE):
-                            etiqueta_nueva = f"{linea} - {siguiente}"
-                            offset = temp_offset
-                        break
-            
-            elif re.match(patron_cap, linea, re.IGNORECASE):
-                etiqueta_nueva = linea
-                if len(linea) < 60:
-                    temp_offset = 1
-                    while (idx + temp_offset) < len(lineas):
-                        siguiente = lineas[idx + temp_offset].strip()
-                        if not siguiente: 
-                            temp_offset += 1
-                            continue
-                        if not re.match(r'^(ART|CAP|TIT|[IVX]+\.)', siguiente, re.IGNORECASE):
-                            etiqueta_nueva = f"{linea} - {siguiente}"
-                            offset = temp_offset
-                        break
-
-            elif re.match(patron_romano_solo, linea, re.IGNORECASE):
-                palabra = linea.split()[0].upper().replace('.', '')
-                if palabra in ['I','II','III','IV','V','VI','VII','VIII','IX','X','L','C','D','M']:
-                    etiqueta_nueva = f"SECCIÓN {palabra}"
-                    if len(linea) < 10:
-                        temp_offset = 1
-                        while (idx + temp_offset) < len(lineas):
-                            siguiente = lineas[idx + temp_offset].strip()
-                            if not siguiente: 
-                                temp_offset += 1
-                                continue
-                            if not re.match(r'^(ART|CAP|TIT)', siguiente, re.IGNORECASE):
-                                etiqueta_nueva = f"SECCIÓN {palabra} - {siguiente}"
-                                offset = temp_offset
-                            break
-
-            if etiqueta_nueva:
-                if current_content:
-                    txt_previo = "\n".join(current_content)
-                    if current_label in secciones: secciones[current_label] += "\n" + txt_previo
-                    else: secciones[current_label] = txt_previo
+            # NIVEL 2: TÍTULO (Romano con punto o Texto explícito)
+            elif re.match(patron_titulo_romano, linea_limpia, re.IGNORECASE) or re.match(patron_titulo_txt, linea_limpia, re.IGNORECASE):
+                label = linea_limpia[:100]
+                # Buscar descripción abajo si es muy corto
+                if len(label) < 60 and idx + 1 < len(lineas):
+                    siguiente = lineas[idx+1].strip()
+                    if siguiente and not re.match(r'^(ART|CAP|TIT|LIB|SEC)', siguiente, re.IGNORECASE):
+                        label = f"{label} - {siguiente}"
                 
-                display_label = etiqueta_nueva[:90] + "..." if len(etiqueta_nueva) > 90 else etiqueta_nueva
-                current_label = display_label
-                current_content = [linea] 
-                idx += offset 
-            else:
-                current_content.append(linea)
+                active_hierarchy["TÍTULO"] = label
+                active_hierarchy["CAPÍTULO"] = None
+                active_hierarchy["SECCIÓN"] = None
+                secciones[label] = []
+
+            # NIVEL 3: CAPÍTULO
+            elif re.match(patron_capitulo, linea_limpia, re.IGNORECASE):
+                label = linea_limpia[:100]
+                if len(label) < 60 and idx + 1 < len(lineas):
+                    siguiente = lineas[idx+1].strip()
+                    if siguiente and not re.match(r'^(ART|CAP|TIT|LIB|SEC)', siguiente, re.IGNORECASE):
+                        label = f"{label} - {siguiente}"
+                
+                active_hierarchy["CAPÍTULO"] = label
+                active_hierarchy["SECCIÓN"] = None
+                secciones[label] = []
+
+            # NIVEL 4: SECCIÓN
+            elif re.match(patron_seccion_txt, linea_limpia, re.IGNORECASE):
+                label = linea_limpia[:100]
+                active_hierarchy["SECCIÓN"] = label
+                secciones[label] = []
             
-            idx += 1
-        
-        if current_content:
-             secciones[current_label] = "\n".join(current_content)
-             
-        return secciones
+            # NIVEL 5: ARTÍCULO (La unidad básica)
+            elif re.match(patron_articulo, linea_limpia, re.IGNORECASE):
+                # Capturamos el artículo para el menú, pero NO cerramos padres.
+                # Un artículo nuevo cierra el artículo anterior, pero no el Capítulo.
+                label = linea_limpia.split('.')[0] + "." # "ARTÍCULO 1."
+                if len(label) > 20: label = label[:20]
+                active_hierarchy["ARTÍCULO"] = label
+                # Opcional: Si quieres estudiar solo un artículo específico, descomenta:
+                # secciones[label] = [] 
+
+            # --- 2. MULTIGRABACIÓN (NESTING) ---
+            # La línea actual pertenece a "Todo el Documento" Y a todos los niveles activos
+            
+            secciones["Todo el Documento"].append(linea) # Siempre
+            
+            if active_hierarchy["LIBRO"]:
+                secciones[active_hierarchy["LIBRO"]].append(linea)
+            
+            if active_hierarchy["TÍTULO"]:
+                secciones[active_hierarchy["TÍTULO"]].append(linea)
+                
+            if active_hierarchy["CAPÍTULO"]:
+                secciones[active_hierarchy["CAPÍTULO"]].append(linea)
+                
+            if active_hierarchy["SECCIÓN"]:
+                secciones[active_hierarchy["SECCIÓN"]].append(linea)
+
+            # Si activaste artículos individuales, descomenta:
+            # if active_hierarchy["ARTÍCULO"] and active_hierarchy["ARTÍCULO"] in secciones:
+            #    secciones[active_hierarchy["ARTÍCULO"]].append(linea)
+
+        # Convertir listas a strings finales
+        final_map = {k: "\n".join(v) for k, v in secciones.items() if v}
+        return final_map
 
     def process_law(self, text, axis_name):
         text = text.replace('\r', '')
@@ -196,22 +219,23 @@ class LegalEngineTITAN:
         self.thematic_axis = axis_name 
         
         self.sections_map = self.smart_segmentation(text)
-        self.chunks = [text[i:i+6000] for i in range(0, len(text), 6000)]
-        self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
         
+        # MEJORA: Chunk Size aumentado a 50,000 para evitar "visión de túnel" en Títulos largos
+        self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
+        
+        self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
         if dl_model: 
-            with st.spinner("🧠 Analizando estructura..."): 
-                self.chunk_embeddings = dl_model.encode(self.chunks)
+            with st.spinner("🧠 Analizando jerarquía..."): self.chunk_embeddings = dl_model.encode(self.chunks)
         return len(self.chunks)
 
     def update_chunks_by_section(self, section_name):
         if section_name in self.sections_map:
             texto_seccion = self.sections_map[section_name]
-            self.chunks = [texto_seccion[i:i+6000] for i in range(0, len(texto_seccion), 6000)]
+            # Aquí también usamos el bloque grande de 50,000
+            self.chunks = [texto_seccion[i:i+50000] for i in range(0, len(texto_seccion), 50000)]
             self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.active_section_name = section_name
-            if dl_model:
-                 self.chunk_embeddings = dl_model.encode(self.chunks)
+            if dl_model: self.chunk_embeddings = dl_model.encode(self.chunks)
             return True
         return False
 
@@ -223,18 +247,12 @@ class LegalEngineTITAN:
         return min(perc, 100), len(self.failed_indices), total
 
     def get_strict_rules(self):
-        return """
-        🛑 REGLAS DE ORO DE SEGURIDAD:
-        1. NO SPOILERS: La pregunta NO debe describir la conducta ilegal ni dar la respuesta en el enunciado.
-        2. DEPENDENCIA: El usuario debe estar obligado a leer el texto para responder.
-        3. ALEATORIEDAD: La respuesta correcta NO puede ser siempre la A. Distribúyela.
-        """
+        return "1. NO SPOILERS: La pregunta NO debe dar la respuesta. 2. DEPENDENCIA: Obligatorio leer el texto."
 
     def get_calibration_instructions(self):
-        # INSTRUCCIONES ESTÉTICAS (Se mantienen)
         return """
-        🔴 INSTRUCCIONES CRÍTICAS DE REDACCIÓN:
-        1. NO REPETIR: Está TERMINANTEMENTE PROHIBIDO copiar y pegar el texto de 'narrativa_caso' dentro del 'enunciado'.
+        INSTRUCCIONES DE FORMATO:
+        1. NO REPETIR TEXTO: El 'enunciado' NO debe repetir lo que ya dice la 'narrativa_caso'.
         2. NO CHIVATEAR: No digas "Según el Título X". Di "Según la norma".
         """
 
@@ -252,75 +270,36 @@ class LegalEngineTITAN:
         if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
         
-        # --- NUEVA LÓGICA DE DIFICULTAD REAL ---
-        # Definimos qué significa "Dificultad" para la IA según lo que eligió el usuario
+        # PROMPT DE DIFICULTAD
         dificultad_prompt = ""
-        
         if self.level == "Asistencial":
-            dificultad_prompt = """
-            NIVEL: ASISTENCIAL (Apoyo Operativo).
-            - ENFOQUE: Memoria, archivo, plazos exactos, pasos de un procedimiento.
-            - TIPO DE PREGUNTA: Literal o de ejecución directa.
-            - OPCIONES: Claras, donde el error sea evidente por cambio de una cifra o palabra clave.
-            """
+            dificultad_prompt = "NIVEL: ASISTENCIAL. Preguntas de memoria, archivo y plazos exactos. Literalidad."
         elif self.level == "Técnico":
-            dificultad_prompt = """
-            NIVEL: TÉCNICO (Procesos y Procedimientos).
-            - ENFOQUE: Aplicación de normas, validación de requisitos, rutas de atención.
-            - TIPO DE PREGUNTA: ¿Cuál es el paso correcto a seguir? ¿Qué requisito falta?
-            """
+            dificultad_prompt = "NIVEL: TÉCNICO. Aplicación de procesos y requisitos."
         elif self.level == "Profesional":
-            dificultad_prompt = """
-            NIVEL: PROFESIONAL (Análisis y Toma de Decisiones).
-            - DIFICULTAD: ALTA.
-            - ENFOQUE: Interpretación de principios, resolución de conflictos normativos, vacíos legales.
-            - PROHIBIDO: Preguntas de memoria simple (fechas, números de artículos).
-            - OPCIONES: Todas deben parecer correctas (distractores plausibles). Solo una es técnicamente precisa.
-            """
+            dificultad_prompt = "NIVEL: PROFESIONAL. Alta dificultad. Análisis de casos y principios. Prohibido preguntas obvias."
         elif self.level == "Asesor":
-            dificultad_prompt = """
-            NIVEL: ASESOR (Estratégico y Alta Dirección).
-            - DIFICULTAD: MUY ALTA / EXPERTA.
-            - ENFOQUE: Impacto institucional, responsabilidad fiscal/disciplinaria, jurisprudencia.
-            - TIPO DE PREGUNTA: Casuística compleja donde hay que ponderar derechos.
-            """
+            dificultad_prompt = "NIVEL: ASESOR. Muy Alta dificultad. Estrategia y jurisprudencia."
 
         if "Sin Caso" in self.structure_type:
-            instruccion_estilo = f"""
-            ESTILO: TÉCNICO / NORMATIVO.
-            1. COPIA LA SINTAXIS DEL EJEMPLO (Si existe).
-            2. DIVISIÓN DE JSON:
-               - Campo 'narrativa_caso': Pon aquí todo el contexto, la definición o el artículo analizado.
-               - Campo 'enunciado': Pon aquí SOLO la frase final que da pie a las opciones.
-            """
+            instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo. 'enunciado' = Solo la frase conectora final."
         else:
-            instruccion_estilo = f"""
-            ESTILO: NARRATIVO / SITUACIONAL.
-            1. Crea una historia laboral realista acorde al NIVEL {self.level.upper()}.
-            2. Campo 'narrativa_caso': La historia completa.
-            3. Campo 'enunciado': La pregunta final.
-            """
-
-        cantidad_instruccion = f"Genera EXACTAMENTE {self.questions_per_case} ítem(s)."
+            instruccion_estilo = "ESTILO: NARRATIVO. Crea historia laboral realista. 'narrativa_caso' = Historia. 'enunciado' = Pregunta."
 
         prompt = f"""
-        ACTÚA COMO EXPERTO EN CONCURSOS PÚBLICOS DE COLOMBIA.
-        ENTIDAD: {self.entity.upper()}. EJE: {self.thematic_axis.upper()}.
+        ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
+        ENTIDAD: {self.entity.upper()}.
         
-        INSTRUCCIONES DE DIFICULTAD (CÚMPLELAS ESTRICTAMENTE):
         {dificultad_prompt}
-        
         {instruccion_estilo}
         
-        CANTIDAD REQUERIDA: {cantidad_instruccion}
+        Genera {self.questions_per_case} preguntas.
+        Si hay ejemplo: '''{self.example_question}''', imita su sintaxis (uso de dos puntos, conectores).
         
-        EJEMPLO DE ESTILO:
-        '''{self.example_question}'''
-        
-        NORMA BASE (TEXTO REAL): "{self.chunks[idx][:7000]}"
+        NORMA: "{self.chunks[idx][:50000]}"
         
         {self.get_strict_rules()}
-        {self.get_calibration_instructions()} 
+        {self.get_calibration_instructions()}
         
         FORMATO JSON OBLIGATORIO:
         {{
@@ -328,7 +307,7 @@ class LegalEngineTITAN:
             "preguntas": [
                 {{
                     "enunciado": "...", 
-                    "opciones": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, 
+                    "opciones": {{"A": "...", "B": "...", "C": "..."}}, 
                     "respuesta": "A", 
                     "explicacion": "..."
                 }}
@@ -346,14 +325,14 @@ class LegalEngineTITAN:
                     data = {
                         "model": "gpt-4o", 
                         "messages": [
-                            {"role": "system", "content": "You are a specialized legal assistant. Output valid JSON only."},
+                            {"role": "system", "content": "You are a helpful assistant. OUTPUT JSON ONLY."},
                             {"role": "user", "content": prompt}
                         ],
                         "temperature": self.current_temperature,
                         "response_format": {"type": "json_object"}
                     }
                     resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-                    if resp.status_code != 200: return {"error": f"Error OpenAI: {resp.text}"}
+                    if resp.status_code != 200: return {"error": f"OpenAI Error {resp.status_code}: {resp.text}"}
                     text_resp = resp.json()['choices'][0]['message']['content']
 
                 # GOOGLE
@@ -380,7 +359,8 @@ class LegalEngineTITAN:
                 return json.loads(text_resp)
 
             except Exception as e:
-                time.sleep(2); attempts += 1
+                time.sleep(1); attempts += 1
+                if attempts == max_retries: return {"error": f"Fallo Crítico: {str(e)}"}
         return {"error": "Saturado."}
 
 # --- INTERFAZ ---
@@ -391,7 +371,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v54 (Dificultad)")
+    st.title("⚙️ TITÁN v56 (Jerarquía)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
         if key:
@@ -401,7 +381,6 @@ with st.sidebar:
     
     st.divider()
     
-    # --- ESTRATEGIA ---
     st.markdown("### 📋 ESTRATEGIA")
     fase_default = 0 if engine.study_phase == "Pre-Guía" else 1
     fase = st.radio("Fase:", ["Pre-Guía", "Post-Guía"], index=fase_default)
@@ -411,11 +390,8 @@ with st.sidebar:
     col1, col2 = st.columns(2)
     with col1:
         idx_struct = 0 if "Sin Caso" in engine.structure_type else 1
-        estilo = st.radio("Enunciado:", 
-                         ["Técnico / Normativo (Sin Caso)", "Narrativo / Situacional (Con Caso)"], 
-                         index=idx_struct)
+        estilo = st.radio("Enunciado:", ["Técnico / Normativo (Sin Caso)", "Narrativo / Situacional (Con Caso)"], index=idx_struct)
         engine.structure_type = estilo
-    
     with col2:
         cant = st.number_input("Preguntas:", min_value=1, max_value=5, value=engine.questions_per_case)
         engine.questions_per_case = cant
@@ -423,18 +399,15 @@ with st.sidebar:
     with st.expander("Detalles", expanded=True):
         if "Con Caso" in estilo:
             engine.job_functions = st.text_area("Funciones / Rol:", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...")
-            engine.example_question = ""
         else:
-            engine.example_question = st.text_area("Ejemplo de Estilo (Sintaxis):", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
-            engine.job_functions = ""
+            engine.example_question = st.text_area("Ejemplo de Estilo:", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
 
     st.divider()
     
-    # --- PESTAÑAS DE CARGA ---
     tab1, tab2 = st.tabs(["📝 NUEVA NORMA", "📂 CARGAR BACKUP"])
     
     with tab1:
-        st.caption("Pega aquí el texto. El sistema detectará Títulos y Capítulos automáticamente.")
+        st.caption("Pega aquí el texto. El sistema detectará Jerarquía Completa.")
         axis_input = st.text_input("Eje Temático:", value=engine.thematic_axis)
         txt = st.text_area("Texto de la Norma:", height=150)
         
@@ -442,7 +415,7 @@ with st.sidebar:
             if engine.process_law(txt, axis_input): 
                 st.session_state.page = 'game'
                 st.session_state.current_data = None
-                st.success(f"¡Norma Procesada! Se encontraron {len(engine.sections_map)} secciones.")
+                st.success(f"¡Norma Procesada! {len(engine.sections_map)} secciones maestras.")
                 time.sleep(1)
                 st.rerun()
 
@@ -465,31 +438,22 @@ with st.sidebar:
                     engine.questions_per_case = d.get('q_per_case', 1)
                     engine.example_question = d.get('ex_q', "")
                     engine.job_functions = d.get('job', "")
-                    
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
 
                     if DL_AVAILABLE:
-                         with st.spinner("🧠 Recuperando memoria neuronal..."):
-                            engine.chunk_embeddings = dl_model.encode(engine.chunks)
+                         with st.spinner("🧠 Recuperando memoria neuronal..."): engine.chunk_embeddings = dl_model.encode(engine.chunks)
 
                     st.session_state.last_loaded = upl.name
                     st.success("¡Backup Cargado!")
-                    time.sleep(1)
-                    st.session_state.page = 'game'
-                    st.session_state.current_data = None
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al leer: {e}")
+                    time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+                except Exception as e: st.error(f"Error al leer: {e}")
 
-    # --- SELECTOR DE SECCIÓN ---
     if engine.sections_map and len(engine.sections_map) > 1:
         st.divider()
         st.markdown("### 📍 MAPA DE LA LEY")
         opciones = list(engine.sections_map.keys())
-        if "Todo el Documento" in opciones:
-            opciones.remove("Todo el Documento")
-            opciones.insert(0, "Todo el Documento")
+        if "Todo el Documento" in opciones: opciones.remove("Todo el Documento"); opciones.insert(0, "Todo el Documento")
         
         try: idx_sec = opciones.index(engine.active_section_name)
         except: idx_sec = 0
@@ -500,8 +464,7 @@ with st.sidebar:
             if engine.update_chunks_by_section(seleccion):
                 st.session_state.current_data = None
                 st.toast(f"Cambiado a: {seleccion}", icon="✅")
-                time.sleep(0.5)
-                st.rerun()
+                time.sleep(0.5); st.rerun()
 
     if engine.chunks and engine.api_key and st.session_state.page == 'setup':
         st.divider()
@@ -517,10 +480,8 @@ with st.sidebar:
     except: ent_idx = 0
     
     ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
-    if "Otra" in ent_selection or "Agregar" in ent_selection:
-        engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
-    else:
-        engine.entity = ent_selection
+    if "Otra" in ent_selection or "Agregar" in ent_selection: engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
+    else: engine.entity = ent_selection
             
     if st.button("🔥 INICIAR SIMULACRO", disabled=not engine.chunks):
         engine.simulacro_mode = True; st.session_state.current_data = None; st.session_state.page = 'game'; st.rerun()
@@ -594,9 +555,7 @@ if st.session_state.page == 'game':
                 "Repetitivo": "repetitivo",
                 "Incoherente": "incoherente"
             }
-            # NUEVO: Multiselect para reportar varios errores a la vez
             errores_sel = st.multiselect("Reportar fallos:", list(reasons_map.keys()))
-            
             if st.button("¡Castigar y Corregir!"):
                 for r in errores_sel:
                     code = reasons_map[r]
