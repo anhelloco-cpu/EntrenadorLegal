@@ -17,7 +17,7 @@ except ImportError:
     DL_AVAILABLE = False
 
 # --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="TITÁN v50 - Mimetismo Sintáctico", page_icon="🧬", layout="wide")
+st.set_page_config(page_title="TITÁN v51 - Carga Flexible", page_icon="⚖️", layout="wide")
 st.markdown("""
 <style>
     .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; height: 3.5em; transition: all 0.3s; background-color: #000000; color: white;}
@@ -27,7 +27,6 @@ st.markdown("""
         font-family: 'Georgia', serif; font-size: 1.15em; line-height: 1.6;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .question-card {background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-top: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);}
 </style>
 """, unsafe_allow_html=True)
 
@@ -90,7 +89,6 @@ class LegalEngineTITAN:
             self.provider = "Google"
             try:
                 genai.configure(api_key=key)
-                # Validación rápida
                 model_list = genai.list_models()
                 models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
                 target = next((m for m in models if 'gemini-1.5-pro' in m), 
@@ -154,18 +152,15 @@ class LegalEngineTITAN:
         if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
         
-        # --- PROMPT CORREGIDO: MIMETISMO SINTÁCTICO ---
-        
+        # --- PROMPT ---
         if "Sin Caso" in self.structure_type:
-            # Lógica para preguntas técnicas tipo CGR
             instruccion_estilo = f"""
-            ESTILO: TÉCNICO / NORMATIVO (SIN HISTORIAS).
-            1. Si hay un EJEMPLO DE USUARIO abajo, COPIA SU SINTAXIS EXACTA:
-               - ¿El ejemplo usa signos de interrogación '¿?'? -> Si NO los usa, TÚ TAMPOCO.
-               - ¿El ejemplo termina en dos puntos ':'? -> TU ENUNCIADO DEBE TERMINAR EN DOS PUNTOS.
-               - ¿El ejemplo usa conectores como "En ese sentido...", "Por consiguiente..."? -> ÚSALOS.
-            2. FUSIÓN: No separes "Contexto" y "Pregunta" si el ejemplo es un solo bloque corrido.
-            3. OBJETIVO: Que la pregunta parezca sacada del mismo examen del ejemplo.
+            ESTILO: TÉCNICO / NORMATIVO.
+            1. COPIA LA SINTAXIS EXACTA DEL EJEMPLO DE USUARIO (Si existe):
+               - ¿El ejemplo NO usa signos de interrogación '¿?'? -> TÚ TAMPOCO.
+               - ¿El ejemplo termina en dos puntos ':'? -> TÚ TAMBIÉN.
+               - ¿Usa conectores como "En ese sentido..."? -> ÚSALOS.
+            2. FUSIÓN: Genera un solo bloque de texto continuo (Contexto + Enunciado).
             """
         else:
             instruccion_estilo = f"""
@@ -184,20 +179,20 @@ class LegalEngineTITAN:
         
         CANTIDAD REQUERIDA: {cantidad_instruccion}
         
-        EJEMPLO DE ESTILO DEL USUARIO (IMITAR SINTAXIS):
+        EJEMPLO SINTÁCTICO A COPIAR:
         '''{self.example_question}'''
         
-        NORMA BASE A EVALUAR: "{self.chunks[idx][:7000]}"
+        NORMA BASE: "{self.chunks[idx][:7000]}"
         
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "narrativa_caso": "Si es estilo TÉCNICO, pon aquí el párrafo inicial o contexto normativo. Si es NARRATIVO, pon la historia.",
+            "narrativa_caso": "Si es estilo TÉCNICO, pon el párrafo de contexto. Si es NARRATIVO, pon la historia.",
             "preguntas": [
                 {{
-                    "enunciado": "Aquí va el conector y la pregunta final (ej: 'En ese sentido, es correcto afirmar:')...", 
+                    "enunciado": "Conector y enunciado final...", 
                     "opciones": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, 
                     "respuesta": "A", 
                     "explicacion": "..."
@@ -210,7 +205,7 @@ class LegalEngineTITAN:
         attempts = 0
         while attempts < max_retries:
             try:
-                # MOTOR OPENAI
+                # OPENAI
                 if self.provider == "OpenAI":
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
@@ -226,13 +221,13 @@ class LegalEngineTITAN:
                     if resp.status_code != 200: return {"error": f"Error OpenAI: {resp.text}"}
                     text_resp = resp.json()['choices'][0]['message']['content']
 
-                # MOTOR GOOGLE
+                # GOOGLE
                 elif self.provider == "Google":
                     safety = [{"category": f"HARM_CATEGORY_{c}", "threshold": "BLOCK_NONE"} for c in ["HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT"]]
                     res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature}, safety_settings=safety)
                     text_resp = res.text.strip()
                 
-                # MOTOR GROQ
+                # GROQ
                 else:
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
@@ -261,9 +256,9 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚙️ TITÁN v50 (Clon Real)")
+    st.title("⚙️ TITÁN v51 (Flexible)")
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
-        key = st.text_input("Pega tu API Key (Cualquiera):", type="password")
+        key = st.text_input("API Key (Cualquiera):", type="password")
         if key:
             ok, msg = engine.configure_api(key)
             if ok: st.success(msg)
@@ -279,7 +274,6 @@ with st.sidebar:
 
     # --- CONTROL MANUAL ---
     st.markdown("#### 🔧 ESTRUCTURA")
-    
     col1, col2 = st.columns(2)
     with col1:
         idx_struct = 0 if "Sin Caso" in engine.structure_type else 1
@@ -297,14 +291,31 @@ with st.sidebar:
             engine.job_functions = st.text_area("Funciones / Rol:", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...")
             engine.example_question = ""
         else:
-            engine.example_question = st.text_area("Ejemplo de Estilo (Opcional):", value=engine.example_question, height=70, placeholder="Pega un enunciado técnico...")
+            engine.example_question = st.text_area("Ejemplo de Estilo (Sintaxis):", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
             engine.job_functions = ""
 
     st.divider()
     
-    # --- CARGA ---
-    with st.expander("2. Cargar Normas", expanded=True):
-        upl = st.file_uploader("Cargar Backup JSON:", type=['json'])
+    # --- PESTAÑAS DE CARGA (AQUÍ ESTÁ EL ARREGLO) ---
+    tab1, tab2 = st.tabs(["📝 NUEVA NORMA", "📂 CARGAR BACKUP"])
+    
+    with tab1:
+        st.caption("Pega aquí el texto de la Ley o Decreto para estudiar.")
+        axis_input = st.text_input("Eje Temático:", value=engine.thematic_axis)
+        txt = st.text_area("Texto de la Norma:", height=150)
+        
+        if st.button("🚀 PROCESAR NUEVA NORMA"):
+            # RESETEO TOTAL AL PROCESAR NUEVA
+            if engine.process_law(txt, axis_input): 
+                st.session_state.page = 'game'
+                st.session_state.current_data = None
+                st.success("¡Norma Procesada!")
+                time.sleep(1)
+                st.rerun()
+
+    with tab2:
+        st.caption("Carga un archivo .json guardado previamente.")
+        upl = st.file_uploader("Archivo JSON:", type=['json'])
         if upl is not None:
             if 'last_loaded' not in st.session_state or st.session_state.last_loaded != upl.name:
                 try:
@@ -317,7 +328,6 @@ with st.sidebar:
                     engine.thematic_axis = d.get('axis', "General")
                     engine.level = d.get('lvl', "Profesional")
                     engine.study_phase = d.get('phase', "Pre-Guía")
-                    
                     engine.structure_type = d.get('struct_type', "Técnico / Normativo (Sin Caso)")
                     engine.questions_per_case = d.get('q_per_case', 1)
                     engine.example_question = d.get('ex_q', "")
@@ -354,13 +364,6 @@ with st.sidebar:
         engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
     else:
         engine.entity = ent_selection
-
-    st.markdown("---")
-    axis_input = st.text_input("Eje Temático:", value=engine.thematic_axis)
-    txt = st.text_area("📜 Pegar Norma:", height=150)
-    
-    if st.button("🚀 PROCESAR NORMA"):
-        if engine.process_law(txt, axis_input): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
             
     if st.button("🔥 INICIAR SIMULACRO", disabled=not engine.chunks):
         engine.simulacro_mode = True; st.session_state.current_data = None; st.session_state.page = 'game'; st.rerun()
@@ -372,7 +375,7 @@ with st.sidebar:
             "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
             "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case
         }
-        st.download_button("💾 Guardar Progreso Completo", json.dumps(full_save_data), "backup_titan_full.json")
+        st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
 
 # --- JUEGO ---
 if st.session_state.page == 'game':
@@ -395,10 +398,7 @@ if st.session_state.page == 'game':
                 st.stop()
 
     data = st.session_state.current_data
-    # Renderizado condicional del bloque narrativo
     narrativa = data.get('narrativa_caso','Error')
-    # Si es técnico, a veces el "narrativa_caso" es el mismo enunciado.
-    # El CSS narrative-box es grande, si es técnico se ve bien como bloque de contexto.
     st.markdown(f"<div class='narrative-box'><h4>🏛️ {engine.entity}</h4>{narrativa}</div>", unsafe_allow_html=True)
     
     q_list = data.get('preguntas', [])
