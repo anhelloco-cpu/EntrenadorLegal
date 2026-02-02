@@ -10,6 +10,7 @@ from collections import Counter
 # ==========================================
 # GESTIÓN DE DEPENDENCIAS Y MOTORES NEURONALES
 # ==========================================
+# Intentamos cargar librerías de IA avanzada si están disponibles
 try:
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -22,8 +23,8 @@ except ImportError:
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v66 - Master Final", 
-    page_icon="🚦", 
+    page_title="TITÁN v67 - Flexible & Master", 
+    page_icon="🦅", 
     layout="wide"
 )
 
@@ -67,7 +68,7 @@ st.markdown("""
         margin-bottom: 5px;
     }
 
-    /* Etiquetas para artículos dominados (VERDE) - NUEVO v66 */
+    /* Etiquetas para artículos dominados (VERDE) */
     .mastered-tag {
         background-color: #ccffcc; 
         color: #006600; 
@@ -165,8 +166,8 @@ class LegalEngineTITAN:
         
         # -- Sistema Francotirador & Semáforo --
         self.seen_articles = set()    
-        self.failed_articles = set()   # Lista Roja
-        self.mastered_articles = set() # Lista Verde (NUEVO v66)
+        self.failed_articles = set()   # Lista Roja (Pendientes)
+        self.mastered_articles = set() # Lista Verde (Dominados)
         self.current_article_label = "General"
 
     # ------------------------------------------
@@ -196,12 +197,12 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # ------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (CAJAS ANIDADAS)
+    # SEGMENTACIÓN INTELIGENTE v67 (FLEXIBLE)
     # ------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto respetando la jerarquía: 
-        Libro > Título > Capítulo > Sección > Artículo.
+        Divide el texto respetando la jerarquía.
+        MEJORA v67: Acepta puntos opcionales (Ej: 'TÍTULO. I' o 'TÍTULO I').
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -210,12 +211,13 @@ class LegalEngineTITAN:
             "LIBRO": None, "TÍTULO": None, "CAPÍTULO": None, "SECCIÓN": None, "ARTÍCULO": None
         }
 
-        # Patrones Regex para detectar estructura legal
-        patron_libro = r'^\s*(LIBRO)\s+[IVXLCDM]+\b'
+        # --- PATRONES REGEX FLEXIBLES (v67) ---
+        # \.? significa "punto opcional"
+        patron_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
         patron_titulo_romano = r'^\s*([IVXLCDM]+)\.\s+(.+)' 
-        patron_titulo_txt = r'^\s*(TÍTULO|TITULO)\s+[IVXLCDM]+\b'
-        patron_capitulo = r'^\s*(CAPÍTULO|CAPITULO)\s+[IVXLCDM0-9]+\b'
-        patron_seccion_txt = r'^\s*(SECCIÓN|SECCION)\s+'
+        patron_titulo_txt = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
+        patron_capitulo = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
+        patron_seccion_txt = r'^\s*(SECCIÓN|SECCION)\.?\s+'
         patron_articulo = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*\d+'
 
         for idx, linea in enumerate(lineas):
@@ -229,7 +231,7 @@ class LegalEngineTITAN:
                 active_hierarchy["TÍTULO"] = None; active_hierarchy["CAPÍTULO"] = None; active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
 
-            # Detectar TÍTULO
+            # Detectar TÍTULO (Romano o Texto)
             elif re.match(patron_titulo_romano, linea_limpia, re.IGNORECASE) or re.match(patron_titulo_txt, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
                 if len(label) < 60 and idx + 1 < len(lineas):
@@ -301,7 +303,7 @@ class LegalEngineTITAN:
         return False
 
     # ------------------------------------------
-    # ESTADÍSTICAS Y PROGRESO (CORREGIDO v64)
+    # ESTADÍSTICAS Y PROGRESO
     # ------------------------------------------
     def get_stats(self):
         if not self.chunks: return 0, 0, 0
@@ -362,9 +364,6 @@ class LegalEngineTITAN:
             # Selección aleatoria
             seleccion = random.choice(candidatos)
             
-            # MEMORIA: No agregamos inmediatamente a 'seen' para permitir repaso si falla.
-            # Se agrega al 'seen' visualmente, pero la lógica de repetición la manejamos en el semáforo.
-            
             # --- FOCUS ESTRICTO (CORTE EXACTO) ---
             start_pos = seleccion.start()
             current_match_index = matches.index(seleccion)
@@ -393,7 +392,7 @@ class LegalEngineTITAN:
 
         instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
 
-        # PROMPT FINAL
+        # PROMPT FINAL v66/v67 (SOLICITANDO EXPLICACIONES SEPARADAS)
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -407,9 +406,9 @@ class LegalEngineTITAN:
         1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones de respuesta (A, B, C, D).
         2. ESTILO DEL USUARIO: Si hay un ejemplo abajo, COPIA su estructura de redacción y conectores.
         3. FOCO: No inventes artículos que no estén en el fragmento.
-        4. FUENTE (NUEVO): Debes decirme explícitamente qué artículo usaste.
+        4. FUENTE: Debes decirme explícitamente qué artículo usaste.
         
-        IMPORTANTE - FORMATO DE EXPLICACIÓN (NUEVO v66):
+        IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
         Dame un OBJETO JSON llamado "explicaciones" donde cada letra (A, B, C, D) tenga su propia explicación individual.
         Ejemplo: "A": "Es incorrecta porque...", "B": "Es correcta ya que..."
@@ -497,7 +496,7 @@ class LegalEngineTITAN:
                 else:
                     self.current_article_label = "ARTÍCULO GENERADO"
 
-                # --- BARAJADOR AUTOMÁTICO INTELIGENTE (v66) ---
+                # --- BARAJADOR AUTOMÁTICO INTELIGENTE (v66/v67) ---
                 # Mezcla opciones y ARRASTRA las explicaciones correspondientes
                 for q in final_json['preguntas']:
                     # 1. Extraer los pares completos (Letra Original, Texto Opción, Explicación Opción)
@@ -542,7 +541,7 @@ class LegalEngineTITAN:
                     # 4. Asignar de vuelta al objeto pregunta
                     q['opciones'] = nuevas_opciones
                     q['respuesta'] = nueva_letra_respuesta
-                    q['explicacion'] = texto_final_explicacion_visual # Sobrescribimos la explicación general con la detallada
+                    q['explicacion'] = texto_final_explicacion_visual # Sobrescribimos la explicación general
 
                 return final_json
 
@@ -562,7 +561,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🏛️ TITÁN v66 (Master)")
+    st.title("🦅 TITÁN v67 (Master)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -573,7 +572,7 @@ with st.sidebar:
     
     st.divider()
     
-    # --- VISUALIZACIÓN DE SEMÁFORO (NUEVO v66) ---
+    # --- VISUALIZACIÓN DE SEMÁFORO (v66) ---
     if engine.failed_articles:
         st.markdown("### 🔴 REPASAR (PENDIENTES)")
         html_fail = ""
@@ -617,7 +616,7 @@ with st.sidebar:
     tab1, tab2 = st.tabs(["📝 NUEVA NORMA", "📂 CARGAR BACKUP"])
     
     with tab1:
-        st.caption("Pega aquí el texto. El sistema detectará Jerarquía Completa.")
+        st.caption("Pega aquí el texto. El sistema detectará Jerarquía Completa (Flexible con puntos).")
         axis_input = st.text_input("Eje Temático:", value=engine.thematic_axis)
         txt = st.text_area("Texto de la Norma:", height=150)
         
