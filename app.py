@@ -23,8 +23,8 @@ except ImportError:
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v67 - Flexible & Master", 
-    page_icon="🦅", 
+    page_title="TITÁN v68 - Contexto Total", 
+    page_icon="🏷️", 
     layout="wide"
 )
 
@@ -197,12 +197,13 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # ------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE v67 (FLEXIBLE)
+    # SEGMENTACIÓN INTELIGENTE (CAJAS ANIDADAS)
     # ------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto respetando la jerarquía.
-        MEJORA v67: Acepta puntos opcionales (Ej: 'TÍTULO. I' o 'TÍTULO I').
+        Divide el texto respetando la jerarquía: 
+        Libro > Título > Capítulo > Sección > Artículo.
+        (Versión Flexible v67: Acepta puntos como TÍTULO. I)
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -211,8 +212,7 @@ class LegalEngineTITAN:
             "LIBRO": None, "TÍTULO": None, "CAPÍTULO": None, "SECCIÓN": None, "ARTÍCULO": None
         }
 
-        # --- PATRONES REGEX FLEXIBLES (v67) ---
-        # \.? significa "punto opcional"
+        # Patrones Regex para detectar estructura legal (FLEXIBLES)
         patron_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
         patron_titulo_romano = r'^\s*([IVXLCDM]+)\.\s+(.+)' 
         patron_titulo_txt = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
@@ -231,7 +231,7 @@ class LegalEngineTITAN:
                 active_hierarchy["TÍTULO"] = None; active_hierarchy["CAPÍTULO"] = None; active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
 
-            # Detectar TÍTULO (Romano o Texto)
+            # Detectar TÍTULO
             elif re.match(patron_titulo_romano, linea_limpia, re.IGNORECASE) or re.match(patron_titulo_txt, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
                 if len(label) < 60 and idx + 1 < len(lineas):
@@ -309,7 +309,7 @@ class LegalEngineTITAN:
         if not self.chunks: return 0, 0, 0
         total = len(self.chunks)
         
-        # --- AJUSTE MATEMÁTICO (50 Puntos) ---
+        # --- AJUSTE MATEMÁTICO (50 Puntos para llenado lento) ---
         SCORE_THRESHOLD = 50
         
         score = sum([min(v, SCORE_THRESHOLD) for v in self.mastery_tracker.values()])
@@ -355,7 +355,7 @@ class LegalEngineTITAN:
         etiqueta_articulo = "General / Sin Artículo Detectado"
         
         if matches:
-            # Filtrar artículos ya vistos en esta sesión
+            # Filtrar artículos ya vistos
             candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles]
             if not candidatos:
                 candidatos = matches
@@ -375,6 +375,8 @@ class LegalEngineTITAN:
                 end_pos = min(len(texto_base), start_pos + 4000)
 
             texto_final_ia = texto_base[start_pos:end_pos] 
+            etiqueta_articulo = seleccion.group(0).upper().strip()
+            self.current_article_label = etiqueta_articulo
         else:
             self.current_article_label = "General"
             texto_final_ia = texto_base[:4000]
@@ -392,7 +394,7 @@ class LegalEngineTITAN:
 
         instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
 
-        # PROMPT FINAL v66/v67 (SOLICITANDO EXPLICACIONES SEPARADAS)
+        # PROMPT FINAL
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -406,7 +408,7 @@ class LegalEngineTITAN:
         1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones de respuesta (A, B, C, D).
         2. ESTILO DEL USUARIO: Si hay un ejemplo abajo, COPIA su estructura de redacción y conectores.
         3. FOCO: No inventes artículos que no estén en el fragmento.
-        4. FUENTE: Debes decirme explícitamente qué artículo usaste.
+        4. FUENTE: Dime qué artículo usaste.
         
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
@@ -423,11 +425,11 @@ class LegalEngineTITAN:
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "articulo_fuente": "NOMBRE DEL ARTÍCULO (Ej: ARTÍCULO 23)",
-            "narrativa_caso": "Texto de contexto o historia...",
+            "articulo_fuente": "ARTÍCULO X",
+            "narrativa_caso": "Texto de contexto...",
             "preguntas": [
                 {{
-                    "enunciado": "Pregunta o conector final...", 
+                    "enunciado": "Pregunta...", 
                     "opciones": {{
                         "A": "...", 
                         "B": "...", 
@@ -493,55 +495,44 @@ class LegalEngineTITAN:
                 # --- AUTO-FUENTE ---
                 if "articulo_fuente" in final_json:
                     self.current_article_label = final_json["articulo_fuente"].upper()
-                else:
-                    self.current_article_label = "ARTÍCULO GENERADO"
 
-                # --- BARAJADOR AUTOMÁTICO INTELIGENTE (v66/v67) ---
-                # Mezcla opciones y ARRASTRA las explicaciones correspondientes
+                # --- BARAJADOR AUTOMÁTICO INTELIGENTE (v66) ---
                 for q in final_json['preguntas']:
-                    # 1. Extraer los pares completos (Letra Original, Texto Opción, Explicación Opción)
-                    opciones_raw = q['opciones'] # {'A': 'txt', ...}
-                    explicaciones_raw = q.get('explicaciones', {}) # {'A': 'exp', ...}
-                    respuesta_original_letra = q['respuesta'] # 'A'
+                    opciones_raw = list(q['opciones'].items()) 
+                    explicaciones_raw = q.get('explicaciones', {})
+                    respuesta_correcta_texto = q['opciones'][q['respuesta']]
                     
-                    # Creamos una lista de objetos para barajar todo junto
-                    items_a_barajar = []
-                    for letra in ['A', 'B', 'C', 'D']:
-                        if letra in opciones_raw:
-                            items_a_barajar.append({
-                                'texto': opciones_raw[letra],
-                                'explicacion': explicaciones_raw.get(letra, "Sin explicación detallada disponible."),
-                                'es_correcta': (letra == respuesta_original_letra)
-                            })
+                    # Preparar barajado en bloque (Texto + Explicación)
+                    items_barajados = []
+                    for k, v in opciones_raw:
+                        items_barajados.append({
+                            "texto": v,
+                            "explicacion": explicaciones_raw.get(k, "Sin detalle."),
+                            "es_correcta": (v == respuesta_correcta_texto)
+                        })
                     
-                    # 2. Barajar la lista
-                    random.shuffle(items_a_barajar)
+                    random.shuffle(items_barajados)
                     
-                    # 3. Reconstruir el diccionario con nuevas letras A, B, C, D
                     nuevas_opciones = {}
                     nueva_letra_respuesta = "A"
-                    texto_final_explicacion_visual = ""
-                    letras_nuevas = ['A', 'B', 'C', 'D']
+                    texto_final_explicacion = ""
+                    letras = ['A', 'B', 'C', 'D']
                     
-                    for i, item in enumerate(items_a_barajar):
+                    for i, item in enumerate(items_barajados):
                         if i < 4:
-                            letra_actual = letras_nuevas[i]
-                            nuevas_opciones[letra_actual] = item['texto']
+                            letra = letras[i]
+                            nuevas_opciones[letra] = item["texto"]
                             
-                            # Si este item era el correcto, guardamos la nueva letra
-                            if item['es_correcta']:
-                                nueva_letra_respuesta = letra_actual
-                                estado_emoji = "✅ CORRECTA"
-                            else:
-                                estado_emoji = "❌ INCORRECTA"
+                            estado = "❌ INCORRECTA"
+                            if item["es_correcta"]:
+                                nueva_letra_respuesta = letra
+                                estado = "✅ CORRECTA"
                             
-                            # Construimos el texto explicativo final bonito
-                            texto_final_explicacion_visual += f"**({letra_actual}) {estado_emoji}:** {item['explicacion']}\n\n"
+                            texto_final_explicacion += f"**({letra}) {estado}:** {item['explicacion']}\n\n"
                     
-                    # 4. Asignar de vuelta al objeto pregunta
                     q['opciones'] = nuevas_opciones
                     q['respuesta'] = nueva_letra_respuesta
-                    q['explicacion'] = texto_final_explicacion_visual # Sobrescribimos la explicación general
+                    q['explicacion'] = texto_final_explicacion
 
                 return final_json
 
@@ -561,7 +552,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v67 (Master)")
+    st.title("🏷️ TITÁN v68 (Contexto)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -572,7 +563,7 @@ with st.sidebar:
     
     st.divider()
     
-    # --- VISUALIZACIÓN DE SEMÁFORO (v66) ---
+    # --- VISUALIZACIÓN DE SEMÁFORO (NUEVO v68) ---
     if engine.failed_articles:
         st.markdown("### 🔴 REPASAR (PENDIENTES)")
         html_fail = ""
@@ -616,8 +607,8 @@ with st.sidebar:
     tab1, tab2 = st.tabs(["📝 NUEVA NORMA", "📂 CARGAR BACKUP"])
     
     with tab1:
-        st.caption("Pega aquí el texto. El sistema detectará Jerarquía Completa (Flexible con puntos).")
-        axis_input = st.text_input("Eje Temático:", value=engine.thematic_axis)
+        st.caption("Pega aquí el texto. El sistema detectará Jerarquía Completa (Flexible).")
+        axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
         txt = st.text_area("Texto de la Norma:", height=150)
         
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
@@ -650,7 +641,7 @@ with st.sidebar:
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
                     
-                    # Recuperar datos nuevos v66
+                    # Recuperar datos nuevos v68
                     engine.seen_articles = set(d.get('seen_arts', []))
                     engine.failed_articles = set(d.get('failed_arts', []))
                     engine.mastered_articles = set(d.get('mastered_arts', []))
@@ -770,32 +761,30 @@ if st.session_state.page == 'game':
                     st.warning("⚠️ Debes seleccionar una opción primero.")
                 else:
                     letra_sel = sel.split(")")[0]
+                    # --- ETIQUETA COMPLETA CON CONTEXTO (v68) ---
+                    full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
+                    
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
                         engine.mastery_tracker[engine.current_chunk_idx] += 1
                         
-                        # --- LOGICA SEMÁFORO VERDE v66 ---
+                        # LOGICA VERDE (CONTEXTUALIZADA)
                         if engine.current_article_label != "General":
-                            # Si estaba en rojo, se quita
-                            if engine.current_article_label in engine.failed_articles:
-                                engine.failed_articles.remove(engine.current_article_label)
-                            # Se agrega a verde (Dominado)
-                            engine.mastered_articles.add(engine.current_article_label)
+                            if full_tag in engine.failed_articles:
+                                engine.failed_articles.remove(full_tag)
+                            engine.mastered_articles.add(full_tag)
                     else: 
                         st.error(f"Incorrecto. Era {q['respuesta']}")
                         engine.failed_indices.add(engine.current_chunk_idx)
                         
-                        # Guardar huella para repaso
                         if engine.chunk_embeddings is not None:
                             engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
                         
-                        # --- LOGICA SEMÁFORO ROJO v66 ---
+                        # LOGICA ROJA (CONTEXTUALIZADA)
                         if engine.current_article_label != "General":
-                            # Si estaba en verde, se quita (perdió el dominio)
-                            if engine.current_article_label in engine.mastered_articles:
-                                engine.mastered_articles.remove(engine.current_article_label)
-                            # Se agrega a rojo (Fallo)
-                            engine.failed_articles.add(engine.current_article_label)
+                            if full_tag in engine.mastered_articles:
+                                engine.mastered_articles.remove(full_tag)
+                            engine.failed_articles.add(full_tag)
                     
                     st.info(q['explicacion']); st.session_state.answered = True
 
