@@ -22,8 +22,8 @@ except ImportError:
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v65 - Master Final", 
-    page_icon="🏛️", 
+    page_title="TITÁN v66 - Master Final", 
+    page_icon="🚦", 
     layout="wide"
 )
 
@@ -53,7 +53,7 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* Etiquetas para artículos fallados en la barra lateral */
+    /* Etiquetas para artículos fallados (ROJO) */
     .failed-tag {
         background-color: #ffcccc; 
         color: #990000; 
@@ -63,6 +63,20 @@ st.markdown("""
         font-weight: bold; 
         margin-right: 5px;
         border: 1px solid #cc0000; 
+        display: inline-block;
+        margin-bottom: 5px;
+    }
+
+    /* Etiquetas para artículos dominados (VERDE) - NUEVO v66 */
+    .mastered-tag {
+        background-color: #ccffcc; 
+        color: #006600; 
+        padding: 4px 8px; 
+        border-radius: 4px; 
+        font-size: 0.9em; 
+        font-weight: bold; 
+        margin-right: 5px;
+        border: 1px solid #006600; 
         display: inline-block;
         margin-bottom: 5px;
     }
@@ -149,9 +163,10 @@ class LegalEngineTITAN:
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
         
-        # -- Sistema Francotirador --
+        # -- Sistema Francotirador & Semáforo --
         self.seen_articles = set()    
-        self.failed_articles = set()  
+        self.failed_articles = set()   # Lista Roja
+        self.mastered_articles = set() # Lista Verde (NUEVO v66)
         self.current_article_label = "General"
 
     # ------------------------------------------
@@ -292,7 +307,7 @@ class LegalEngineTITAN:
         if not self.chunks: return 0, 0, 0
         total = len(self.chunks)
         
-        # --- AJUSTE MATEMÁTICO (50 Puntos para llenado lento) ---
+        # --- AJUSTE MATEMÁTICO (50 Puntos) ---
         SCORE_THRESHOLD = 50
         
         score = sum([min(v, SCORE_THRESHOLD) for v in self.mastery_tracker.values()])
@@ -338,7 +353,7 @@ class LegalEngineTITAN:
         etiqueta_articulo = "General / Sin Artículo Detectado"
         
         if matches:
-            # Filtrar artículos ya vistos
+            # Filtrar artículos ya vistos en esta sesión
             candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles]
             if not candidatos:
                 candidatos = matches
@@ -346,9 +361,9 @@ class LegalEngineTITAN:
             
             # Selección aleatoria
             seleccion = random.choice(candidatos)
-            etiqueta_articulo = seleccion.group(0).upper().strip()
-            self.seen_articles.add(etiqueta_articulo)
-            self.current_article_label = etiqueta_articulo
+            
+            # MEMORIA: No agregamos inmediatamente a 'seen' para permitir repaso si falla.
+            # Se agrega al 'seen' visualmente, pero la lógica de repetición la manejamos en el semáforo.
             
             # --- FOCUS ESTRICTO (CORTE EXACTO) ---
             start_pos = seleccion.start()
@@ -392,7 +407,12 @@ class LegalEngineTITAN:
         1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones de respuesta (A, B, C, D).
         2. ESTILO DEL USUARIO: Si hay un ejemplo abajo, COPIA su estructura de redacción y conectores.
         3. FOCO: No inventes artículos que no estén en el fragmento.
-        4. FUENTE: Dime qué artículo usaste.
+        4. FUENTE (NUEVO): Debes decirme explícitamente qué artículo usaste.
+        
+        IMPORTANTE - FORMATO DE EXPLICACIÓN (NUEVO v66):
+        No me des la explicación en un solo texto corrido.
+        Dame un OBJETO JSON llamado "explicaciones" donde cada letra (A, B, C, D) tenga su propia explicación individual.
+        Ejemplo: "A": "Es incorrecta porque...", "B": "Es correcta ya que..."
         
         EJEMPLO A IMITAR (ESTILO Y FORMATO):
         '''{self.example_question}'''
@@ -404,11 +424,11 @@ class LegalEngineTITAN:
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "articulo_fuente": "ARTÍCULO X",
-            "narrativa_caso": "Texto de contexto...",
+            "articulo_fuente": "NOMBRE DEL ARTÍCULO (Ej: ARTÍCULO 23)",
+            "narrativa_caso": "Texto de contexto o historia...",
             "preguntas": [
                 {{
-                    "enunciado": "Pregunta...", 
+                    "enunciado": "Pregunta o conector final...", 
                     "opciones": {{
                         "A": "...", 
                         "B": "...", 
@@ -416,7 +436,12 @@ class LegalEngineTITAN:
                         "D": "..."
                     }}, 
                     "respuesta": "A", 
-                    "explicacion": "..."
+                    "explicaciones": {{
+                        "A": "Texto justificando A...",
+                        "B": "Texto justificando B...",
+                        "C": "Texto justificando C...",
+                        "D": "Texto justificando D..."
+                    }}
                 }}
             ]
         }}
@@ -439,6 +464,7 @@ class LegalEngineTITAN:
                         "response_format": {"type": "json_object"}
                     }
                     resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+                    if resp.status_code != 200: return {"error": f"OpenAI Error {resp.status_code}: {resp.text}"}
                     text_resp = resp.json()['choices'][0]['message']['content']
 
                 # --- LLAMADA A GOOGLE ---
@@ -468,28 +494,55 @@ class LegalEngineTITAN:
                 # --- AUTO-FUENTE ---
                 if "articulo_fuente" in final_json:
                     self.current_article_label = final_json["articulo_fuente"].upper()
+                else:
+                    self.current_article_label = "ARTÍCULO GENERADO"
 
-                # --- BARAJADOR AUTOMÁTICO (ANTÍDOTO CONTRA LA "A") v65 ---
+                # --- BARAJADOR AUTOMÁTICO INTELIGENTE (v66) ---
+                # Mezcla opciones y ARRASTRA las explicaciones correspondientes
                 for q in final_json['preguntas']:
-                    opciones_raw = list(q['opciones'].items()) 
-                    respuesta_correcta_texto = q['opciones'][q['respuesta']]
+                    # 1. Extraer los pares completos (Letra Original, Texto Opción, Explicación Opción)
+                    opciones_raw = q['opciones'] # {'A': 'txt', ...}
+                    explicaciones_raw = q.get('explicaciones', {}) # {'A': 'exp', ...}
+                    respuesta_original_letra = q['respuesta'] # 'A'
                     
-                    random.shuffle(opciones_raw) # Barajar opciones
+                    # Creamos una lista de objetos para barajar todo junto
+                    items_a_barajar = []
+                    for letra in ['A', 'B', 'C', 'D']:
+                        if letra in opciones_raw:
+                            items_a_barajar.append({
+                                'texto': opciones_raw[letra],
+                                'explicacion': explicaciones_raw.get(letra, "Sin explicación detallada disponible."),
+                                'es_correcta': (letra == respuesta_original_letra)
+                            })
                     
-                    # Reasignar letras A, B, C, D
+                    # 2. Barajar la lista
+                    random.shuffle(items_a_barajar)
+                    
+                    # 3. Reconstruir el diccionario con nuevas letras A, B, C, D
                     nuevas_opciones = {}
                     nueva_letra_respuesta = "A"
-                    letras = ['A', 'B', 'C', 'D']
+                    texto_final_explicacion_visual = ""
+                    letras_nuevas = ['A', 'B', 'C', 'D']
                     
-                    for i, (old_key, text) in enumerate(opciones_raw):
+                    for i, item in enumerate(items_a_barajar):
                         if i < 4:
-                            letra = letras[i]
-                            nuevas_opciones[letra] = text
-                            if text == respuesta_correcta_texto:
-                                nueva_letra_respuesta = letra
+                            letra_actual = letras_nuevas[i]
+                            nuevas_opciones[letra_actual] = item['texto']
+                            
+                            # Si este item era el correcto, guardamos la nueva letra
+                            if item['es_correcta']:
+                                nueva_letra_respuesta = letra_actual
+                                estado_emoji = "✅ CORRECTA"
+                            else:
+                                estado_emoji = "❌ INCORRECTA"
+                            
+                            # Construimos el texto explicativo final bonito
+                            texto_final_explicacion_visual += f"**({letra_actual}) {estado_emoji}:** {item['explicacion']}\n\n"
                     
+                    # 4. Asignar de vuelta al objeto pregunta
                     q['opciones'] = nuevas_opciones
                     q['respuesta'] = nueva_letra_respuesta
+                    q['explicacion'] = texto_final_explicacion_visual # Sobrescribimos la explicación general con la detallada
 
                 return final_json
 
@@ -502,14 +555,14 @@ class LegalEngineTITAN:
 # INTERFAZ DE USUARIO (SIDEBAR Y MAIN)
 # ==========================================
 if 'engine' not in st.session_state: st.session_state.engine = LegalEngineTITAN()
-if 'case_id' not in st.session_state: st.session_state.case_id = 0 # ID para evitar fantasmas
+if 'case_id' not in st.session_state: st.session_state.case_id = 0 # ID Único para evitar fantasmas
 if 'page' not in st.session_state: st.session_state.page = 'setup'
 if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
 if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🏛️ TITÁN v65 (Master)")
+    st.title("🏛️ TITÁN v66 (Master)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -520,13 +573,22 @@ with st.sidebar:
     
     st.divider()
     
-    # VISUALIZACIÓN DE ERRORES (LISTA NEGRA)
+    # --- VISUALIZACIÓN DE SEMÁFORO (NUEVO v66) ---
     if engine.failed_articles:
-        st.markdown("### ⚠️ ARTÍCULOS A REPASAR")
+        st.markdown("### 🔴 REPASAR (PENDIENTES)")
         html_fail = ""
         for fail in engine.failed_articles:
             html_fail += f"<span class='failed-tag'>{fail}</span>"
         st.markdown(html_fail, unsafe_allow_html=True)
+        
+    if engine.mastered_articles:
+        st.markdown("### 🟢 DOMINADOS (CONTROL TOTAL)")
+        html_master = ""
+        for master in engine.mastered_articles:
+            html_master += f"<span class='mastered-tag'>{master}</span>"
+        st.markdown(html_master, unsafe_allow_html=True)
+        
+    if engine.failed_articles or engine.mastered_articles:
         st.divider()
 
     st.markdown("### 📋 ESTRATEGIA")
@@ -589,9 +651,10 @@ with st.sidebar:
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
                     
-                    # Recuperar datos nuevos
+                    # Recuperar datos nuevos v66
                     engine.seen_articles = set(d.get('seen_arts', []))
                     engine.failed_articles = set(d.get('failed_arts', []))
+                    engine.mastered_articles = set(d.get('mastered_arts', []))
 
                     if DL_AVAILABLE:
                          with st.spinner("🧠 Recuperando memoria neuronal..."): engine.chunk_embeddings = dl_model.encode(engine.chunks)
@@ -646,7 +709,7 @@ with st.sidebar:
             "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case,
             "sections": engine.sections_map, "act_sec": engine.active_section_name,
             # Guardar datos nuevos
-            "seen_arts": list(engine.seen_articles), "failed_arts": list(engine.failed_articles)
+            "seen_arts": list(engine.seen_articles), "failed_arts": list(engine.failed_articles), "mastered_arts": list(engine.mastered_articles)
         }
         st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
 
@@ -657,7 +720,7 @@ if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
     subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
     
-    # VISUALIZACIÓN DEL FRANCOTIRADOR
+    # VISUALIZACIÓN DEL FRANCOTIRADOR (Con fuente real confirmada)
     foco_msg = f"🎯 ENFOQUE CONFIRMADO: **{engine.current_article_label}**"
     st.info(foco_msg)
     
@@ -678,8 +741,7 @@ if st.session_state.page == 'game':
         with st.spinner(msg):
             data = engine.generate_case()
             if data and "preguntas" in data:
-                # --- MEJORA CRÍTICA: ID INCREMENTAL ---
-                st.session_state.case_id += 1
+                st.session_state.case_id += 1 # ID Incremental v65+
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
             else:
@@ -696,12 +758,12 @@ if st.session_state.page == 'game':
         q = q_list[st.session_state.q_idx]
         st.write(f"### Pregunta {st.session_state.q_idx + 1}")
         
-        # --- MEJORA CRÍTICA: CLAVE ÚNICA PARA RESETEAR BOTONES ---
+        # KEY ÚNICA PARA EVITAR EL "EFECTO FANTASMA"
         form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
         
         with st.form(key=form_key):
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
-            # index=None para arrancar vacío
+            # index=None asegura que no haya nada seleccionado al inicio
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()], index=None)
             
             if st.form_submit_button("Validar"):
@@ -712,16 +774,28 @@ if st.session_state.page == 'game':
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
                         engine.mastery_tracker[engine.current_chunk_idx] += 1
+                        
+                        # --- LOGICA SEMÁFORO VERDE v66 ---
+                        if engine.current_article_label != "General":
+                            # Si estaba en rojo, se quita
+                            if engine.current_article_label in engine.failed_articles:
+                                engine.failed_articles.remove(engine.current_article_label)
+                            # Se agrega a verde (Dominado)
+                            engine.mastered_articles.add(engine.current_article_label)
                     else: 
                         st.error(f"Incorrecto. Era {q['respuesta']}")
                         engine.failed_indices.add(engine.current_chunk_idx)
                         
-                        # Guardar huella de repaso
+                        # Guardar huella para repaso
                         if engine.chunk_embeddings is not None:
                             engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
                         
-                        # Agregar a Lista Negra
+                        # --- LOGICA SEMÁFORO ROJO v66 ---
                         if engine.current_article_label != "General":
+                            # Si estaba en verde, se quita (perdió el dominio)
+                            if engine.current_article_label in engine.mastered_articles:
+                                engine.mastered_articles.remove(engine.current_article_label)
+                            # Se agrega a rojo (Fallo)
                             engine.failed_articles.add(engine.current_article_label)
                     
                     st.info(q['explicacion']); st.session_state.answered = True
