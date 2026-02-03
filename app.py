@@ -10,7 +10,6 @@ from collections import Counter
 # ==========================================
 # GESTIÓN DE DEPENDENCIAS Y MOTORES NEURONALES
 # ==========================================
-# Intentamos cargar librerías de IA avanzada si están disponibles
 try:
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -23,8 +22,8 @@ except ImportError:
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v70 - Memoria Fotográfica", 
-    page_icon="💡", 
+    page_title="TITÁN v71 - Micro-Cirujano", 
+    page_icon="🔬", 
     layout="wide"
 )
 
@@ -398,6 +397,32 @@ class LegalEngineTITAN:
             texto_final_ia = texto_base[start_pos:end_pos] 
             etiqueta_articulo = seleccion.group(0).upper().strip()
             self.current_article_label = etiqueta_articulo
+
+            # --- MICRO-SEGMENTACIÓN v71 (NUEVO: Detección de Numerales) ---
+            # Busca patrones como "1." o "a)" al inicio de línea dentro del artículo recortado
+            patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+)'
+            sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
+            
+            # Si hay una lista larga (más de 1 ítem), seleccionamos uno para forzar estudio granular
+            if len(sub_matches) > 1:
+                sel_sub = random.choice(sub_matches)
+                start_sub = sel_sub.start()
+                idx_sub = sub_matches.index(sel_sub)
+                
+                # Cortar hasta el siguiente ítem o fin del texto
+                end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
+                
+                texto_fragmento = texto_final_ia[start_sub:end_sub]
+                id_sub = sel_sub.group(0).strip() # Ej: "3." o "c)"
+                
+                # Contexto: Mantenemos el encabezado del artículo + el fragmento
+                encabezado = texto_final_ia[:100].split('\n')[0] 
+                if "ARTÍCULO" not in encabezado.upper(): encabezado = f"{self.current_article_label} (Contexto)"
+                
+                # Reescribimos lo que ve la IA y la Etiqueta
+                texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
+                self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
+
         else:
             self.current_article_label = "General"
             texto_final_ia = texto_base[:4000]
@@ -415,7 +440,7 @@ class LegalEngineTITAN:
 
         instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
 
-        # PROMPT FINAL v70 (CON TIP DE MEMORIA)
+        # PROMPT FINAL v70/71 (CON TIP DE MEMORIA)
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -429,7 +454,7 @@ class LegalEngineTITAN:
         1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones de respuesta (A, B, C, D).
         2. ESTILO DEL USUARIO: Si hay un ejemplo abajo, COPIA su estructura de redacción y conectores.
         3. FOCO: No inventes artículos que no estén en el fragmento.
-        4. TIP MEMORIA (NUEVO): Incluye un campo 'tip_memoria' con una frase corta, mnemotecnia o palabra clave para recordar la respuesta fácilmente.
+        4. TIP MEMORIA: Incluye un campo 'tip_memoria' con una frase corta, mnemotecnia o palabra clave.
         
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
@@ -458,7 +483,7 @@ class LegalEngineTITAN:
                         "D": "..."
                     }}, 
                     "respuesta": "A", 
-                    "tip_memoria": "Frase mnemotécnica o tip...",
+                    "tip_memoria": "Frase mnemotécnica...",
                     "explicaciones": {{
                         "A": "Texto justificando A...",
                         "B": "Texto justificando B...",
@@ -517,6 +542,13 @@ class LegalEngineTITAN:
                 # --- AUTO-FUENTE ---
                 if "articulo_fuente" in final_json:
                     self.current_article_label = final_json["articulo_fuente"].upper()
+                
+                # Si hicimos micro-segmentación, forzamos la etiqueta compuesta (Art + Item) si la IA solo devolvió el Art
+                if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
+                     # Mantenemos nuestra etiqueta más precisa
+                     pass
+                elif "articulo_fuente" in final_json:
+                     self.current_article_label = final_json["articulo_fuente"].upper()
 
                 # --- BARAJADOR AUTOMÁTICO INTELIGENTE (v66) ---
                 for q in final_json['preguntas']:
@@ -576,7 +608,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v70 (Master)")
+    st.title("🔬 TITÁN v71 (Master)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
