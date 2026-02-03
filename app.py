@@ -23,8 +23,8 @@ except ImportError:
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v68 - Contexto Total", 
-    page_icon="🏷️", 
+    page_title="TITÁN v69 - Visión Águila (Master)", 
+    page_icon="🦅", 
     layout="wide"
 )
 
@@ -197,13 +197,13 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # ------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (CAJAS ANIDADAS)
+    # SEGMENTACIÓN INTELIGENTE v69 (VISIÓN ÁGUILA)
     # ------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto respetando la jerarquía: 
         Libro > Título > Capítulo > Sección > Artículo.
-        (Versión Flexible v67: Acepta puntos como TÍTULO. I)
+        (Versión v69: Busca nombres en líneas siguientes si el título es corto)
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -212,13 +212,26 @@ class LegalEngineTITAN:
             "LIBRO": None, "TÍTULO": None, "CAPÍTULO": None, "SECCIÓN": None, "ARTÍCULO": None
         }
 
-        # Patrones Regex para detectar estructura legal (FLEXIBLES)
+        # --- PATRONES REGEX FLEXIBLES ---
         patron_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
         patron_titulo_romano = r'^\s*([IVXLCDM]+)\.\s+(.+)' 
         patron_titulo_txt = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
         patron_capitulo = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
         patron_seccion_txt = r'^\s*(SECCIÓN|SECCION)\.?\s+'
         patron_articulo = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*\d+'
+
+        # --- FUNCIÓN AUXILIAR v69: MIRAR ABAJO ---
+        def buscar_continuacion(idx_actual):
+            # Mira hasta 3 líneas abajo buscando texto que no sea otro título
+            for i in range(1, 4): 
+                if idx_actual + i < len(lineas):
+                    txt = lineas[idx_actual + i].strip()
+                    if txt: # Si hay texto
+                        # Si es otro encabezado (Art, Cap, etc), paramos y no unimos
+                        if re.match(r'^(ART|CAP|TIT|LIB|SEC)', txt, re.IGNORECASE): 
+                            return None
+                        return txt # Encontramos el nombre (Ej: "DERECHO DE PETICIÓN")
+            return None
 
         for idx, linea in enumerate(lineas):
             linea_limpia = linea.strip()
@@ -227,6 +240,10 @@ class LegalEngineTITAN:
             # Detectar LIBRO
             if re.match(patron_libro, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
+                if len(label) < 60: # Si es corto, busca nombre abajo
+                    extra = buscar_continuacion(idx)
+                    if extra: label = f"{label} - {extra}"
+                
                 active_hierarchy["LIBRO"] = label
                 active_hierarchy["TÍTULO"] = None; active_hierarchy["CAPÍTULO"] = None; active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
@@ -234,10 +251,10 @@ class LegalEngineTITAN:
             # Detectar TÍTULO
             elif re.match(patron_titulo_romano, linea_limpia, re.IGNORECASE) or re.match(patron_titulo_txt, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
-                if len(label) < 60 and idx + 1 < len(lineas):
-                    siguiente = lineas[idx+1].strip()
-                    if siguiente and not re.match(r'^(ART|CAP|TIT|LIB|SEC)', siguiente, re.IGNORECASE):
-                        label = f"{label} - {siguiente}"
+                if len(label) < 60: # Si es corto (Ej: TÍTULO II), busca nombre abajo
+                    extra = buscar_continuacion(idx)
+                    if extra: label = f"{label} - {extra}"
+                
                 active_hierarchy["TÍTULO"] = label
                 active_hierarchy["CAPÍTULO"] = None; active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
@@ -245,16 +262,20 @@ class LegalEngineTITAN:
             # Detectar CAPÍTULO
             elif re.match(patron_capitulo, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
-                if len(label) < 60 and idx + 1 < len(lineas):
-                    siguiente = lineas[idx+1].strip()
-                    if siguiente and not re.match(r'^(ART|CAP|TIT|LIB|SEC)', siguiente, re.IGNORECASE):
-                        label = f"{label} - {siguiente}"
+                if len(label) < 60:
+                    extra = buscar_continuacion(idx)
+                    if extra: label = f"{label} - {extra}"
+                
                 active_hierarchy["CAPÍTULO"] = label; active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
 
             # Detectar SECCIÓN
             elif re.match(patron_seccion_txt, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
+                if len(label) < 60:
+                    extra = buscar_continuacion(idx)
+                    if extra: label = f"{label} - {extra}"
+                
                 active_hierarchy["SECCIÓN"] = label
                 secciones[label] = []
             
@@ -552,7 +573,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🏷️ TITÁN v68 (Contexto)")
+    st.title("🦅 TITÁN v69 (Master)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
