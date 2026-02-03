@@ -23,8 +23,8 @@ except ImportError:
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v69 - Visión Águila (Master)", 
-    page_icon="🦅", 
+    page_title="TITÁN v70 - Memoria Fotográfica", 
+    page_icon="💡", 
     layout="wide"
 )
 
@@ -415,7 +415,7 @@ class LegalEngineTITAN:
 
         instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
 
-        # PROMPT FINAL
+        # PROMPT FINAL v70 (CON TIP DE MEMORIA)
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -429,7 +429,7 @@ class LegalEngineTITAN:
         1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones de respuesta (A, B, C, D).
         2. ESTILO DEL USUARIO: Si hay un ejemplo abajo, COPIA su estructura de redacción y conectores.
         3. FOCO: No inventes artículos que no estén en el fragmento.
-        4. FUENTE: Dime qué artículo usaste.
+        4. TIP MEMORIA (NUEVO): Incluye un campo 'tip_memoria' con una frase corta, mnemotecnia o palabra clave para recordar la respuesta fácilmente.
         
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
@@ -458,6 +458,7 @@ class LegalEngineTITAN:
                         "D": "..."
                     }}, 
                     "respuesta": "A", 
+                    "tip_memoria": "Frase mnemotécnica o tip...",
                     "explicaciones": {{
                         "A": "Texto justificando A...",
                         "B": "Texto justificando B...",
@@ -522,6 +523,7 @@ class LegalEngineTITAN:
                     opciones_raw = list(q['opciones'].items()) 
                     explicaciones_raw = q.get('explicaciones', {})
                     respuesta_correcta_texto = q['opciones'][q['respuesta']]
+                    tip_memoria = q.get('tip_memoria', "")
                     
                     # Preparar barajado en bloque (Texto + Explicación)
                     items_barajados = []
@@ -554,6 +556,7 @@ class LegalEngineTITAN:
                     q['opciones'] = nuevas_opciones
                     q['respuesta'] = nueva_letra_respuesta
                     q['explicacion'] = texto_final_explicacion
+                    q['tip_final'] = tip_memoria # Guardamos el tip procesado
 
                 return final_json
 
@@ -573,7 +576,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v69 (Master)")
+    st.title("🦅 TITÁN v70 (Master)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -807,7 +810,13 @@ if st.session_state.page == 'game':
                                 engine.mastered_articles.remove(full_tag)
                             engine.failed_articles.add(full_tag)
                     
-                    st.info(q['explicacion']); st.session_state.answered = True
+                    st.info(q['explicacion'])
+                    
+                    # --- NUEVO: VISUALIZACIÓN DEL TIP DE MEMORIA (v70) ---
+                    if 'tip_final' in q and q['tip_final']:
+                        st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
+                    
+                    st.session_state.answered = True
 
         if st.session_state.answered:
             if st.session_state.q_idx < len(q_list) - 1:
