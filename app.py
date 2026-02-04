@@ -5,12 +5,13 @@ import random
 import time
 import requests
 import re
+import io
 from collections import Counter
 
 # ==========================================
 # GESTIÓN DE DEPENDENCIAS Y MOTORES NEURONALES
 # ==========================================
-# Intentamos cargar librerías de IA avanzada si están disponibles
+# 1. Intentamos cargar librerías de IA avanzada (Embeddings)
 try:
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -19,11 +20,18 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
+# 2. Intentamos cargar librería de Lectura PDF
+try:
+    import pypdf
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+
 # ==========================================
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v76 - Full Master", 
+    page_title="TITÁN v77 - Lector Omnisciente", 
     page_icon="🦅", 
     layout="wide"
 )
@@ -204,7 +212,6 @@ class LegalEngineTITAN:
         """
         Divide el texto respetando la jerarquía: 
         Libro > Título > Capítulo > Sección > Artículo.
-        (Versión v69: Busca nombres en líneas siguientes si el título es corto)
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -468,7 +475,7 @@ class LegalEngineTITAN:
                 instrucciones_correccion.append("ALERTA: El usuario reportó 'Spoiler'. EL ENUNCIADO NO PUEDE CONTENER PISTAS DE LA RESPUESTA.")
             if "desconexion" in last_feeds: 
                 instrucciones_correccion.append("ALERTA: El usuario reportó 'Desconexión'. LA PREGUNTA DEBE ESTAR 100% VINCULADA AL CASO Y TEXTO.")
-            if "sesgo_longitud" in last_feeds: # NUEVO CAPITÁN AGREGADO
+            if "sesgo_longitud" in last_feeds:
                 instrucciones_correccion.append("ALERTA: El usuario reportó 'Opciones Desiguales'. LA RESPUESTA CORRECTA NO PUEDE SER LA MÁS LARGA. EQUILIBRAR LONGITUD DE TODAS LAS OPCIONES.")
             
             if instrucciones_correccion:
@@ -641,7 +648,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v76 (Master)")
+    st.title("🦅 TITÁN v77 (Master)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -696,12 +703,35 @@ with st.sidebar:
     tab1, tab2 = st.tabs(["📝 NUEVA NORMA", "📂 CARGAR BACKUP"])
     
     with tab1:
-        st.caption("Pega aquí el texto. El sistema detectará Jerarquía Completa (Flexible).")
+        st.markdown("### 📄 Cargar Documento")
+        
+        # --- CARGA DE PDF (NUEVO v77) ---
+        if PDF_AVAILABLE:
+            upl_pdf = st.file_uploader("Subir PDF (Guía, Ley, Procedimiento):", type=['pdf'])
+            extracted_text = ""
+            if upl_pdf:
+                with st.spinner("📄 Extrayendo texto del PDF..."):
+                    try:
+                        reader = pypdf.PdfReader(upl_pdf)
+                        for page in reader.pages:
+                            extracted_text += page.extract_text() + "\n"
+                        st.success(f"¡PDF Leído! {len(reader.pages)} páginas extraídas.")
+                    except Exception as e:
+                        st.error(f"Error leyendo PDF: {e}")
+        else:
+            st.warning("⚠️ Para cargar PDFs instala: pip install pypdf")
+            extracted_text = ""
+
+        st.caption("O pega aquí el texto manualmente:")
         axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
-        txt = st.text_area("Texto de la Norma:", height=150)
+        
+        # Si se extrajo texto del PDF, lo ponemos por defecto en el área de texto
+        txt_default = extracted_text if extracted_text else ""
+        txt = st.text_area("Texto de la Norma:", value=txt_default, height=150)
         
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
-            if engine.process_law(txt, axis_input): 
+            contenido_final = txt if txt else extracted_text
+            if engine.process_law(contenido_final, axis_input): 
                 st.session_state.page = 'game'
                 st.session_state.current_data = None
                 st.success(f"¡Norma Procesada! {len(engine.sections_map)} secciones maestras.")
@@ -892,7 +922,7 @@ if st.session_state.page == 'game':
         
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
-            # --- 5 CAPITANES ACTIVOS (v76) ---
+            # --- 5 CAPITANES ACTIVOS (v76/77) ---
             reasons_map = {
                 "Muy Fácil": "pregunta_facil",
                 "Respuesta Obvia": "respuesta_obvia",
