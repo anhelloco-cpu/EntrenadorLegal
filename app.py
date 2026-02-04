@@ -6,12 +6,34 @@ import time
 import requests
 import re
 import io
+import os
+import sys
+import subprocess
 from collections import Counter
+
+# ==========================================
+# AUTO-INSTALADOR DE DEPENDENCIAS (NUEVO v78)
+# ==========================================
+# Esto permite que el código instale lo que necesita sin usar la terminal
+def install_package(package):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+try:
+    import pypdf
+    PDF_AVAILABLE = True
+except ImportError:
+    try:
+        # Intentamos instalar silenciosamente
+        install_package("pypdf")
+        import pypdf
+        PDF_AVAILABLE = True
+    except Exception as e:
+        PDF_AVAILABLE = False
 
 # ==========================================
 # GESTIÓN DE DEPENDENCIAS Y MOTORES NEURONALES
 # ==========================================
-# 1. Intentamos cargar librerías de IA avanzada (Embeddings)
+# Intentamos cargar librerías de IA avanzada si están disponibles
 try:
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -20,18 +42,11 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# 2. Intentamos cargar librería de Lectura PDF
-try:
-    import pypdf
-    PDF_AVAILABLE = True
-except ImportError:
-    PDF_AVAILABLE = False
-
 # ==========================================
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v77 - Lector Omnisciente", 
+    page_title="TITÁN v78 - AutoSuficiente", 
     page_icon="🦅", 
     layout="wide"
 )
@@ -648,7 +663,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v77 (Master)")
+    st.title("🦅 TITÁN v78 (Auto)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -705,7 +720,7 @@ with st.sidebar:
     with tab1:
         st.markdown("### 📄 Cargar Documento")
         
-        # --- CARGA DE PDF (NUEVO v77) ---
+        # --- CARGA DE PDF (NUEVO v77/78) ---
         if PDF_AVAILABLE:
             upl_pdf = st.file_uploader("Subir PDF (Guía, Ley, Procedimiento):", type=['pdf'])
             extracted_text = ""
@@ -719,7 +734,7 @@ with st.sidebar:
                     except Exception as e:
                         st.error(f"Error leyendo PDF: {e}")
         else:
-            st.warning("⚠️ Para cargar PDFs instala: pip install pypdf")
+            st.warning("⚠️ Instalando librería PDF... Recarga en 10 seg")
             extracted_text = ""
 
         st.caption("O pega aquí el texto manualmente:")
