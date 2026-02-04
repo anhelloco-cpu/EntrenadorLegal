@@ -13,20 +13,20 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v86: SISTEMA JURÍDICO INTEGRAL (EDICIÓN 100% CÓDIGO PURO)
+#  TITÁN v86: SISTEMA JURÍDICO INTEGRAL (EDICIÓN DEFINITIVA)
 #  ----------------------------------------------------------------------------
-#  INCLUYE:
-#  1. SEGMENTACIÓN INTELIGENTE DUAL (Leyes + Guías con Índice Numérico).
-#  2. MOTOR NEURONAL DE VECTORES (Embeddings).
-#  3. GESTIÓN DE PDFS ROBUSTA.
-#  4. SISTEMA DE CALIBRACIÓN "5 CAPITANES".
-#  5. INTERFAZ GRÁFICA EXTENDIDA.
+#  Esta versión fusiona la robustez de TITÁN v75 con la capacidad de:
+#  1. LEER PDFs DIRECTAMENTE.
+#  2. SEGMENTAR POR ÍNDICES NUMÉRICOS (Para Guías y Manuales).
+#  3. SEGMENTAR POR ARTÍCULOS (Para Leyes y Normas).
 # ==============================================================================
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # 1. GESTIÓN DE DEPENDENCIAS Y LIBRERÍAS EXTERNAS
 # ------------------------------------------------------------------------------
+
+# A. SISTEMA DE VECTORES (IA NEURONAL)
 # Intentamos cargar librerías de IA avanzada si están disponibles
 try:
     from sentence_transformers import SentenceTransformer
@@ -36,12 +36,13 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
+# B. LECTOR DE ARCHIVOS PDF (NUEVO EN v86)
 # Intentamos cargar la librería de lectura de PDFs
 try:
     import pypdf
     PDF_AVAILABLE = True
 except ImportError:
-    # No forzamos instalación automática para evitar bucles de reinicio
+    # No forzamos instalación automática para evitar bucles, pero el sistema avisa.
     PDF_AVAILABLE = False
 
 
@@ -49,8 +50,8 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (CSS)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v86 - Master Full", 
-    page_icon="🦅", 
+    page_title="TITÁN v86 - Justicia Restaurada (Full + Guías)", 
+    page_icon="⚖️", 
     layout="wide"
 )
 
@@ -71,6 +72,7 @@ st.markdown("""
         background-color: #333333;
         color: #ffffff;
         transform: scale(1.01);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     
     /* Caja para la narrativa del caso/norma */
@@ -200,7 +202,7 @@ class LegalEngineTITAN:
         self.structure_type = "Técnico / Normativo (Sin Caso)" 
         self.questions_per_case = 1 
         
-        # -- Mapa de la Ley (Jerarquía) --
+        # -- Mapa de la Ley/Guía (Jerarquía) --
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
         
@@ -238,13 +240,13 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE v86 (LEYES + GUÍAS POR ÍNDICE)
+    # SEGMENTACIÓN INTELIGENTE (DUAL: LEYES Y GUÍAS) - [MEJORADO v86]
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto respetando la jerarquía: 
-        1. ESTRUCTURA LEGAL: Libro > Título > Capítulo > Sección > Artículo.
-        2. ESTRUCTURA GUÍA (NUEVO): 1. Título > 1.1 Subtítulo (Para manuales)
+        Divide el texto. Ahora es HÍBRIDO:
+        1. Detecta estructura legal (Libro, Título, Artículo).
+        2. Detecta estructura de índice numérico (1. Introducción, 2.1 Planeación) -> PARA GUÍAS.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -254,14 +256,13 @@ class LegalEngineTITAN:
             "LIBRO": None, "TÍTULO": None, "CAPÍTULO": None, "SECCIÓN": None, "ARTÍCULO": None
         }
         
-        # Jerarquía Guía (Índices Numéricos)
+        # Jerarquía de Índice (Para Guías) - NUEVO v86
         active_index = {
-            "NIVEL_1": None, # Ej: 1. INTRODUCCIÓN
-            "NIVEL_2": None  # Ej: 1.1 OBJETIVOS
+            "NIVEL_1": None, # Ej: "1. Introducción"
+            "NIVEL_2": None  # Ej: "2.1 Alcance"
         }
 
-        # --- PATRONES REGEX FLEXIBLES ---
-        # A. Patrones Legales
+        # --- PATRONES REGEX LEGALES ---
         patron_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
         patron_titulo_romano = r'^\s*([IVXLCDM]+)\.\s+(.+)' 
         patron_titulo_txt = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
@@ -269,19 +270,17 @@ class LegalEngineTITAN:
         patron_seccion_txt = r'^\s*(SECCIÓN|SECCION)\.?\s+'
         patron_articulo = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*\d+'
         
-        # B. Patrones Guía (Índices) - AGREGADO A PETICIÓN
-        # Detecta "1. ALGO" o "2.3 ALGO" al inicio de línea
+        # --- PATRONES REGEX ÍNDICE (PARA GUÍAS) ---
+        # Detecta: "1. ALGO" o "2.3 ALGO"
         patron_idx_1 = r'^\s*(\d+)\.\s+([A-ZÁÉÍÓÚÑ].+)'      # Nivel 1 (1. Título)
         patron_idx_2 = r'^\s*(\d+\.\d+)\.?\s+([A-ZÁÉÍÓÚÑ].+)' # Nivel 2 (1.1 Subtítulo)
 
-        # --- FUNCIÓN AUXILIAR: MIRAR ABAJO ---
+        # Función auxiliar para recuperar texto en la línea siguiente (Títulos cortados)
         def buscar_continuacion(idx_actual):
-            # Mira hasta 3 líneas abajo buscando texto que no sea otro título
             for i in range(1, 4): 
                 if idx_actual + i < len(lineas):
                     txt = lineas[idx_actual + i].strip()
                     if txt: # Si hay texto
-                        # Si es otro encabezado (Art, Cap, etc), paramos y no unimos
                         if re.match(r'^(ART|CAP|TIT|LIB|SEC)', txt, re.IGNORECASE): 
                             return None
                         return txt 
@@ -423,11 +422,11 @@ class LegalEngineTITAN:
         return """
         INSTRUCCIONES DE FORMATO:
         1. NO REPETIR TEXTO: El 'enunciado' NO debe repetir lo que ya dice la 'narrativa_caso'.
-        2. NO CHIVATEAR: No digas "Según el Título X" o "Según el numeral 2.1". Di "Según la norma".
+        2. NO CHIVATEAR: No digas "Según el Título X". Di "Según la norma".
         """
 
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MOTOR PRINCIPAL)
+    # GENERADOR DE CASOS (MOTOR PRINCIPAL - DUAL)
     # --------------------------------------------------------------------------
     def generate_case(self):
         if not self.api_key: return {"error": "Falta Llave"}
@@ -448,11 +447,11 @@ class LegalEngineTITAN:
         
         # --- FRANCOTIRADOR CON ANCLAJE DUAL (ARTÍCULOS O ÍNDICES) ---
         
-        # 1. Buscamos Artículos (Leyes)
+        # 1. Buscamos Artículos (Para Leyes)
         patron_articulo = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[A-Z]?)'
         matches = list(re.finditer(patron_articulo, texto_base, re.IGNORECASE | re.MULTILINE))
         
-        # 2. Si no hay artículos, buscamos Índices Numéricos (Guías)
+        # 2. Si no hay artículos, buscamos Índices Numéricos (Para Guías)
         if not matches:
              patron_indice = r'^\s*(\d+\.\d+|\d+\.)\s+([A-ZÁÉÍÓÚÑ].+)'
              matches = list(re.finditer(patron_indice, texto_base, re.MULTILINE))
@@ -461,7 +460,7 @@ class LegalEngineTITAN:
         etiqueta_articulo = "General / Sin Estructura Detectada"
         
         if matches:
-            # FILTRO v72: Filtrar Vistos Y BLOQUEADOS
+            # FILTRO: Filtrar Vistos Y BLOQUEADOS
             candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles and m.group(0).upper().strip() not in self.temporary_blacklist]
             
             if not candidatos:
@@ -553,7 +552,7 @@ class LegalEngineTITAN:
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
 
-        # PROMPT FINAL GIGANTE
+        # PROMPT FINAL v86 (CON FEEDBACK REAL + TIP + MICROSEGMENTACION)
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -718,7 +717,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v86 (Integral)")
+    st.title("🦅 TITÁN v86 (Master)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -992,17 +991,20 @@ if st.session_state.page == 'game':
         
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
-            # --- 5 CAPITANES ACTIVOS (v76/77) ---
             reasons_map = {
-                "Muy Fácil": "pregunta_facil",
+                "Preguntas no tienen que ver con el Caso": "desconexion",
+                "Respuesta Incompleta": "recorte",
+                "Spoiler": "spoiler",
                 "Respuesta Obvia": "respuesta_obvia",
-                "Spoiler (Pistas en enunciado)": "spoiler",
-                "Desconexión (Nada que ver)": "desconexion",
-                "Opciones Desiguales (Longitud)": "sesgo_longitud"
+                "Alucinación": "alucinacion",
+                "Opciones Desiguales": "sesgo_longitud",
+                "Muy Fácil": "pregunta_facil",
+                "Repetitivo": "repetitivo",
+                "Incoherente": "incoherente"
             }
-            errores_sel = st.multiselect("Reportar para ajustar la IA:", list(reasons_map.keys()))
+            errores_sel = st.multiselect("Reportar fallos:", list(reasons_map.keys()))
             if st.button("¡Castigar y Corregir!"):
                 for r in errores_sel:
                     # Guardamos el código del error
                     engine.feedback_history.append(reasons_map[r])
-                st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
+                st.toast(f"Feedback enviado: {len(errores_sel)} error(es)", icon="🛡️")
