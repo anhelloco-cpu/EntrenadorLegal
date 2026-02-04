@@ -8,22 +8,26 @@ import re
 import io
 import os
 import sys
-import subprocess
 from collections import Counter
 
 # ==============================================================================
-# 1. GESTIÓN DE DEPENDENCIAS Y LIBRERÍAS EXTERNAS
 # ==============================================================================
-# Sistema de seguridad para verificar si pypdf (Lector PDF) está instalado.
-# No forzamos la instalación automática para evitar bloqueos.
-# El usuario tendrá un botón manual en la interfaz si esto falla.
+#  TITÁN v82: SISTEMA JURÍDICO DE ALTO RENDIMIENTO (EDICIÓN MONUMENTAL)
+# ==============================================================================
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. GESTIÓN DE DEPENDENCIAS Y LIBRERÍAS EXTERNAS
+# ------------------------------------------------------------------------------
+# Verificamos las herramientas instaladas. Si seguiste el Paso 1 (requirements.txt),
+# estas variables serán TRUE y el sistema funcionará a plena potencia.
+
 try:
     import pypdf
     PDF_AVAILABLE = True
 except ImportError:
     PDF_AVAILABLE = False
 
-# Sistema de IA Vectorial (Embeddings) para búsquedas inteligentes
 try:
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -33,19 +37,21 @@ except ImportError:
     DL_AVAILABLE = False
 
 
-# ==============================================================================
+# ------------------------------------------------------------------------------
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (CSS AVANZADO)
-# ==============================================================================
+# ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v81 - Full Master Uncompressed", 
-    page_icon="🦅", 
+    page_title="TITÁN v82 - Monumental", 
+    page_icon="⚖️", 
     layout="wide"
 )
 
-# Estilos CSS para dar apariencia profesional (Botones negros, Cajas grises, Etiquetas de colores)
+# Inyección de CSS para la interfaz gráfica profesional
 st.markdown("""
 <style>
-    /* Estilo para botones principales en negro elegante */
+    /* ---------------------------------------------------------------------- */
+    /* ESTILOS DE BOTONES PRINCIPALES */
+    /* ---------------------------------------------------------------------- */
     .stButton>button {
         width: 100%; 
         border-radius: 8px; 
@@ -54,139 +60,161 @@ st.markdown("""
         transition: all 0.3s; 
         background-color: #000000; 
         color: white;
+        border: 1px solid #333;
     }
+    
     .stButton>button:hover {
         background-color: #333333;
         color: #ffffff;
-        transform: scale(1.02);
+        transform: scale(1.01);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     
-    /* Caja para la narrativa del caso/norma */
+    /* ---------------------------------------------------------------------- */
+    /* CAJA DE NARRATIVA (CASO / NORMA) */
+    /* ---------------------------------------------------------------------- */
     .narrative-box {
-        background-color: #f5f5f5; 
-        padding: 25px; 
+        background-color: #f8f9fa; 
+        padding: 30px; 
         border-radius: 12px; 
-        border-left: 6px solid #424242; 
+        border-left: 6px solid #212121; 
         margin-bottom: 25px;
         font-family: 'Georgia', serif; 
         font-size: 1.15em; 
         line-height: 1.6;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     
-    /* Etiquetas para artículos fallados (ROJO) */
+    /* ---------------------------------------------------------------------- */
+    /* ETIQUETAS DE SEMÁFORO (FEEDBACK VISUAL) */
+    /* ---------------------------------------------------------------------- */
     .failed-tag {
-        background-color: #ffcccc; 
-        color: #990000; 
-        padding: 4px 8px; 
-        border-radius: 4px; 
-        font-size: 0.9em; 
+        background-color: #ffebee; 
+        color: #c62828; 
+        padding: 5px 10px; 
+        border-radius: 6px; 
+        font-size: 0.85em; 
         font-weight: bold; 
-        margin-right: 5px;
-        border: 1px solid #cc0000; 
+        margin-right: 6px;
+        border: 1px solid #ef9a9a; 
         display: inline-block;
-        margin-bottom: 5px;
+        margin-bottom: 6px;
     }
 
-    /* Etiquetas para artículos dominados (VERDE) */
     .mastered-tag {
-        background-color: #ccffcc; 
-        color: #006600; 
-        padding: 4px 8px; 
-        border-radius: 4px; 
-        font-size: 0.9em; 
+        background-color: #e8f5e9; 
+        color: #2e7d32; 
+        padding: 5px 10px; 
+        border-radius: 6px; 
+        font-size: 0.85em; 
         font-weight: bold; 
-        margin-right: 5px;
-        border: 1px solid #006600; 
+        margin-right: 6px;
+        border: 1px solid #a5d6a7; 
         display: inline-block;
-        margin-bottom: 5px;
+        margin-bottom: 6px;
     }
     
-    /* Cajas estadísticas del tablero */
+    /* ---------------------------------------------------------------------- */
+    /* CAJAS DE ESTADÍSTICAS */
+    /* ---------------------------------------------------------------------- */
     .stat-box {
         text-align: center; 
-        padding: 10px; 
+        padding: 15px; 
         background: #ffffff; 
-        border-radius: 8px; 
+        border-radius: 10px; 
         border: 1px solid #e0e0e0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     
-    /* Ajustes de tipografía para lectura */
+    /* Tipografía General */
     h1, h2, h3 {
-        font-family: 'Arial', sans-serif;
+        font-family: 'Helvetica Neue', Arial, sans-serif;
         color: #111;
     }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ==============================================================================
-# 3. CARGA DE MODELOS (CACHÉ)
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# 3. CARGA DE MODELOS (OPTIMIZACIÓN DE CACHÉ)
+# ------------------------------------------------------------------------------
 @st.cache_resource
 def load_embedding_model():
-    """Carga el modelo de vectores una sola vez para no ralentizar el sistema."""
+    """
+    Carga el modelo de vectores (SentenceTransformer) en la memoria caché.
+    Esto evita que se recargue cada vez que tocas un botón.
+    """
     if DL_AVAILABLE: 
         try:
             return SentenceTransformer('all-MiniLM-L6-v2')
         except Exception as e:
-            st.error(f"Error cargando modelo neuronal: {e}")
+            # Si falla la carga, continuamos sin IA neuronal, usando aleatoriedad.
             return None
     return None
 
 dl_model = load_embedding_model()
 
 
-# ==============================================================================
+# ------------------------------------------------------------------------------
 # 4. LISTA MAESTRA DE ENTIDADES COLOMBIANAS
-# ==============================================================================
+# ------------------------------------------------------------------------------
 ENTIDADES_CO = [
     "Contraloría General de la República", 
     "Fiscalía General de la Nación",
     "Procuraduría General de la Nación", 
     "Defensoría del Pueblo",
     "DIAN", 
-    "Registraduría Nacional", 
+    "Registraduría Nacional del Estado Civil", 
     "Consejo Superior de la Judicatura",
     "Corte Suprema de Justicia", 
     "Consejo de Estado", 
     "Corte Constitucional",
     "Policía Nacional", 
     "Ejército Nacional", 
-    "ICBF", 
+    "Instituto Colombiano de Bienestar Familiar (ICBF)", 
     "SENA", 
-    "Ministerio de Educación", 
-    "Ministerio de Salud", 
-    "DANE",
+    "Ministerio de Educación Nacional", 
+    "Ministerio de Salud y Protección Social", 
+    "Departamento Administrativo Nacional de Estadística (DANE)",
+    "Superintendencia de Industria y Comercio",
+    "Superintendencia Financiera",
     "Otra (Manual) / Agregar +"
 ]
 
 
 # ==============================================================================
-# 5. CLASE PRINCIPAL: MOTOR JURÍDICO TITÁN (CEREBRO)
+# ==============================================================================
+#  CLASE PRINCIPAL: MOTOR JURÍDICO TITÁN (EL CEREBRO)
+# ==============================================================================
 # ==============================================================================
 class LegalEngineTITAN:
     def __init__(self):
-        # -- ALMACENAMIENTO DE DATOS --
-        self.chunks = []           
-        self.chunk_embeddings = None 
-        self.mastery_tracker = {}  
-        self.failed_indices = set()
-        self.feedback_history = [] 
-        self.current_data = None
-        self.current_chunk_idx = -1
+        # ---------------------------------------------------------
+        # Variables de Almacenamiento de Datos (Memoria a Corto Plazo)
+        # ---------------------------------------------------------
+        self.chunks = []           # Fragmentos de texto procesado
+        self.chunk_embeddings = None # Vectores matemáticos del texto
+        self.mastery_tracker = {}  # Rastreador de progreso por chunk
+        self.failed_indices = set() # Índices de preguntas falladas
+        self.feedback_history = []  # Historial de quejas del usuario (Calibración)
+        self.current_data = None    # Datos de la pregunta actual
+        self.current_chunk_idx = -1 # Puntero al fragmento actual
         
-        # -- CONFIGURACIÓN DE USUARIO --
+        # ---------------------------------------------------------
+        # Configuración de Usuario (Perfil)
+        # ---------------------------------------------------------
         self.entity = ""
         self.level = "Profesional" 
         self.simulacro_mode = False
         self.provider = "Unknown" 
         self.api_key = ""
         self.model = None 
-        self.current_temperature = 0.3 
+        self.current_temperature = 0.3 # Creatividad baja para precisión jurídica
         self.last_failed_embedding = None
         
-        # -- VARIABLES DE CONTROL PEDAGÓGICO --
+        # ---------------------------------------------------------
+        # Variables de Control Pedagógico (Estrategia)
+        # ---------------------------------------------------------
         self.study_phase = "Pre-Guía" 
         self.example_question = "" 
         self.job_functions = ""    
@@ -194,22 +222,29 @@ class LegalEngineTITAN:
         self.structure_type = "Técnico / Normativo (Sin Caso)" 
         self.questions_per_case = 1 
         
-        # -- MAPA DE LA LEY (JERARQUÍA) --
+        # ---------------------------------------------------------
+        # Mapa de la Ley (Jerarquía Estructural)
+        # ---------------------------------------------------------
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
         
-        # -- SISTEMA FRANCOTIRADOR & SEMÁFORO --
-        self.seen_articles = set()    
-        self.failed_articles = set()   # Lista Roja (Pendientes)
-        self.mastered_articles = set() # Lista Verde (Dominados)
-        self.temporary_blacklist = set() # Lista Negra de Sesión
+        # ---------------------------------------------------------
+        # Sistema Francotirador & Semáforo (Memoria a Largo Plazo)
+        # ---------------------------------------------------------
+        self.seen_articles = set()      # Artículos ya vistos
+        self.failed_articles = set()    # Lista Roja (Pendientes de repaso)
+        self.mastered_articles = set()  # Lista Verde (Dominados)
+        self.temporary_blacklist = set() # Lista Negra de Sesión (Botón Saltar)
         self.current_article_label = "General"
 
     # --------------------------------------------------------------------------
     # CONFIGURACIÓN DE API (LLAVE MAESTRA)
     # --------------------------------------------------------------------------
     def configure_api(self, key):
-        """Detecta automáticamente si la llave es de Google, OpenAI o Groq."""
+        """
+        Configura el proveedor de IA basándose en el formato de la llave.
+        Soporta: Google Gemini, OpenAI (GPT), Groq (Llama).
+        """
         key = key.strip()
         self.api_key = key
         
@@ -225,22 +260,24 @@ class LegalEngineTITAN:
                 genai.configure(api_key=key)
                 model_list = genai.list_models()
                 models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
-                # Buscamos el mejor modelo disponible (Gemini 1.5 Pro preferiblemente)
+                
+                # Prioridad: Gemini 1.5 Pro -> Flash -> Otros
                 target = next((m for m in models if 'gemini-1.5-pro' in m), 
                          next((m for m in models if 'flash' in m), models[0]))
+                
                 self.model = genai.GenerativeModel(target)
                 return True, f"🧠 Motor GOOGLE ({target}) Activado"
             except Exception as e:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (VISIÓN ÁGUILA) - VERSIÓN EXTENDIDA
+    # SEGMENTACIÓN INTELIGENTE (VISIÓN ÁGUILA v3)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto respetando la jerarquía completa: 
         Libro > Título > Capítulo > Sección > Artículo.
-        Incluye lógica de 'mirar adelante' para títulos cortos.
+        Incluye lógica de 'mirar adelante' para títulos cortados.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -253,7 +290,7 @@ class LegalEngineTITAN:
             "ARTÍCULO": None
         }
 
-        # --- PATRONES REGEX ROBUSTOS ---
+        # --- Expresiones Regulares Robustas ---
         patron_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
         patron_titulo_romano = r'^\s*([IVXLCDM]+)\.\s+(.+)' 
         patron_titulo_txt = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
@@ -261,9 +298,8 @@ class LegalEngineTITAN:
         patron_seccion_txt = r'^\s*(SECCIÓN|SECCION)\.?\s+'
         patron_articulo = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*\d+'
 
-        # Función auxiliar para recuperar nombres de títulos cortados
         def buscar_continuacion(idx_actual):
-            # Mira hasta 3 líneas abajo
+            # Mira hasta 3 líneas abajo buscando el nombre del título
             for i in range(1, 4): 
                 if idx_actual + i < len(lineas):
                     txt = lineas[idx_actual + i].strip()
@@ -274,7 +310,6 @@ class LegalEngineTITAN:
                         return txt
             return None
 
-        # Bucle principal de análisis línea por línea
         for idx, linea in enumerate(lineas):
             linea_limpia = linea.strip()
             if not linea_limpia: continue
@@ -287,7 +322,9 @@ class LegalEngineTITAN:
                     if extra: label = f"{label} - {extra}"
                 
                 active_hierarchy["LIBRO"] = label
-                active_hierarchy["TÍTULO"] = None; active_hierarchy["CAPÍTULO"] = None; active_hierarchy["SECCIÓN"] = None
+                active_hierarchy["TÍTULO"] = None
+                active_hierarchy["CAPÍTULO"] = None
+                active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
 
             # 2. Detectar TÍTULO
@@ -298,7 +335,8 @@ class LegalEngineTITAN:
                     if extra: label = f"{label} - {extra}"
                 
                 active_hierarchy["TÍTULO"] = label
-                active_hierarchy["CAPÍTULO"] = None; active_hierarchy["SECCIÓN"] = None
+                active_hierarchy["CAPÍTULO"] = None
+                active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
 
             # 3. Detectar CAPÍTULO
@@ -308,7 +346,8 @@ class LegalEngineTITAN:
                     extra = buscar_continuacion(idx)
                     if extra: label = f"{label} - {extra}"
                 
-                active_hierarchy["CAPÍTULO"] = label; active_hierarchy["SECCIÓN"] = None
+                active_hierarchy["CAPÍTULO"] = label
+                active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
 
             # 4. Detectar SECCIÓN
@@ -327,7 +366,7 @@ class LegalEngineTITAN:
                 if len(label) > 20: label = label[:20]
                 active_hierarchy["ARTÍCULO"] = label
 
-            # Guardado en cascada (Nesting) para que el texto pertenezca a todos sus padres
+            # Guardado en cascada (Nesting)
             secciones["Todo el Documento"].append(linea) 
             if active_hierarchy["LIBRO"]: secciones[active_hierarchy["LIBRO"]].append(linea)
             if active_hierarchy["TÍTULO"]: secciones[active_hierarchy["TÍTULO"]].append(linea)
@@ -340,24 +379,28 @@ class LegalEngineTITAN:
     # PROCESAMIENTO DE TEXTO (CHUNKS)
     # --------------------------------------------------------------------------
     def process_law(self, text, axis_name):
-        """Convierte el texto bruto en fragmentos procesables (Chunks)."""
+        """
+        Toma el texto bruto, lo limpia, lo segmenta y lo convierte en vectores.
+        """
         text = text.replace('\r', '')
         if len(text) < 100: return 0 # Protección contra textos vacíos
         
         self.thematic_axis = axis_name 
         self.sections_map = self.smart_segmentation(text)
         
-        # Chunks de 50.000 caracteres para mantener contexto amplio
+        # Chunks de 50.000 caracteres para dar suficiente contexto a la IA
         self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
         self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
         
         if dl_model: 
-            with st.spinner("🧠 Analizando jerarquía vectorial..."): 
+            with st.spinner("🧠 Analizando jerarquía vectorial (Red Neuronal)..."): 
                 self.chunk_embeddings = dl_model.encode(self.chunks)
         return len(self.chunks)
 
     def update_chunks_by_section(self, section_name):
-        """Reorganiza el estudio para enfocarse solo en una sección específica."""
+        """
+        Permite al usuario estudiar solo una parte de la ley (Ej: Solo Título II).
+        """
         if section_name in self.sections_map:
             texto_seccion = self.sections_map[section_name]
             self.chunks = [texto_seccion[i:i+50000] for i in range(0, len(texto_seccion), 50000)]
@@ -367,7 +410,7 @@ class LegalEngineTITAN:
             if dl_model: 
                 self.chunk_embeddings = dl_model.encode(self.chunks)
             
-            # Limpiamos filtros temporales al cambiar de sección
+            # Reseteamos filtros temporales al cambiar de sección
             self.seen_articles.clear()
             self.temporary_blacklist.clear()
             return True
@@ -377,7 +420,6 @@ class LegalEngineTITAN:
     # ESTADÍSTICAS Y PROGRESO
     # --------------------------------------------------------------------------
     def get_stats(self):
-        """Calcula el porcentaje de dominio real."""
         if not self.chunks: return 0, 0, 0
         total = len(self.chunks)
         
@@ -390,13 +432,13 @@ class LegalEngineTITAN:
         return min(perc, 100), len(self.failed_indices), total
 
     def get_strict_rules(self):
-        return "1. NO SPOILERS: La pregunta NO debe dar la respuesta explícita. 2. DEPENDENCIA: Obligatorio leer el texto para responder."
+        return "1. NO SPOILERS: La pregunta NO debe dar la respuesta. 2. DEPENDENCIA: Obligatorio leer el texto."
 
     def get_calibration_instructions(self):
         return """
         INSTRUCCIONES DE FORMATO:
         1. NO REPETIR TEXTO: El 'enunciado' NO debe repetir lo que ya dice la 'narrativa_caso'.
-        2. NO CHIVATEAR: No digas "Según el Título X". Di "Según la norma aplicable".
+        2. NO CHIVATEAR: No digas "Según el Título X". Di "Según la norma".
         """
 
     # --------------------------------------------------------------------------
@@ -404,11 +446,11 @@ class LegalEngineTITAN:
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
-        Esta es la función principal que construye el Prompt para la IA.
-        Incluye la lógica de 'Francotirador', 'Micro-Segmentación' y 'Calibración'.
+        Construye el Prompt Maestro para la IA.
+        Aquí es donde se integran los 5 Capitanes, el Semáforo y el Francotirador.
         """
         if not self.api_key: return {"error": "Falta Llave API"}
-        if not self.chunks: return {"error": "Falta Cargar Norma"}
+        if not self.chunks: return {"error": "Falta Norma"}
         
         idx = -1
         # --- LÓGICA DE REPASO DE ERRORES (EMBEDDINGS) ---
@@ -437,7 +479,7 @@ class LegalEngineTITAN:
             candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles and m.group(0).upper().strip() not in self.temporary_blacklist]
             
             if not candidatos:
-                # Si se acabaron los nuevos, usamos los no bloqueados
+                # Si se acabaron los nuevos, usamos los no bloqueados (pero no los blacklist)
                 candidatos = [m for m in matches if m.group(0).upper().strip() not in self.temporary_blacklist]
                 if not candidatos: 
                     # Si TODO está bloqueado, liberamos la lista negra temporal
@@ -459,7 +501,7 @@ class LegalEngineTITAN:
             etiqueta_articulo = seleccion.group(0).upper().strip()
             self.current_article_label = etiqueta_articulo
 
-            # --- MICRO-SEGMENTACIÓN v81 (MEJORADA) ---
+            # --- MICRO-SEGMENTACIÓN (El Micro-Cirujano) ---
             # Busca numerales (1.), literales (a)) o Definiciones (Palabra:)
             patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
             sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
@@ -469,14 +511,12 @@ class LegalEngineTITAN:
                 start_sub = sel_sub.start()
                 idx_sub = sub_matches.index(sel_sub)
                 
-                # Definir fin del sub-segmento
                 end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
                 
                 texto_fragmento = texto_final_ia[start_sub:end_sub]
                 id_sub = sel_sub.group(0).strip()
                 if len(id_sub) > 20: id_sub = id_sub[:20] + "..."
                 
-                # Contexto + Fragmento
                 encabezado = texto_final_ia[:100].split('\n')[0] 
                 if "ARTÍCULO" not in encabezado.upper(): encabezado = f"{self.current_article_label} (Contexto)"
                 
@@ -498,29 +538,30 @@ class LegalEngineTITAN:
         elif self.level == "Asesor":
             dificultad_prompt = "NIVEL: ASESOR. Muy Alta dificultad. Estrategia y jurisprudencia."
 
-        instruccion_estilo = "ESTILO: TÉCNICO." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO."
+        instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
 
         # --- 5 CAPITANES: RECONEXIÓN DE CALIBRACIÓN REAL ---
         feedback_instr = ""
         if self.feedback_history:
-            last_feeds = self.feedback_history[-5:] # Últimos 5 reclamos
+            last_feeds = self.feedback_history[-5:] # Tomamos los últimos 5 reclamos
             instrucciones_correccion = []
             
+            # Traducción de quejas a órdenes para la IA
             if "pregunta_facil" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Muy Fácil'. AUMENTAR DRASTICAMENTE LA DIFICULTAD.")
+                instrucciones_correccion.append("ALERTA: El usuario reportó 'Muy Fácil'. AUMENTAR DRASTICAMENTE LA DIFICULTAD Y COMPLEJIDAD.")
             if "respuesta_obvia" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Respuesta Obvia'. USAR OPCIONES TRAMPA OBLIGATORIAS.")
+                instrucciones_correccion.append("ALERTA: El usuario reportó 'Respuesta Obvia'. USAR OPCIONES TRAMPA OBLIGATORIAS. PROHIBIDO RESPUESTAS EVIDENTES.")
             if "spoiler" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Spoiler'. EL ENUNCIADO NO PUEDE CONTENER PISTAS.")
+                instrucciones_correccion.append("ALERTA: El usuario reportó 'Spoiler'. EL ENUNCIADO NO PUEDE CONTENER PISTAS DE LA RESPUESTA.")
             if "desconexion" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Desconexión'. LA PREGUNTA DEBE ESTAR 100% VINCULADA AL CASO.")
+                instrucciones_correccion.append("ALERTA: El usuario reportó 'Desconexión'. LA PREGUNTA DEBE ESTAR 100% VINCULADA AL CASO Y TEXTO.")
             if "sesgo_longitud" in last_feeds:
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Opciones Desiguales'. EQUILIBRAR LONGITUD DE TODAS LAS OPCIONES.")
+                instrucciones_correccion.append("ALERTA: El usuario reportó 'Opciones Desiguales'. LA RESPUESTA CORRECTA NO PUEDE SER LA MÁS LARGA. EQUILIBRAR LONGITUD DE TODAS LAS OPCIONES.")
             
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
 
-        # --- CONSTRUCCIÓN DEL PROMPT FINAL ---
+        # PROMPT FINAL
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -538,7 +579,9 @@ class LegalEngineTITAN:
         4. TIP MEMORIA: Incluye un campo 'tip_memoria' con una frase corta, mnemotecnia o palabra clave.
         
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
+        No me des la explicación en un solo texto corrido.
         Dame un OBJETO JSON llamado "explicaciones" donde cada letra (A, B, C, D) tenga su propia explicación individual.
+        Ejemplo: "A": "Es incorrecta porque...", "B": "Es correcta ya que..."
         
         EJEMPLO A IMITAR (ESTILO Y FORMATO):
         '''{self.example_question}'''
@@ -574,7 +617,7 @@ class LegalEngineTITAN:
         }}
         """
         
-        # --- LLAMADA A LA API (CON REINTENTOS) ---
+        # --- LLAMADA A LA API (MOTOR DE GENERACIÓN) ---
         max_retries = 3
         attempts = 0
         while attempts < max_retries:
@@ -584,16 +627,19 @@ class LegalEngineTITAN:
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
                         "model": "gpt-4o", 
-                        "messages": [{"role": "system", "content": "You are a helpful assistant. OUTPUT JSON ONLY."}, {"role": "user", "content": prompt}],
+                        "messages": [
+                            {"role": "system", "content": "You are a helpful assistant. OUTPUT JSON ONLY."},
+                            {"role": "user", "content": prompt}
+                        ],
                         "temperature": self.current_temperature,
                         "response_format": {"type": "json_object"}
                     }
                     resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+                    if resp.status_code != 200: return {"error": f"OpenAI Error {resp.status_code}: {resp.text}"}
                     text_resp = resp.json()['choices'][0]['message']['content']
 
                 # 2. GOOGLE
                 elif self.provider == "Google":
-                    # Configuración de seguridad laxa para evitar falsos positivos en leyes
                     safety = [{"category": f"HARM_CATEGORY_{c}", "threshold": "BLOCK_NONE"} for c in ["HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT"]]
                     res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature}, safety_settings=safety)
                     text_resp = res.text.strip()
@@ -617,9 +663,13 @@ class LegalEngineTITAN:
                 
                 final_json = json.loads(text_resp)
                 
-                # Actualizar etiqueta de fuente si la IA la detectó mejor
-                if "articulo_fuente" in final_json and "ITEM" not in self.current_article_label:
-                    self.current_article_label = final_json["articulo_fuente"].upper()
+                # Auto-Fuente: Si la IA detecta mejor el artículo que el Regex
+                if "articulo_fuente" in final_json:
+                    # Si ya teníamos una etiqueta precisa (ITEM), no la sobrescribimos con una genérica
+                    if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
+                         pass
+                    elif "articulo_fuente" in final_json:
+                         self.current_article_label = final_json["articulo_fuente"].upper()
 
                 # --- BARAJADOR AUTOMÁTICO INTELIGENTE ---
                 for q in final_json['preguntas']:
@@ -669,17 +719,19 @@ class LegalEngineTITAN:
 
 
 # ==============================================================================
-# 6. INTERFAZ DE USUARIO (SIDEBAR Y MAIN)
+# ==============================================================================
+#  INTERFAZ DE USUARIO (SIDEBAR Y MAIN)
+# ==============================================================================
 # ==============================================================================
 if 'engine' not in st.session_state: st.session_state.engine = LegalEngineTITAN()
-if 'case_id' not in st.session_state: st.session_state.case_id = 0
+if 'case_id' not in st.session_state: st.session_state.case_id = 0 # ID Único para evitar fantasmas
 if 'page' not in st.session_state: st.session_state.page = 'setup'
 if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
 if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v81 (Full)")
+    st.title("🦅 TITÁN v82 (Monumental)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -692,16 +744,8 @@ with st.sidebar:
     
     # --- ZONA DE GESTIÓN DE PDF (ANTIBLOQUEO SEGURO) ---
     if not PDF_AVAILABLE:
-        st.error("⚠️ Lector PDF Inactivo (Falta librería)")
-        if st.button("🔧 CLIC AQUÍ PARA INSTALAR Y REPARAR"):
-            try:
-                with st.spinner("Instalando... el sistema se reiniciará en 5 segs..."):
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", "pypdf"])
-                    st.success("¡Instalado! Recargando...")
-                    time.sleep(2)
-                    st.rerun()
-            except Exception as e:
-                st.error(f"Error manual: {e}")
+        st.warning("⚠️ Lector PDF Inactivo")
+        st.info("Para activarlo: Crea un archivo 'requirements.txt' y pon 'pypdf' dentro. Luego reinicia.")
     else:
         st.success("✅ Lector PDF: ACTIVO Y LISTO")
 
@@ -769,7 +813,7 @@ with st.sidebar:
         
         st.caption("O pega aquí el texto manualmente:")
         
-        # Si se extrajo texto del PDF, lo ponemos por defecto
+        # Si se extrajo texto del PDF, lo ponemos por defecto en el área de texto
         txt_default = extracted_text if extracted_text else ""
         txt_manual = st.text_area("Texto de la Norma:", value=txt_default, height=150)
         
@@ -869,7 +913,9 @@ with st.sidebar:
         engine.simulacro_mode = True; st.session_state.current_data = None; st.session_state.page = 'game'; st.rerun()
 
 # ==============================================================================
-# 7. CICLO PRINCIPAL DEL JUEGO
+# ==============================================================================
+#  CICLO PRINCIPAL DEL JUEGO (GAME LOOP)
+# ==============================================================================
 # ==============================================================================
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
@@ -967,7 +1013,7 @@ if st.session_state.page == 'game':
                 if st.button("Nuevo Caso"): st.session_state.current_data = None; st.rerun()
         
         st.divider()
-        with st.expander("🛠️ CALIBRACIÓN (5 CAPITANES)", expanded=True):
+        with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
             # --- 5 CAPITANES ACTIVOS (v81) ---
             reasons_map = {
                 "Muy Fácil": "pregunta_facil",
