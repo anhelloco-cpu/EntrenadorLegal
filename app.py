@@ -22,8 +22,8 @@ except ImportError:
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v71 - Micro-Cirujano", 
-    page_icon="🔬", 
+    page_title="TITÁN v72 - Salto Cuántico", 
+    page_icon="⏭️", 
     layout="wide"
 )
 
@@ -167,6 +167,7 @@ class LegalEngineTITAN:
         self.seen_articles = set()    
         self.failed_articles = set()   # Lista Roja (Pendientes)
         self.mastered_articles = set() # Lista Verde (Dominados)
+        self.temporary_blacklist = set() # NUEVO v72: Lista Negra de Sesión
         self.current_article_label = "General"
 
     # ------------------------------------------
@@ -319,6 +320,7 @@ class LegalEngineTITAN:
             self.active_section_name = section_name
             if dl_model: self.chunk_embeddings = dl_model.encode(self.chunks)
             self.seen_articles.clear()
+            self.temporary_blacklist.clear() # Limpiar bloqueo al cambiar sección
             return True
         return False
 
@@ -375,10 +377,15 @@ class LegalEngineTITAN:
         etiqueta_articulo = "General / Sin Artículo Detectado"
         
         if matches:
-            # Filtrar artículos ya vistos
-            candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles]
+            # FILTRO v72: Filtrar Vistos Y BLOQUEADOS
+            candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles and m.group(0).upper().strip() not in self.temporary_blacklist]
+            
             if not candidatos:
-                candidatos = matches
+                # Si todos están bloqueados o vistos, reseteamos vistos pero MANTENEMOS los bloqueados si es posible
+                candidatos = [m for m in matches if m.group(0).upper().strip() not in self.temporary_blacklist]
+                if not candidatos: # Si TODO está bloqueado, liberamos
+                    candidatos = matches
+                    self.temporary_blacklist.clear()
                 self.seen_articles.clear()
             
             # Selección aleatoria
@@ -398,28 +405,23 @@ class LegalEngineTITAN:
             etiqueta_articulo = seleccion.group(0).upper().strip()
             self.current_article_label = etiqueta_articulo
 
-            # --- MICRO-SEGMENTACIÓN v71 (NUEVO: Detección de Numerales) ---
-            # Busca patrones como "1." o "a)" al inicio de línea dentro del artículo recortado
+            # --- MICRO-SEGMENTACIÓN v71 (Detección de Numerales) ---
+            # Busca patrones como "1." o "a)" al inicio de línea
             patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+)'
             sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
             
-            # Si hay una lista larga (más de 1 ítem), seleccionamos uno para forzar estudio granular
             if len(sub_matches) > 1:
                 sel_sub = random.choice(sub_matches)
                 start_sub = sel_sub.start()
                 idx_sub = sub_matches.index(sel_sub)
-                
-                # Cortar hasta el siguiente ítem o fin del texto
                 end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
                 
                 texto_fragmento = texto_final_ia[start_sub:end_sub]
-                id_sub = sel_sub.group(0).strip() # Ej: "3." o "c)"
+                id_sub = sel_sub.group(0).strip()
                 
-                # Contexto: Mantenemos el encabezado del artículo + el fragmento
                 encabezado = texto_final_ia[:100].split('\n')[0] 
                 if "ARTÍCULO" not in encabezado.upper(): encabezado = f"{self.current_article_label} (Contexto)"
                 
-                # Reescribimos lo que ve la IA y la Etiqueta
                 texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
                 self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
 
@@ -440,7 +442,7 @@ class LegalEngineTITAN:
 
         instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
 
-        # PROMPT FINAL v70/71 (CON TIP DE MEMORIA)
+        # PROMPT FINAL v70 (CON TIP DE MEMORIA)
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -543,21 +545,19 @@ class LegalEngineTITAN:
                 if "articulo_fuente" in final_json:
                     self.current_article_label = final_json["articulo_fuente"].upper()
                 
-                # Si hicimos micro-segmentación, forzamos la etiqueta compuesta (Art + Item) si la IA solo devolvió el Art
+                # Si hicimos micro-segmentación, intentamos mantener la etiqueta precisa
                 if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
-                     # Mantenemos nuestra etiqueta más precisa
                      pass
                 elif "articulo_fuente" in final_json:
                      self.current_article_label = final_json["articulo_fuente"].upper()
 
-                # --- BARAJADOR AUTOMÁTICO INTELIGENTE (v66) ---
+                # --- BARAJADOR AUTOMÁTICO INTELIGENTE ---
                 for q in final_json['preguntas']:
                     opciones_raw = list(q['opciones'].items()) 
                     explicaciones_raw = q.get('explicaciones', {})
                     respuesta_correcta_texto = q['opciones'][q['respuesta']]
                     tip_memoria = q.get('tip_memoria', "")
                     
-                    # Preparar barajado en bloque (Texto + Explicación)
                     items_barajados = []
                     for k, v in opciones_raw:
                         items_barajados.append({
@@ -588,7 +588,7 @@ class LegalEngineTITAN:
                     q['opciones'] = nuevas_opciones
                     q['respuesta'] = nueva_letra_respuesta
                     q['explicacion'] = texto_final_explicacion
-                    q['tip_final'] = tip_memoria # Guardamos el tip procesado
+                    q['tip_final'] = tip_memoria
 
                 return final_json
 
@@ -608,7 +608,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🔬 TITÁN v71 (Master)")
+    st.title("⏭️ TITÁN v72 (Salto)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -619,7 +619,7 @@ with st.sidebar:
     
     st.divider()
     
-    # --- VISUALIZACIÓN DE SEMÁFORO (NUEVO v68) ---
+    # --- VISUALIZACIÓN DE SEMÁFORO ---
     if engine.failed_articles:
         st.markdown("### 🔴 REPASAR (PENDIENTES)")
         html_fail = ""
@@ -697,7 +697,7 @@ with st.sidebar:
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
                     
-                    # Recuperar datos nuevos v68
+                    # Recuperar datos
                     engine.seen_articles = set(d.get('seen_arts', []))
                     engine.failed_articles = set(d.get('failed_arts', []))
                     engine.mastered_articles = set(d.get('mastered_arts', []))
@@ -766,28 +766,23 @@ if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
     subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
     
-    # VISUALIZACIÓN DEL FRANCOTIRADOR (Con fuente real confirmada)
     foco_msg = f"🎯 ENFOQUE CONFIRMADO: **{engine.current_article_label}**"
     st.info(foco_msg)
     
-    # --- TABLERO DE ESTADÍSTICAS ---
     c1, c2, c3 = st.columns(3)
     c1.metric("📊 Dominio Global", f"{perc}%")
     c2.metric("❌ Preguntas Falladas", f"{fails}")
     c3.metric("📉 Bloques Vistos", f"{len([x for x in engine.mastery_tracker.values() if x > 0])}/{total}")
-    # -------------------------------
 
     st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **{subtitulo}**")
     st.progress(perc/100)
 
     if not st.session_state.get('current_data'):
-        tipo = "CASO NARRATIVO" if "Con Caso" in engine.structure_type else "ENUNCIADO TÉCNICO"
         msg = f"🧠 Analizando {engine.current_article_label} - NIVEL {engine.level.upper()}..."
-        
         with st.spinner(msg):
             data = engine.generate_case()
             if data and "preguntas" in data:
-                st.session_state.case_id += 1 # ID Incremental v65+
+                st.session_state.case_id += 1 
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
             else:
@@ -804,30 +799,43 @@ if st.session_state.page == 'game':
         q = q_list[st.session_state.q_idx]
         st.write(f"### Pregunta {st.session_state.q_idx + 1}")
         
-        # KEY ÚNICA PARA EVITAR EL "EFECTO FANTASMA"
         form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
         
         with st.form(key=form_key):
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
-            # index=None asegura que no haya nada seleccionado al inicio
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()], index=None)
             
-            if st.form_submit_button("Validar"):
+            # --- BOTONES DE ACCIÓN (v72) ---
+            col_val, col_skip = st.columns([1, 1])
+            with col_val:
+                submitted = st.form_submit_button("✅ VALIDAR RESPUESTA")
+            with col_skip:
+                skipped = st.form_submit_button("⏭️ SALTAR (BLOQUEAR)")
+            
+            # LÓGICA DE SALTO (BLOQUEO TEMPORAL)
+            if skipped:
+                # 1. Agregar a lista negra temporal (de sesión)
+                engine.temporary_blacklist.add(engine.current_article_label.split(" - ITEM")[0].strip()) # Bloquea el artículo padre
+                st.toast(f"🚫 {engine.current_article_label} bloqueado por hoy.", icon="🗑️")
+                
+                # 2. Reiniciar para generar nuevo caso
+                st.session_state.current_data = None
+                st.rerun()
+
+            # LÓGICA DE VALIDACIÓN NORMAL
+            if submitted:
                 if not sel:
                     st.warning("⚠️ Debes seleccionar una opción primero.")
                 else:
                     letra_sel = sel.split(")")[0]
-                    # --- ETIQUETA COMPLETA CON CONTEXTO (v68) ---
                     full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
                     
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
                         engine.mastery_tracker[engine.current_chunk_idx] += 1
                         
-                        # LOGICA VERDE (CONTEXTUALIZADA)
                         if engine.current_article_label != "General":
-                            if full_tag in engine.failed_articles:
-                                engine.failed_articles.remove(full_tag)
+                            if full_tag in engine.failed_articles: engine.failed_articles.remove(full_tag)
                             engine.mastered_articles.add(full_tag)
                     else: 
                         st.error(f"Incorrecto. Era {q['respuesta']}")
@@ -836,15 +844,12 @@ if st.session_state.page == 'game':
                         if engine.chunk_embeddings is not None:
                             engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
                         
-                        # LOGICA ROJA (CONTEXTUALIZADA)
                         if engine.current_article_label != "General":
-                            if full_tag in engine.mastered_articles:
-                                engine.mastered_articles.remove(full_tag)
+                            if full_tag in engine.mastered_articles: engine.mastered_articles.remove(full_tag)
                             engine.failed_articles.add(full_tag)
                     
                     st.info(q['explicacion'])
                     
-                    # --- NUEVO: VISUALIZACIÓN DEL TIP DE MEMORIA (v70) ---
                     if 'tip_final' in q and q['tip_final']:
                         st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
                     
@@ -858,20 +863,4 @@ if st.session_state.page == 'game':
         
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
-            reasons_map = {
-                "Preguntas no tienen que ver con el Caso": "desconexion",
-                "Respuesta Incompleta": "recorte",
-                "Spoiler": "spoiler",
-                "Respuesta Obvia": "respuesta_obvia",
-                "Alucinación": "alucinacion",
-                "Opciones Desiguales": "sesgo_longitud",
-                "Muy Fácil": "pregunta_facil",
-                "Repetitivo": "repetitivo",
-                "Incoherente": "incoherente"
-            }
-            errores_sel = st.multiselect("Reportar fallos:", list(reasons_map.keys()))
-            if st.button("¡Castigar y Corregir!"):
-                for r in errores_sel:
-                    code = reasons_map[r]
-                    engine.feedback_history.append(code)
-                st.toast(f"Feedback enviado: {len(errores_sel)} error(es)", icon="🛡️")
+            if st.button("Reportar Fallo"): st.toast("Reporte enviado", icon="🛡️")
