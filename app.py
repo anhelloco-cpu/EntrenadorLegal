@@ -8,26 +8,26 @@ import re
 import io
 import os
 import sys
+import subprocess
 from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v82: SISTEMA JURÍDICO DE ALTO RENDIMIENTO (EDICIÓN MONUMENTAL)
+#  TITÁN v86: SISTEMA JURÍDICO INTEGRAL (EDICIÓN 100% CÓDIGO PURO)
+#  ----------------------------------------------------------------------------
+#  INCLUYE:
+#  1. SEGMENTACIÓN INTELIGENTE DUAL (Leyes + Guías con Índice Numérico).
+#  2. MOTOR NEURONAL DE VECTORES (Embeddings).
+#  3. GESTIÓN DE PDFS ROBUSTA.
+#  4. SISTEMA DE CALIBRACIÓN "5 CAPITANES".
+#  5. INTERFAZ GRÁFICA EXTENDIDA.
 # ==============================================================================
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # 1. GESTIÓN DE DEPENDENCIAS Y LIBRERÍAS EXTERNAS
 # ------------------------------------------------------------------------------
-# Verificamos las herramientas instaladas. Si seguiste el Paso 1 (requirements.txt),
-# estas variables serán TRUE y el sistema funcionará a plena potencia.
-
-try:
-    import pypdf
-    PDF_AVAILABLE = True
-except ImportError:
-    PDF_AVAILABLE = False
-
+# Intentamos cargar librerías de IA avanzada si están disponibles
 try:
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -36,22 +36,27 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
+# Intentamos cargar la librería de lectura de PDFs
+try:
+    import pypdf
+    PDF_AVAILABLE = True
+except ImportError:
+    # No forzamos instalación automática para evitar bucles de reinicio
+    PDF_AVAILABLE = False
+
 
 # ------------------------------------------------------------------------------
-# 2. CONFIGURACIÓN VISUAL Y ESTILOS (CSS AVANZADO)
+# 2. CONFIGURACIÓN VISUAL Y ESTILOS (CSS)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v82 - Monumental", 
-    page_icon="⚖️", 
+    page_title="TITÁN v86 - Master Full", 
+    page_icon="🦅", 
     layout="wide"
 )
 
-# Inyección de CSS para la interfaz gráfica profesional
 st.markdown("""
 <style>
-    /* ---------------------------------------------------------------------- */
-    /* ESTILOS DE BOTONES PRINCIPALES */
-    /* ---------------------------------------------------------------------- */
+    /* Estilo para botones principales en negro elegante */
     .stButton>button {
         width: 100%; 
         border-radius: 8px; 
@@ -62,93 +67,74 @@ st.markdown("""
         color: white;
         border: 1px solid #333;
     }
-    
     .stButton>button:hover {
         background-color: #333333;
         color: #ffffff;
         transform: scale(1.01);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     
-    /* ---------------------------------------------------------------------- */
-    /* CAJA DE NARRATIVA (CASO / NORMA) */
-    /* ---------------------------------------------------------------------- */
+    /* Caja para la narrativa del caso/norma */
     .narrative-box {
-        background-color: #f8f9fa; 
-        padding: 30px; 
+        background-color: #f5f5f5; 
+        padding: 25px; 
         border-radius: 12px; 
-        border-left: 6px solid #212121; 
+        border-left: 6px solid #424242; 
         margin-bottom: 25px;
         font-family: 'Georgia', serif; 
         font-size: 1.15em; 
         line-height: 1.6;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* ---------------------------------------------------------------------- */
-    /* ETIQUETAS DE SEMÁFORO (FEEDBACK VISUAL) */
-    /* ---------------------------------------------------------------------- */
+    /* Etiquetas para artículos fallados (ROJO) */
     .failed-tag {
-        background-color: #ffebee; 
-        color: #c62828; 
-        padding: 5px 10px; 
-        border-radius: 6px; 
-        font-size: 0.85em; 
+        background-color: #ffcccc; 
+        color: #990000; 
+        padding: 4px 8px; 
+        border-radius: 4px; 
+        font-size: 0.9em; 
         font-weight: bold; 
-        margin-right: 6px;
-        border: 1px solid #ef9a9a; 
+        margin-right: 5px;
+        border: 1px solid #cc0000; 
         display: inline-block;
-        margin-bottom: 6px;
+        margin-bottom: 5px;
     }
 
+    /* Etiquetas para artículos dominados (VERDE) */
     .mastered-tag {
-        background-color: #e8f5e9; 
-        color: #2e7d32; 
-        padding: 5px 10px; 
-        border-radius: 6px; 
-        font-size: 0.85em; 
+        background-color: #ccffcc; 
+        color: #006600; 
+        padding: 4px 8px; 
+        border-radius: 4px; 
+        font-size: 0.9em; 
         font-weight: bold; 
-        margin-right: 6px;
-        border: 1px solid #a5d6a7; 
+        margin-right: 5px;
+        border: 1px solid #006600; 
         display: inline-block;
-        margin-bottom: 6px;
+        margin-bottom: 5px;
     }
     
-    /* ---------------------------------------------------------------------- */
-    /* CAJAS DE ESTADÍSTICAS */
-    /* ---------------------------------------------------------------------- */
+    /* Cajas estadísticas del tablero */
     .stat-box {
         text-align: center; 
-        padding: 15px; 
+        padding: 10px; 
         background: #ffffff; 
-        border-radius: 10px; 
+        border-radius: 8px; 
         border: 1px solid #e0e0e0;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    
-    /* Tipografía General */
-    h1, h2, h3 {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        color: #111;
     }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ------------------------------------------------------------------------------
-# 3. CARGA DE MODELOS (OPTIMIZACIÓN DE CACHÉ)
+# 3. CARGA DEL MODELO DE EMBEDDINGS (CACHEADO)
 # ------------------------------------------------------------------------------
 @st.cache_resource
 def load_embedding_model():
-    """
-    Carga el modelo de vectores (SentenceTransformer) en la memoria caché.
-    Esto evita que se recargue cada vez que tocas un botón.
-    """
     if DL_AVAILABLE: 
         try:
             return SentenceTransformer('all-MiniLM-L6-v2')
         except Exception as e:
-            # Si falla la carga, continuamos sin IA neuronal, usando aleatoriedad.
             return None
     return None
 
@@ -164,57 +150,49 @@ ENTIDADES_CO = [
     "Procuraduría General de la Nación", 
     "Defensoría del Pueblo",
     "DIAN", 
-    "Registraduría Nacional del Estado Civil", 
+    "Registraduría Nacional", 
     "Consejo Superior de la Judicatura",
     "Corte Suprema de Justicia", 
     "Consejo de Estado", 
     "Corte Constitucional",
     "Policía Nacional", 
     "Ejército Nacional", 
-    "Instituto Colombiano de Bienestar Familiar (ICBF)", 
+    "ICBF", 
     "SENA", 
-    "Ministerio de Educación Nacional", 
-    "Ministerio de Salud y Protección Social", 
-    "Departamento Administrativo Nacional de Estadística (DANE)",
-    "Superintendencia de Industria y Comercio",
-    "Superintendencia Financiera",
+    "Ministerio de Educación", 
+    "Ministerio de Salud", 
+    "DANE",
     "Otra (Manual) / Agregar +"
 ]
 
 
 # ==============================================================================
 # ==============================================================================
-#  CLASE PRINCIPAL: MOTOR JURÍDICO TITÁN (EL CEREBRO)
+#  CLASE PRINCIPAL: MOTOR JURÍDICO TITÁN
 # ==============================================================================
 # ==============================================================================
 class LegalEngineTITAN:
     def __init__(self):
-        # ---------------------------------------------------------
-        # Variables de Almacenamiento de Datos (Memoria a Corto Plazo)
-        # ---------------------------------------------------------
-        self.chunks = []           # Fragmentos de texto procesado
-        self.chunk_embeddings = None # Vectores matemáticos del texto
-        self.mastery_tracker = {}  # Rastreador de progreso por chunk
-        self.failed_indices = set() # Índices de preguntas falladas
-        self.feedback_history = []  # Historial de quejas del usuario (Calibración)
-        self.current_data = None    # Datos de la pregunta actual
-        self.current_chunk_idx = -1 # Puntero al fragmento actual
+        # -- Almacenamiento de Datos --
+        self.chunks = []           
+        self.chunk_embeddings = None 
+        self.mastery_tracker = {}  
+        self.failed_indices = set()
+        self.feedback_history = [] 
+        self.current_data = None
+        self.current_chunk_idx = -1
         
-        # ---------------------------------------------------------
-        # Configuración de Usuario (Perfil)
-        # ---------------------------------------------------------
+        # -- Configuración de Usuario --
         self.entity = ""
         self.level = "Profesional" 
         self.simulacro_mode = False
         self.provider = "Unknown" 
         self.api_key = ""
         self.model = None 
-        self.current_temperature = 0.3 # Creatividad baja para precisión jurídica
+        self.current_temperature = 0.3 
         self.last_failed_embedding = None
         
-        # ---------------------------------------------------------
-        # Variables de Control Pedagógico (Estrategia)
-        # ---------------------------------------------------------
+        # -- Variables de Control Pedagógico --
         self.study_phase = "Pre-Guía" 
         self.example_question = "" 
         self.job_functions = ""    
@@ -222,135 +200,132 @@ class LegalEngineTITAN:
         self.structure_type = "Técnico / Normativo (Sin Caso)" 
         self.questions_per_case = 1 
         
-        # ---------------------------------------------------------
-        # Mapa de la Ley (Jerarquía Estructural)
-        # ---------------------------------------------------------
+        # -- Mapa de la Ley (Jerarquía) --
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
         
-        # ---------------------------------------------------------
-        # Sistema Francotirador & Semáforo (Memoria a Largo Plazo)
-        # ---------------------------------------------------------
-        self.seen_articles = set()      # Artículos ya vistos
-        self.failed_articles = set()    # Lista Roja (Pendientes de repaso)
-        self.mastered_articles = set()  # Lista Verde (Dominados)
-        self.temporary_blacklist = set() # Lista Negra de Sesión (Botón Saltar)
+        # -- Sistema Francotirador & Semáforo --
+        self.seen_articles = set()    
+        self.failed_articles = set()   # Lista Roja (Pendientes)
+        self.mastered_articles = set() # Lista Verde (Dominados)
+        self.temporary_blacklist = set() # Lista Negra de Sesión
         self.current_article_label = "General"
 
     # --------------------------------------------------------------------------
     # CONFIGURACIÓN DE API (LLAVE MAESTRA)
     # --------------------------------------------------------------------------
     def configure_api(self, key):
-        """
-        Configura el proveedor de IA basándose en el formato de la llave.
-        Soporta: Google Gemini, OpenAI (GPT), Groq (Llama).
-        """
         key = key.strip()
         self.api_key = key
         
         if key.startswith("gsk_"):
             self.provider = "Groq"
-            return True, "🚀 Motor GROQ Activado (Velocidad Extrema)"
+            return True, "🚀 Motor GROQ Activado"
         elif key.startswith("sk-") or key.startswith("sk-proj-"): 
             self.provider = "OpenAI"
-            return True, "🤖 Motor CHATGPT (GPT-4o) Activado (Máxima Calidad)"
+            return True, "🤖 Motor CHATGPT (GPT-4o) Activado"
         else:
             self.provider = "Google"
             try:
                 genai.configure(api_key=key)
                 model_list = genai.list_models()
                 models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
-                
-                # Prioridad: Gemini 1.5 Pro -> Flash -> Otros
                 target = next((m for m in models if 'gemini-1.5-pro' in m), 
                          next((m for m in models if 'flash' in m), models[0]))
-                
                 self.model = genai.GenerativeModel(target)
                 return True, f"🧠 Motor GOOGLE ({target}) Activado"
             except Exception as e:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (VISIÓN ÁGUILA v3)
+    # SEGMENTACIÓN INTELIGENTE v86 (LEYES + GUÍAS POR ÍNDICE)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto respetando la jerarquía completa: 
-        Libro > Título > Capítulo > Sección > Artículo.
-        Incluye lógica de 'mirar adelante' para títulos cortados.
+        Divide el texto respetando la jerarquía: 
+        1. ESTRUCTURA LEGAL: Libro > Título > Capítulo > Sección > Artículo.
+        2. ESTRUCTURA GUÍA (NUEVO): 1. Título > 1.1 Subtítulo (Para manuales)
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
         
+        # Jerarquía Legal
         active_hierarchy = {
-            "LIBRO": None, 
-            "TÍTULO": None, 
-            "CAPÍTULO": None, 
-            "SECCIÓN": None, 
-            "ARTÍCULO": None
+            "LIBRO": None, "TÍTULO": None, "CAPÍTULO": None, "SECCIÓN": None, "ARTÍCULO": None
+        }
+        
+        # Jerarquía Guía (Índices Numéricos)
+        active_index = {
+            "NIVEL_1": None, # Ej: 1. INTRODUCCIÓN
+            "NIVEL_2": None  # Ej: 1.1 OBJETIVOS
         }
 
-        # --- Expresiones Regulares Robustas ---
+        # --- PATRONES REGEX FLEXIBLES ---
+        # A. Patrones Legales
         patron_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
         patron_titulo_romano = r'^\s*([IVXLCDM]+)\.\s+(.+)' 
         patron_titulo_txt = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
         patron_capitulo = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
         patron_seccion_txt = r'^\s*(SECCIÓN|SECCION)\.?\s+'
         patron_articulo = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*\d+'
+        
+        # B. Patrones Guía (Índices) - AGREGADO A PETICIÓN
+        # Detecta "1. ALGO" o "2.3 ALGO" al inicio de línea
+        patron_idx_1 = r'^\s*(\d+)\.\s+([A-ZÁÉÍÓÚÑ].+)'      # Nivel 1 (1. Título)
+        patron_idx_2 = r'^\s*(\d+\.\d+)\.?\s+([A-ZÁÉÍÓÚÑ].+)' # Nivel 2 (1.1 Subtítulo)
 
+        # --- FUNCIÓN AUXILIAR: MIRAR ABAJO ---
         def buscar_continuacion(idx_actual):
-            # Mira hasta 3 líneas abajo buscando el nombre del título
+            # Mira hasta 3 líneas abajo buscando texto que no sea otro título
             for i in range(1, 4): 
                 if idx_actual + i < len(lineas):
                     txt = lineas[idx_actual + i].strip()
-                    if txt:
-                        # Si encontramos otro encabezado, paramos
+                    if txt: # Si hay texto
+                        # Si es otro encabezado (Art, Cap, etc), paramos y no unimos
                         if re.match(r'^(ART|CAP|TIT|LIB|SEC)', txt, re.IGNORECASE): 
                             return None
-                        return txt
+                        return txt 
             return None
 
         for idx, linea in enumerate(lineas):
             linea_limpia = linea.strip()
             if not linea_limpia: continue
 
-            # 1. Detectar LIBRO
+            # --- DETECCIÓN MODO LEGAL ---
+            
+            # Detectar LIBRO
             if re.match(patron_libro, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
-                if len(label) < 60:
+                if len(label) < 60: 
                     extra = buscar_continuacion(idx)
                     if extra: label = f"{label} - {extra}"
                 
                 active_hierarchy["LIBRO"] = label
-                active_hierarchy["TÍTULO"] = None
-                active_hierarchy["CAPÍTULO"] = None
-                active_hierarchy["SECCIÓN"] = None
+                active_hierarchy["TÍTULO"] = None; active_hierarchy["CAPÍTULO"] = None; active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
 
-            # 2. Detectar TÍTULO
+            # Detectar TÍTULO
             elif re.match(patron_titulo_romano, linea_limpia, re.IGNORECASE) or re.match(patron_titulo_txt, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
-                if len(label) < 60:
+                if len(label) < 60: 
                     extra = buscar_continuacion(idx)
                     if extra: label = f"{label} - {extra}"
                 
                 active_hierarchy["TÍTULO"] = label
-                active_hierarchy["CAPÍTULO"] = None
-                active_hierarchy["SECCIÓN"] = None
+                active_hierarchy["CAPÍTULO"] = None; active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
 
-            # 3. Detectar CAPÍTULO
+            # Detectar CAPÍTULO
             elif re.match(patron_capitulo, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
                 if len(label) < 60:
                     extra = buscar_continuacion(idx)
                     if extra: label = f"{label} - {extra}"
                 
-                active_hierarchy["CAPÍTULO"] = label
-                active_hierarchy["SECCIÓN"] = None
+                active_hierarchy["CAPÍTULO"] = label; active_hierarchy["SECCIÓN"] = None
                 secciones[label] = []
 
-            # 4. Detectar SECCIÓN
+            # Detectar SECCIÓN
             elif re.match(patron_seccion_txt, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
                 if len(label) < 60:
@@ -360,59 +335,69 @@ class LegalEngineTITAN:
                 active_hierarchy["SECCIÓN"] = label
                 secciones[label] = []
             
-            # 5. Detectar ARTÍCULO
+            # Detectar ARTÍCULO
             elif re.match(patron_articulo, linea_limpia, re.IGNORECASE):
                 label = linea_limpia.split('.')[0] + "."
                 if len(label) > 20: label = label[:20]
                 active_hierarchy["ARTÍCULO"] = label
+            
+            # --- DETECCIÓN MODO GUÍA (ÍNDICE) ---
+            
+            elif re.match(patron_idx_1, linea_limpia):
+                m = re.match(patron_idx_1, linea_limpia)
+                label = f"CAPÍTULO {m.group(1)}: {m.group(2)[:80]}"
+                active_index["NIVEL_1"] = label
+                active_index["NIVEL_2"] = None
+                if label not in secciones: secciones[label] = []
+            
+            elif re.match(patron_idx_2, linea_limpia):
+                m = re.match(patron_idx_2, linea_limpia)
+                label = f"SECCIÓN {m.group(1)}: {m.group(2)[:80]}"
+                active_index["NIVEL_2"] = label
+                if label not in secciones: secciones[label] = []
 
             # Guardado en cascada (Nesting)
             secciones["Todo el Documento"].append(linea) 
+            
+            # Guardado Legal
             if active_hierarchy["LIBRO"]: secciones[active_hierarchy["LIBRO"]].append(linea)
             if active_hierarchy["TÍTULO"]: secciones[active_hierarchy["TÍTULO"]].append(linea)
             if active_hierarchy["CAPÍTULO"]: secciones[active_hierarchy["CAPÍTULO"]].append(linea)
             if active_hierarchy["SECCIÓN"]: secciones[active_hierarchy["SECCIÓN"]].append(linea)
+            
+            # Guardado Guía (Índice)
+            if active_index["NIVEL_1"]: secciones[active_index["NIVEL_1"]].append(linea)
+            if active_index["NIVEL_2"]: secciones[active_index["NIVEL_2"]].append(linea)
 
-        return {k: "\n".join(v) for k, v in secciones.items() if v}
+        return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 10} # Filtro ruido
 
     # --------------------------------------------------------------------------
     # PROCESAMIENTO DE TEXTO (CHUNKS)
     # --------------------------------------------------------------------------
     def process_law(self, text, axis_name):
-        """
-        Toma el texto bruto, lo limpia, lo segmenta y lo convierte en vectores.
-        """
         text = text.replace('\r', '')
-        if len(text) < 100: return 0 # Protección contra textos vacíos
-        
+        if len(text) < 100: return 0
         self.thematic_axis = axis_name 
         self.sections_map = self.smart_segmentation(text)
         
-        # Chunks de 50.000 caracteres para dar suficiente contexto a la IA
+        # Chunks de 50.000 caracteres para mantener contexto amplio
         self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
         self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
         
         if dl_model: 
-            with st.spinner("🧠 Analizando jerarquía vectorial (Red Neuronal)..."): 
+            with st.spinner("🧠 Analizando jerarquía vectorial..."): 
                 self.chunk_embeddings = dl_model.encode(self.chunks)
         return len(self.chunks)
 
     def update_chunks_by_section(self, section_name):
-        """
-        Permite al usuario estudiar solo una parte de la ley (Ej: Solo Título II).
-        """
         if section_name in self.sections_map:
             texto_seccion = self.sections_map[section_name]
             self.chunks = [texto_seccion[i:i+50000] for i in range(0, len(texto_seccion), 50000)]
             self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.active_section_name = section_name
-            
-            if dl_model: 
-                self.chunk_embeddings = dl_model.encode(self.chunks)
-            
-            # Reseteamos filtros temporales al cambiar de sección
+            if dl_model: self.chunk_embeddings = dl_model.encode(self.chunks)
             self.seen_articles.clear()
-            self.temporary_blacklist.clear()
+            self.temporary_blacklist.clear() # Limpiar bloqueo al cambiar sección
             return True
         return False
 
@@ -423,7 +408,7 @@ class LegalEngineTITAN:
         if not self.chunks: return 0, 0, 0
         total = len(self.chunks)
         
-        # UMBRAL: Necesitas 50 puntos de maestría por chunk para considerarlo dominado
+        # --- AJUSTE MATEMÁTICO (50 Puntos para llenado lento) ---
         SCORE_THRESHOLD = 50
         
         score = sum([min(v, SCORE_THRESHOLD) for v in self.mastery_tracker.values()])
@@ -438,87 +423,95 @@ class LegalEngineTITAN:
         return """
         INSTRUCCIONES DE FORMATO:
         1. NO REPETIR TEXTO: El 'enunciado' NO debe repetir lo que ya dice la 'narrativa_caso'.
-        2. NO CHIVATEAR: No digas "Según el Título X". Di "Según la norma".
+        2. NO CHIVATEAR: No digas "Según el Título X" o "Según el numeral 2.1". Di "Según la norma".
         """
 
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (EL CORAZÓN DEL SISTEMA)
+    # GENERADOR DE CASOS (MOTOR PRINCIPAL)
     # --------------------------------------------------------------------------
     def generate_case(self):
-        """
-        Construye el Prompt Maestro para la IA.
-        Aquí es donde se integran los 5 Capitanes, el Semáforo y el Francotirador.
-        """
-        if not self.api_key: return {"error": "Falta Llave API"}
+        if not self.api_key: return {"error": "Falta Llave"}
         if not self.chunks: return {"error": "Falta Norma"}
         
         idx = -1
-        # --- LÓGICA DE REPASO DE ERRORES (EMBEDDINGS) ---
+        # Lógica de repaso de errores (Embeddings)
         if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
-            # Busca chunks similares al que fallaste
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
             candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 3]
             candidatos.sort(key=lambda x: x[1], reverse=True)
             if candidatos: idx = candidatos[0][0]
         
-        if idx == -1: 
-            idx = random.choice(range(len(self.chunks)))
-            
+        if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
+        
         texto_base = self.chunks[idx]
         
-        # --- FRANCOTIRADOR: BUSCA ARTÍCULOS ---
+        # --- FRANCOTIRADOR CON ANCLAJE DUAL (ARTÍCULOS O ÍNDICES) ---
+        
+        # 1. Buscamos Artículos (Leyes)
         patron_articulo = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[A-Z]?)'
         matches = list(re.finditer(patron_articulo, texto_base, re.IGNORECASE | re.MULTILINE))
         
+        # 2. Si no hay artículos, buscamos Índices Numéricos (Guías)
+        if not matches:
+             patron_indice = r'^\s*(\d+\.\d+|\d+\.)\s+([A-ZÁÉÍÓÚÑ].+)'
+             matches = list(re.finditer(patron_indice, texto_base, re.MULTILINE))
+
         texto_final_ia = texto_base
-        etiqueta_articulo = "General / Sin Artículo Detectado"
+        etiqueta_articulo = "General / Sin Estructura Detectada"
         
         if matches:
-            # Filtro inteligente: Evitar repetidos y bloqueados
+            # FILTRO v72: Filtrar Vistos Y BLOQUEADOS
             candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles and m.group(0).upper().strip() not in self.temporary_blacklist]
             
             if not candidatos:
-                # Si se acabaron los nuevos, usamos los no bloqueados (pero no los blacklist)
+                # Si todos están bloqueados o vistos, reseteamos vistos pero MANTENEMOS los bloqueados
                 candidatos = [m for m in matches if m.group(0).upper().strip() not in self.temporary_blacklist]
-                if not candidatos: 
-                    # Si TODO está bloqueado, liberamos la lista negra temporal
+                if not candidatos: # Si TODO está bloqueado, liberamos
                     candidatos = matches
                     self.temporary_blacklist.clear()
                 self.seen_articles.clear()
             
+            # Selección aleatoria
             seleccion = random.choice(candidatos)
+            
+            # --- FOCUS ESTRICTO (CORTE EXACTO) ---
             start_pos = seleccion.start()
             current_match_index = matches.index(seleccion)
             
-            # Cortamos exactamente donde termina este artículo y empieza el siguiente
+            # Si existe un siguiente elemento, cortamos ANTES de que empiece
             if current_match_index + 1 < len(matches):
                 end_pos = matches[current_match_index + 1].start()
             else:
                 end_pos = min(len(texto_base), start_pos + 4000)
 
             texto_final_ia = texto_base[start_pos:end_pos] 
-            etiqueta_articulo = seleccion.group(0).upper().strip()
+            etiqueta_articulo = seleccion.group(0).upper().strip()[:60] # Acortar si es muy largo
             self.current_article_label = etiqueta_articulo
 
-            # --- MICRO-SEGMENTACIÓN (El Micro-Cirujano) ---
-            # Busca numerales (1.), literales (a)) o Definiciones (Palabra:)
+            # --- MICRO-SEGMENTACIÓN v86 (MEJORADA: Numerales + Definiciones) ---
+            # Busca: 1., a), o Definiciones con :
             patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
+            
             sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
             
             if len(sub_matches) > 1:
+                # Elegimos uno al azar para preguntar específicamente sobre él
                 sel_sub = random.choice(sub_matches)
                 start_sub = sel_sub.start()
                 idx_sub = sub_matches.index(sel_sub)
                 
+                # Cortar hasta el siguiente ítem o fin del texto
                 end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
                 
                 texto_fragmento = texto_final_ia[start_sub:end_sub]
+                
+                # Limpiamos el ID (quitamos espacios y puntos finales para la etiqueta)
                 id_sub = sel_sub.group(0).strip()
                 if len(id_sub) > 20: id_sub = id_sub[:20] + "..."
                 
-                encabezado = texto_final_ia[:100].split('\n')[0] 
-                if "ARTÍCULO" not in encabezado.upper(): encabezado = f"{self.current_article_label} (Contexto)"
+                # Contexto: Mantenemos el encabezado del artículo + el fragmento
+                encabezado = texto_final_ia[:150].split('\n')[0] 
                 
                 texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
                 self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
@@ -540,13 +533,12 @@ class LegalEngineTITAN:
 
         instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
 
-        # --- 5 CAPITANES: RECONEXIÓN DE CALIBRACIÓN REAL ---
+        # --- RECONEXIÓN DE CALIBRACIÓN (v76: 5 CAPITANES) ---
         feedback_instr = ""
         if self.feedback_history:
             last_feeds = self.feedback_history[-5:] # Tomamos los últimos 5 reclamos
             instrucciones_correccion = []
             
-            # Traducción de quejas a órdenes para la IA
             if "pregunta_facil" in last_feeds: 
                 instrucciones_correccion.append("ALERTA: El usuario reportó 'Muy Fácil'. AUMENTAR DRASTICAMENTE LA DIFICULTAD Y COMPLEJIDAD.")
             if "respuesta_obvia" in last_feeds: 
@@ -555,13 +547,13 @@ class LegalEngineTITAN:
                 instrucciones_correccion.append("ALERTA: El usuario reportó 'Spoiler'. EL ENUNCIADO NO PUEDE CONTENER PISTAS DE LA RESPUESTA.")
             if "desconexion" in last_feeds: 
                 instrucciones_correccion.append("ALERTA: El usuario reportó 'Desconexión'. LA PREGUNTA DEBE ESTAR 100% VINCULADA AL CASO Y TEXTO.")
-            if "sesgo_longitud" in last_feeds:
+            if "sesgo_longitud" in last_feeds: 
                 instrucciones_correccion.append("ALERTA: El usuario reportó 'Opciones Desiguales'. LA RESPUESTA CORRECTA NO PUEDE SER LA MÁS LARGA. EQUILIBRAR LONGITUD DE TODAS LAS OPCIONES.")
             
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
 
-        # PROMPT FINAL
+        # PROMPT FINAL GIGANTE
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -593,7 +585,7 @@ class LegalEngineTITAN:
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "articulo_fuente": "ARTÍCULO X",
+            "articulo_fuente": "ARTÍCULO X / PUNTO X",
             "narrativa_caso": "Texto de contexto...",
             "preguntas": [
                 {{
@@ -617,12 +609,11 @@ class LegalEngineTITAN:
         }}
         """
         
-        # --- LLAMADA A LA API (MOTOR DE GENERACIÓN) ---
         max_retries = 3
         attempts = 0
         while attempts < max_retries:
             try:
-                # 1. OPENAI
+                # --- LLAMADA A OPENAI ---
                 if self.provider == "OpenAI":
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
@@ -638,13 +629,13 @@ class LegalEngineTITAN:
                     if resp.status_code != 200: return {"error": f"OpenAI Error {resp.status_code}: {resp.text}"}
                     text_resp = resp.json()['choices'][0]['message']['content']
 
-                # 2. GOOGLE
+                # --- LLAMADA A GOOGLE ---
                 elif self.provider == "Google":
                     safety = [{"category": f"HARM_CATEGORY_{c}", "threshold": "BLOCK_NONE"} for c in ["HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT"]]
                     res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature}, safety_settings=safety)
                     text_resp = res.text.strip()
                 
-                # 3. GROQ
+                # --- LLAMADA A GROQ ---
                 else:
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
@@ -656,14 +647,13 @@ class LegalEngineTITAN:
                     resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
                     text_resp = resp.json()['choices'][0]['message']['content']
 
-                # Limpieza de Markdown si la IA lo pone
                 if "```" in text_resp:
                     match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
                     if match: text_resp = match.group(1).strip()
                 
                 final_json = json.loads(text_resp)
                 
-                # Auto-Fuente: Si la IA detecta mejor el artículo que el Regex
+                # --- AUTO-FUENTE ---
                 if "articulo_fuente" in final_json:
                     # Si ya teníamos una etiqueta precisa (ITEM), no la sobrescribimos con una genérica
                     if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
@@ -717,12 +707,9 @@ class LegalEngineTITAN:
                 if attempts == max_retries: return {"error": f"Fallo Crítico: {str(e)}"}
         return {"error": "Saturado."}
 
-
-# ==============================================================================
-# ==============================================================================
-#  INTERFAZ DE USUARIO (SIDEBAR Y MAIN)
-# ==============================================================================
-# ==============================================================================
+# ==========================================
+# INTERFAZ DE USUARIO (SIDEBAR Y MAIN)
+# ==========================================
 if 'engine' not in st.session_state: st.session_state.engine = LegalEngineTITAN()
 if 'case_id' not in st.session_state: st.session_state.case_id = 0 # ID Único para evitar fantasmas
 if 'page' not in st.session_state: st.session_state.page = 'setup'
@@ -731,7 +718,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v82 (Monumental)")
+    st.title("🦅 TITÁN v86 (Integral)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -740,15 +727,6 @@ with st.sidebar:
             if ok: st.success(msg)
             else: st.error(msg)
     
-    st.divider()
-    
-    # --- ZONA DE GESTIÓN DE PDF (ANTIBLOQUEO SEGURO) ---
-    if not PDF_AVAILABLE:
-        st.warning("⚠️ Lector PDF Inactivo")
-        st.info("Para activarlo: Crea un archivo 'requirements.txt' y pon 'pypdf' dentro. Luego reinicia.")
-    else:
-        st.success("✅ Lector PDF: ACTIVO Y LISTO")
-
     st.divider()
     
     # --- VISUALIZACIÓN DE SEMÁFORO ---
@@ -797,8 +775,8 @@ with st.sidebar:
     with tab1:
         st.markdown("### 📄 Cargar Documento")
         
-        # --- CARGA DE PDF (LÓGICA BLINDADA) ---
-        extracted_text = ""
+        # --- CARGA DE PDF (INTEGRADA v86) ---
+        txt_pdf = ""
         if PDF_AVAILABLE:
             upl_pdf = st.file_uploader("Subir PDF (Guía, Ley, Procedimiento):", type=['pdf'])
             if upl_pdf:
@@ -806,21 +784,23 @@ with st.sidebar:
                     try:
                         reader = pypdf.PdfReader(upl_pdf)
                         for page in reader.pages:
-                            extracted_text += page.extract_text() + "\n"
-                        st.success(f"¡PDF Leído con éxito! {len(reader.pages)} páginas extraídas.")
+                            txt_pdf += page.extract_text() + "\n"
+                        st.success(f"¡PDF Leído! {len(reader.pages)} páginas extraídas.")
                     except Exception as e:
                         st.error(f"Error leyendo PDF: {e}")
-        
+        else:
+            st.warning("⚠️ Lector PDF no disponible (Falta pypdf). Usa texto manual o instala la librería.")
+
         st.caption("O pega aquí el texto manualmente:")
-        
-        # Si se extrajo texto del PDF, lo ponemos por defecto en el área de texto
-        txt_default = extracted_text if extracted_text else ""
-        txt_manual = st.text_area("Texto de la Norma:", value=txt_default, height=150)
-        
         axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
         
+        # Área de texto manual
+        txt_manual = st.text_area("Texto de la Norma:", height=150)
+        
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
-            contenido_final = txt_manual if txt_manual else extracted_text
+            # Prioridad: PDF > Texto Manual
+            contenido_final = txt_pdf if txt_pdf else txt_manual
+            
             if engine.process_law(contenido_final, axis_input): 
                 st.session_state.page = 'game'
                 st.session_state.current_data = None
@@ -850,7 +830,7 @@ with st.sidebar:
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
                     
-                    # Recuperar datos de semáforo
+                    # Recuperar datos
                     engine.seen_articles = set(d.get('seen_arts', []))
                     engine.failed_articles = set(d.get('failed_arts', []))
                     engine.mastered_articles = set(d.get('mastered_arts', []))
@@ -862,18 +842,6 @@ with st.sidebar:
                     st.success("¡Backup Cargado!")
                     time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
                 except Exception as e: st.error(f"Error al leer: {e}")
-
-    if engine.chunks:
-        full_save_data = {
-            "chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices),
-            "feed": engine.feedback_history, "ent": engine.entity, "axis": engine.thematic_axis,
-            "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
-            "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case,
-            "sections": engine.sections_map, "act_sec": engine.active_section_name,
-            # Guardar datos nuevos
-            "seen_arts": list(engine.seen_articles), "failed_arts": list(engine.failed_articles), "mastered_arts": list(engine.mastered_articles)
-        }
-        st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
 
     if engine.sections_map and len(engine.sections_map) > 1:
         st.divider()
@@ -911,12 +879,22 @@ with st.sidebar:
             
     if st.button("🔥 INICIAR SIMULACRO", disabled=not engine.chunks):
         engine.simulacro_mode = True; st.session_state.current_data = None; st.session_state.page = 'game'; st.rerun()
+    
+    if engine.chunks:
+        full_save_data = {
+            "chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices),
+            "feed": engine.feedback_history, "ent": engine.entity, "axis": engine.thematic_axis,
+            "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
+            "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case,
+            "sections": engine.sections_map, "act_sec": engine.active_section_name,
+            # Guardar datos nuevos
+            "seen_arts": list(engine.seen_articles), "failed_arts": list(engine.failed_articles), "mastered_arts": list(engine.mastered_articles)
+        }
+        st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
 
-# ==============================================================================
-# ==============================================================================
-#  CICLO PRINCIPAL DEL JUEGO (GAME LOOP)
-# ==============================================================================
-# ==============================================================================
+# ==========================================
+# CICLO PRINCIPAL DEL JUEGO
+# ==========================================
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
     subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
@@ -1014,7 +992,7 @@ if st.session_state.page == 'game':
         
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
-            # --- 5 CAPITANES ACTIVOS (v81) ---
+            # --- 5 CAPITANES ACTIVOS (v76/77) ---
             reasons_map = {
                 "Muy Fácil": "pregunta_facil",
                 "Respuesta Obvia": "respuesta_obvia",
