@@ -23,8 +23,8 @@ except ImportError:
 # CONFIGURACIÓN VISUAL Y ESTILOS CSS
 # ==========================================
 st.set_page_config(
-    page_title="TITÁN v75 - Justicia Restaurada (Full)", 
-    page_icon="⚖️", 
+    page_title="TITÁN v76 - Full Master", 
+    page_icon="🦅", 
     layout="wide"
 )
 
@@ -168,7 +168,7 @@ class LegalEngineTITAN:
         self.seen_articles = set()    
         self.failed_articles = set()   # Lista Roja (Pendientes)
         self.mastered_articles = set() # Lista Verde (Dominados)
-        self.temporary_blacklist = set() # Lista Negra de Sesión (v72)
+        self.temporary_blacklist = set() # Lista Negra de Sesión
         self.current_article_label = "General"
 
     # ------------------------------------------
@@ -406,20 +406,31 @@ class LegalEngineTITAN:
             etiqueta_articulo = seleccion.group(0).upper().strip()
             self.current_article_label = etiqueta_articulo
 
-            # --- MICRO-SEGMENTACIÓN v71 (Detección de Numerales) ---
-            # Busca patrones como "1." o "a)" al inicio de línea
-            patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+)'
+            # --- MICRO-SEGMENTACIÓN v76 (MEJORADA: Numerales + Definiciones) ---
+            # Busca:
+            # 1. Numerales (1., 2.)
+            # 2. Literales (a), b))
+            # 3. Definiciones con : o . (Ej: "Vigilancia fiscal.")
+            patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
+            
             sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
             
             if len(sub_matches) > 1:
+                # Elegimos uno al azar para preguntar específicamente sobre él
                 sel_sub = random.choice(sub_matches)
                 start_sub = sel_sub.start()
                 idx_sub = sub_matches.index(sel_sub)
+                
+                # Cortar hasta el siguiente ítem o fin del texto
                 end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
                 
                 texto_fragmento = texto_final_ia[start_sub:end_sub]
-                id_sub = sel_sub.group(0).strip()
                 
+                # Limpiamos el ID (quitamos espacios y puntos finales para la etiqueta)
+                id_sub = sel_sub.group(0).strip()
+                if len(id_sub) > 20: id_sub = id_sub[:20] + "..."
+                
+                # Contexto: Mantenemos el encabezado del artículo + el fragmento
                 encabezado = texto_final_ia[:100].split('\n')[0] 
                 if "ARTÍCULO" not in encabezado.upper(): encabezado = f"{self.current_article_label} (Contexto)"
                 
@@ -443,12 +454,12 @@ class LegalEngineTITAN:
 
         instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
 
-        # --- RECONEXIÓN DE CALIBRACIÓN (v74: JUSTICIA RESTAURADA) ---
-        # Ahora el feedback del usuario SÍ altera el Prompt de la IA en tiempo real.
+        # --- RECONEXIÓN DE CALIBRACIÓN (v76: 5 CAPITANES) ---
         feedback_instr = ""
         if self.feedback_history:
             last_feeds = self.feedback_history[-5:] # Tomamos los últimos 5 reclamos
             instrucciones_correccion = []
+            
             if "pregunta_facil" in last_feeds: 
                 instrucciones_correccion.append("ALERTA: El usuario reportó 'Muy Fácil'. AUMENTAR DRASTICAMENTE LA DIFICULTAD Y COMPLEJIDAD.")
             if "respuesta_obvia" in last_feeds: 
@@ -457,6 +468,8 @@ class LegalEngineTITAN:
                 instrucciones_correccion.append("ALERTA: El usuario reportó 'Spoiler'. EL ENUNCIADO NO PUEDE CONTENER PISTAS DE LA RESPUESTA.")
             if "desconexion" in last_feeds: 
                 instrucciones_correccion.append("ALERTA: El usuario reportó 'Desconexión'. LA PREGUNTA DEBE ESTAR 100% VINCULADA AL CASO Y TEXTO.")
+            if "sesgo_longitud" in last_feeds: # NUEVO CAPITÁN AGREGADO
+                instrucciones_correccion.append("ALERTA: El usuario reportó 'Opciones Desiguales'. LA RESPUESTA CORRECTA NO PUEDE SER LA MÁS LARGA. EQUILIBRAR LONGITUD DE TODAS LAS OPCIONES.")
             
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
@@ -628,7 +641,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("⚖️ TITÁN v75 (Master)")
+    st.title("🦅 TITÁN v76 (Master)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -879,20 +892,17 @@ if st.session_state.page == 'game':
         
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
+            # --- 5 CAPITANES ACTIVOS (v76) ---
             reasons_map = {
-                "Preguntas no tienen que ver con el Caso": "desconexion",
-                "Respuesta Incompleta": "recorte",
-                "Spoiler": "spoiler",
-                "Respuesta Obvia": "respuesta_obvia",
-                "Alucinación": "alucinacion",
-                "Opciones Desiguales": "sesgo_longitud",
                 "Muy Fácil": "pregunta_facil",
-                "Repetitivo": "repetitivo",
-                "Incoherente": "incoherente"
+                "Respuesta Obvia": "respuesta_obvia",
+                "Spoiler (Pistas en enunciado)": "spoiler",
+                "Desconexión (Nada que ver)": "desconexion",
+                "Opciones Desiguales (Longitud)": "sesgo_longitud"
             }
-            errores_sel = st.multiselect("Reportar fallos:", list(reasons_map.keys()))
+            errores_sel = st.multiselect("Reportar para ajustar la IA:", list(reasons_map.keys()))
             if st.button("¡Castigar y Corregir!"):
                 for r in errores_sel:
                     # Guardamos el código del error
                     engine.feedback_history.append(reasons_map[r])
-                st.toast(f"Feedback enviado: {len(errores_sel)} error(es)", icon="🛡️")
+                st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
