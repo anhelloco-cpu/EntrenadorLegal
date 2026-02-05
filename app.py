@@ -13,15 +13,16 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v99.3: SISTEMA JURÍDICO INTEGRAL (RESTRICCIÓN 2 NIVELES)
+#  TITÁN v99.3: SISTEMA JURÍDICO INTEGRAL (RESTRICCIÓN 2 NIVELES + SECUENCIA)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN ELIMINA EL "RUIDO" DE LOS SUBNIVELES PROFUNDOS.
+#  ESTA VERSIÓN ELIMINA EL "RUIDO" DE LOS SUBNIVELES PROFUNDOS Y LISTAS CORTAS.
 #  
 #  MEJORAS ESPECÍFICAS (v99.3):
-#  1. BLOQUEO DE NIVEL 3+: Si detecta "5.1.1" o "5.1.1.1", NO crea una sección.
-#     Lo guarda como texto dentro del nivel superior (5.1). Esto limpia el mapa.
-#  2. SOLO 2 NIVELES: El mapa solo mostrará "5. Título" y "5.1 Subtítulo".
-#  3. FILTROS ANTERIORES: Se mantienen (Anti-índice, Longitud, Tabulación).
+#  1. SOLO 2 NIVELES: El mapa solo mostrará "5. Título" y "5.1 Subtítulo".
+#     Los nietos (5.1.1) se guardan como contenido de texto, no como secciones.
+#  2. SECUENCIA ESTRICTA: Impide que listas internas (1., 2., 3.) se confundan
+#     con capítulos si ya vamos por el 5.
+#  3. LIMPIEZA TOTAL: Anti-índice y Tabulación se mantienen.
 # ==============================================================================
 # ==============================================================================
 
@@ -249,7 +250,7 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODO V99.3: RESTRICCIÓN DE NIVELES)
+    # SEGMENTACIÓN INTELIGENTE (MODO V99.3: RESTRICCIÓN 2 NIVELES)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
@@ -317,17 +318,25 @@ class LegalEngineTITAN:
                         
                         # --- FILTRO DE PROFUNDIDAD (V99.3 CRÍTICO) ---
                         # Contamos cuántas partes numéricas tiene "5.1" (2 partes) vs "5.1.1" (3 partes)
+                        # También filtramos listas que empiezan con "1.1" pero son cortas y no secuenciales.
                         partes_numericas = re.findall(r'\d+', num_id)
                         
                         # SOLO procesamos si tiene 2 partes (Ej: 5.1). Si tiene 3 (5.1.1), se ignora como título.
-                        if len(partes_numericas) == 2 and len(txt_titulo) > 2: 
+                        # Además validamos que el Padre (5) coincida con la memoria secuencial.
+                        es_valido_n2 = False
+                        if len(partes_numericas) == 2:
+                            padre_num = int(partes_numericas[0])
+                            if padre_num == self.last_detected_chapter:
+                                es_valido_n2 = True
+                        
+                        if es_valido_n2 and len(txt_titulo) > 2: 
                             # Etiqueta limpia
                             current_label = f"{num_id} {txt_titulo[:80]}"
                             
                             # --- CASCADA: HERENCIA PADRE ---
-                            padre_num = partes_numericas[0] # "5"
+                            padre_num_str = partes_numericas[0] # "5"
                             # Buscamos al padre (ahora sin "CAPÍTULO")
-                            padre_label = next((k for k in secciones.keys() if k.startswith(f"{padre_num}. ")), None)
+                            padre_label = next((k for k in secciones.keys() if k.startswith(f"{padre_num_str}. ")), None)
                             
                             new_labels_this_line = [current_label]
                             if padre_label:
@@ -740,7 +749,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v99.2 (Cascada)")
+    st.title("🦅 TITÁN v99.3 (Selectivo)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
