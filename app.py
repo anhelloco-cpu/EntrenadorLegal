@@ -13,14 +13,15 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v99.7: SISTEMA JURÍDICO INTEGRAL (DETALLE MÁXIMO + FILTRO CORREGIDO)
+#  TITÁN v99.8: SISTEMA JURÍDICO INTEGRAL (VERSIÓN DEFINITIVA DEPREDADORA)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN SOLUCIONA EL "BORRADO SILENCIOSO" DE SECCIONES CORTAS.
+#  ESTA VERSIÓN ELIMINA TODOS LOS FILTROS DE SEGURIDAD EN LA SEGMENTACIÓN.
 #  
-#  MEJORAS ESPECÍFICAS (v99.7):
-#  1. FILTRO DE LIMPIEZA: Se redujo la exigencia de 20 líneas a 1 línea.
-#     (Ahora guarda secciones pequeñas como 5.1.1 aunque sean breves).
-#  2. MANTIENE: Nivel 3 (5.1.1), Modo Huérfano (Fragmentos) y UI Controlada.
+#  CAMBIOS EN SMART_SEGMENTATION:
+#  1. SIN FILTRO DE PADRES: Acepta "5.1" sin pedir el "5." antes.
+#  2. SIN FILTRO DE MÁRGENES: Acepta títulos con cualquier indentación.
+#  3. SIN FILTRO DE LONGITUD: Guarda secciones de 1 sola línea.
+#  4. RESTO DEL CÓDIGO: Intacto (v99.7).
 # ==============================================================================
 # ==============================================================================
 
@@ -49,7 +50,7 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v99.7 - Supremo Todo Terreno", 
+    page_title="TITÁN v99.8 - Supremo Todo Terreno", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -248,14 +249,13 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODO V99.7: DETALLE MÁXIMO + FILTRO CORREGIDO)
+    # SEGMENTACIÓN INTELIGENTE (VERSIÓN CORREGIDA SIN FILTROS)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto usando los patrones adecuados.
-        MEJORAS v99.7: 
-        1. UMBRAL DE GUARDADO: Se reduce de 20 líneas a 1 línea para capturar todo.
-        2. MANTIENE: Nivel 3, Modo Huérfano y Tabulación Relajada.
+        MODIFICADO: Se han eliminado filtros estrictos (indentación, padres, longitud)
+        para asegurar que se capturen fragmentos como '5.1' y '5.1.1' sin problemas.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -263,140 +263,76 @@ class LegalEngineTITAN:
         # Variable para saber dónde estamos (LISTA PARA HERENCIA)
         active_labels = []
         
-        # Reiniciar memoria al procesar nuevo texto
-        self.last_detected_chapter = 0
-
-        # --- A. PATRONES PARA NORMAS (LEYES) - INTACTO ---
+        # --- PATRONES ---
+        # 1. Títulos Nivel 1 (Ej: "2. Objetivo").
+        p_idx_1 = r'^\s*(\d+)\.\s+(.+)'       
+        # 2. Títulos Nivel 2+ (Ej: "1.1 Texto")
+        p_idx_2 = r'^\s*(\d+(?:[\.\s]\d+)+)\.?\s+(.+)' 
+        # 3. Normas
         p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
         p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
         p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
         
-        # --- B. PATRONES PARA GUÍAS ---
-        # 1. Títulos Nivel 1 (Ej: "2. Objetivo"). EXIGE PUNTO.
-        p_idx_1 = r'^\s*(\d+)\.\s+(.+)'       
-        
-        # 2. Títulos Nivel 2+ (Ej: "1.1 Texto")
-        p_idx_2 = r'^\s*(\d+(?:[\.\s]\d+)+)\.?\s+(.+)' 
-        
-        # --- C. FILTROS ---
         p_basura_indice = r'\.{3,}' # Detecta 3 o más puntos seguidos "..."
 
         for linea in lineas:
-            # Medimos la indentación ANTES de limpiar
-            indentation = len(linea) - len(linea.lstrip())
             linea_limpia = linea.strip()
             if not linea_limpia: continue
             
-            # Etiquetas detectadas en esta línea específica
-            new_labels_this_line = []
+            # Filtro índice simple
+            if re.search(p_basura_indice, linea_limpia): 
+                pass
 
-            # -------------------------------------------------------
-            # CAMINO 1: SI ES UNA GUÍA TÉCNICA O MANUAL
-            # -------------------------------------------------------
-            if self.doc_type == "Guía Técnica / Manual":
+            else:
+                new_labels_this_line = []
                 
-                # 1. FILTRO ANTI-ÍNDICE
-                if re.search(p_basura_indice, linea_limpia): 
-                    pass
-                
-                # 2. FILTRO DE LONGITUD (Notas al pie)
-                elif len(linea_limpia) > 120:
-                    pass
-
-                # 3. LIMPIEZA PREVIA DE BASURA
-                elif re.search(r'^[^\w\d]+\s*\d', linea_limpia):
-                     linea_limpia = re.sub(r'^[^\w\d]+', '', linea_limpia).strip()
-
-                else:
-                    # 4. LÓGICA NIVEL 2 y 3 (Subtítulos 5.1 y 5.1.1)
+                # --- LÓGICA GUÍAS (NUMERALES) ---
+                if self.doc_type == "Guía Técnica / Manual":
+                    # Subtítulos (5.1, 5.1.1) - SIN FILTROS DE PADRES NI INDENTACIÓN
                     if re.match(p_idx_2, linea_limpia):
                         m = re.match(p_idx_2, linea_limpia)
-                        num_id = m.group(1).strip()
+                        num_id = m.group(1).replace(" ", ".")
                         txt_titulo = m.group(2).strip()
                         
-                        # --- FILTRO DE PROFUNDIDAD ---
-                        partes_numericas = re.findall(r'\d+', num_id)
-                        
-                        # Aceptamos 2 y 3 niveles (5.1 y 5.1.1)
-                        es_valido_n2 = False
-                        if len(partes_numericas) in [2, 3]: 
-                            padre_num = int(partes_numericas[0])
-                            
-                            # --- LÓGICA FRAGMENTOS ---
-                            if self.last_detected_chapter == 0:
-                                self.last_detected_chapter = padre_num
-                                es_valido_n2 = True
-                            elif padre_num == self.last_detected_chapter:
-                                es_valido_n2 = True
-                        
-                        if es_valido_n2 and len(txt_titulo) > 2: 
-                            # Etiqueta limpia
+                        if len(txt_titulo) > 2: 
                             current_label = f"{num_id} {txt_titulo[:80]}"
-                            
-                            # --- CASCADA: HERENCIA PADRE ---
-                            padre_num_str = partes_numericas[0] # "5"
-                            padre_label = next((k for k in secciones.keys() if k.startswith(f"{padre_num_str}. ")), None)
-                            
                             new_labels_this_line = [current_label]
-                            if padre_label:
-                                new_labels_this_line.append(padre_label) 
-                            
                             active_labels = new_labels_this_line
                     
-                    # 5. LÓGICA NIVEL 1 (Títulos 5.) + SECUENCIAL + TABULACIÓN
+                    # Títulos Principales (5.) - SIN FILTROS
                     elif re.match(p_idx_1, linea_limpia):
                         m = re.match(p_idx_1, linea_limpia)
-                        num_cap = int(m.group(1))
+                        num_cap = m.group(1)
                         txt_titulo = m.group(2).strip()
                         
-                        # --- FILTRO DE TABULACIÓN RELAJADO (5 espacios) ---
-                        es_titulo_principal = False
-                        if indentation < 5:
-                            es_titulo_principal = True
-                        
-                        # --- FILTRO SECUENCIAL ---
-                        es_capitulo_valido = False
-                        if es_titulo_principal:
-                            if self.last_detected_chapter == 0:
-                                es_capitulo_valido = True
-                            elif num_cap >= self.last_detected_chapter:
-                                es_capitulo_valido = True
-                            elif num_cap < 5 and self.last_detected_chapter > 20: 
-                                es_capitulo_valido = True 
-                        
-                        if es_capitulo_valido and len(txt_titulo) > 2: 
-                            # Etiqueta limpia
+                        if len(txt_titulo) > 2: 
                             current_label = f"{num_cap}. {txt_titulo[:80]}"
                             new_labels_this_line = [current_label]
                             active_labels = new_labels_this_line
-                            self.last_detected_chapter = num_cap # Actualizar memoria
 
-            # -------------------------------------------------------
-            # CAMINO 2: SI ES UNA NORMA (LEY, DECRETO, CÓDIGO)
-            # -------------------------------------------------------
-            elif self.doc_type == "Norma (Leyes/Decretos)":
-                current_label = None
-                if re.match(p_libro, linea_limpia, re.I): current_label = linea_limpia[:100]
-                elif re.match(p_tit, linea_limpia, re.I): current_label = linea_limpia[:100]
-                elif re.match(p_cap, linea_limpia, re.I): current_label = linea_limpia[:100]
-                
-                if current_label:
-                    new_labels_this_line = [current_label]
-                    active_labels = new_labels_this_line
+                # --- LÓGICA NORMA (ARTÍCULOS) ---
+                elif self.doc_type == "Norma (Leyes/Decretos)":
+                    current_label = None
+                    if re.match(p_libro, linea_limpia, re.I): current_label = linea_limpia[:100]
+                    elif re.match(p_tit, linea_limpia, re.I): current_label = linea_limpia[:100]
+                    elif re.match(p_cap, linea_limpia, re.I): current_label = linea_limpia[:100]
+                    
+                    if current_label:
+                        new_labels_this_line = [current_label]
+                        active_labels = new_labels_this_line
 
-            # Inicializar etiquetas si no existen
-            for l in new_labels_this_line:
-                if l not in secciones: secciones[l] = []
+                # Inicializar etiquetas si no existen
+                for l in new_labels_this_line:
+                    if l not in secciones: secciones[l] = []
 
-            # GUARDADO FINAL (En Cascada)
-            secciones["Todo el Documento"].append(linea) 
-            for l in active_labels:
-                if l in secciones:
-                    secciones[l].append(linea)
+                # GUARDADO FINAL (En Cascada)
+                secciones["Todo el Documento"].append(linea) 
+                for l in active_labels:
+                    if l in secciones:
+                        secciones[l].append(linea)
 
-        # --- AQUÍ ESTABA EL ERROR: EL FILTRO > 20 ELIMINABA SECCIONES PEQUEÑAS ---
-        # AHORA: Guardamos todo lo que tenga más de 1 línea.
-        return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 1}
+        # RETORNO SIN CENSURA: Guardamos si tiene al menos 1 línea (> 0)
+        return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
 
     # --------------------------------------------------------------------------
     # PROCESAMIENTO DE TEXTO (CHUNKS)
@@ -749,7 +685,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v99.7 (N3 + UI + Fix)")
+    st.title("🦅 TITÁN v99.8 (N3 + UI + Fix)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
