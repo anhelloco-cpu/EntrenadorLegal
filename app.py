@@ -13,16 +13,16 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v99.1: SISTEMA JURÍDICO INTEGRAL (CASCADA + MEMORIA SECUENCIAL)
+#  TITÁN v99.2: SISTEMA JURÍDICO INTEGRAL (CASCADA + FILTROS INTELIGENTES)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN CORRIGE LA LECTURA DE ÍNDICES Y LISTAS INTERNAS.
+#  ESTA VERSIÓN CONTIENE LA LÓGICA DE SEGMENTACIÓN CORREGIDA PARA GUÍAS.
 #  
-#  MEJORAS TÉCNICAS (v99.1):
-#  1. MEMORIA SECUENCIAL: Si ya vamos por el Cap. 5, un "4." interno no reinicia
-#     el capítulo, sino que se guarda como contenido del 5.
-#  2. FILTRO TOC: Ignora líneas con puntos suspensivos ("....") para no leer
-#     la tabla de contenido como títulos reales.
-#  3. CASCADA: Herencia de contenido (Hijo -> Padre) mantenida.
+#  MEJORAS ESPECÍFICAS (v99.2):
+#  1. FILTRO ANTI-ÍNDICE: Ignora líneas con "..." (Tabla de contenido).
+#  2. FILTRO DE LONGITUD: Ignora títulos > 150 caracteres (Notas al pie).
+#  3. MEMORIA SECUENCIAL: Evita que listas internas (4.) reinicien capítulos.
+#  4. CASCADA: Herencia de contenido (Hijo -> Padre).
+#  5. UI: Selector de documento ubicado dentro de la pestaña de carga.
 # ==============================================================================
 # ==============================================================================
 
@@ -51,7 +51,7 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v99 - Supremo Todo Terreno", 
+    page_title="TITÁN v99.2 - Supremo Todo Terreno", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -214,6 +214,7 @@ class LegalEngineTITAN:
         # -- Mapa de la Ley (Jerarquía) --
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
+        self.last_detected_chapter = 0 # NUEVO: Memoria de capítulo para evitar retrocesos
         
         # -- Sistema Francotirador & Semáforo --
         self.seen_articles = set()    
@@ -249,15 +250,16 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODO V99.1: CASCADA + SECUENCIAL)
+    # SEGMENTACIÓN INTELIGENTE (MODO V99.2: FILTROS DE INTELIGENCIA)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto usando los patrones adecuados.
-        MEJORAS v99.1:
-        1. MEMORIA SECUENCIAL: Evita que listas internas (4.) se lean como capítulos si ya vamos adelante.
-        2. FILTRO TOC: Ignora líneas con puntos suspensivos.
-        3. CASCADA: Herencia Padre-Hijo.
+        MEJORAS v99.2: 
+        1. Filtro Anti-Índice ("...").
+        2. Filtro de Longitud (Notas al pie).
+        3. Memoria Secuencial (No volver al Cap 4 si voy en el 5).
+        4. Cascada (Herencia).
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -265,8 +267,8 @@ class LegalEngineTITAN:
         # Variable para saber dónde estamos (LISTA PARA HERENCIA)
         active_labels = []
         
-        # MEMORIA SECUENCIAL: Rastrea el último capítulo mayor visto
-        last_seen_chapter = 0
+        # Reiniciar memoria al procesar nuevo texto
+        self.last_detected_chapter = 0
 
         # --- A. PATRONES PARA NORMAS (LEYES) - INTACTO ---
         p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
@@ -280,8 +282,8 @@ class LegalEngineTITAN:
         # 2. Títulos Nivel 2+ (Ej: "1.1 Texto")
         p_idx_2 = r'^\s*(\d+(?:[\.\s]\d+)+)\.?\s+(.+)' 
         
-        # --- C. FILTRO ANTI-ÍNDICE (DETECTA PUNTOS SUSPENSIVOS) ---
-        p_basura_indice = r'\.{3,}' 
+        # --- C. FILTROS ---
+        p_basura_indice = r'\.{3,}' # Detecta 3 o más puntos seguidos "..."
 
         for linea in lineas:
             linea_limpia = linea.strip()
@@ -294,34 +296,38 @@ class LegalEngineTITAN:
             # CAMINO 1: SI ES UNA GUÍA TÉCNICA O MANUAL
             # -------------------------------------------------------
             if self.doc_type == "Guía Técnica / Manual":
-                # 1. Filtro Anti-Índice (Tabla de Contenido)
+                
+                # 1. FILTRO ANTI-ÍNDICE: Si tiene "...", es basura.
                 if re.search(p_basura_indice, linea_limpia): 
-                    # Ignoramos la línea si parece índice (tiene "...")
                     pass
                 
-                # 2. Limpieza Previa de Basura
+                # 2. FILTRO DE LONGITUD: Si tiene > 150 caracteres, es nota al pie o texto.
+                elif len(linea_limpia) > 150:
+                    pass
+
+                # 3. LIMPIEZA PREVIA DE BASURA
                 elif re.search(r'^[^\w\d]+\s*\d', linea_limpia):
                      linea_limpia = re.sub(r'^[^\w\d]+', '', linea_limpia).strip()
 
                 else:
-                    # 3. LÓGICA DE HERENCIA (V99): PRIMERO SUBTÍTULOS (NIVEL 2)
+                    # 4. LÓGICA NIVEL 2 (Subtítulos 5.1)
                     if re.match(p_idx_2, linea_limpia):
                         m = re.match(p_idx_2, linea_limpia)
                         txt_titulo = m.group(2).strip()
                         if len(txt_titulo) > 2: 
                             current_label = f"SECCIÓN {m.group(1)}: {txt_titulo[:80]}"
                             
-                            # --- CASCADA: BUSCAR AL PADRE ---
+                            # --- CASCADA: HERENCIA PADRE ---
                             padre_num = m.group(1).split('.')[0]
                             padre_label = next((k for k in secciones.keys() if k.startswith(f"CAPÍTULO {padre_num}:")), None)
                             
                             new_labels_this_line = [current_label]
                             if padre_label:
-                                new_labels_this_line.append(padre_label) # Agregamos al padre
+                                new_labels_this_line.append(padre_label) 
                             
                             active_labels = new_labels_this_line
                     
-                    # 4. LUEGO TÍTULOS (NIVEL 1) - CON MEMORIA SECUENCIAL
+                    # 5. LÓGICA NIVEL 1 (Títulos 5.) + SECUENCIAL
                     elif re.match(p_idx_1, linea_limpia):
                         m = re.match(p_idx_1, linea_limpia)
                         num_cap = int(m.group(1))
@@ -329,19 +335,20 @@ class LegalEngineTITAN:
                         
                         # --- FILTRO SECUENCIAL ---
                         # Solo aceptamos el capítulo si es MAYOR o IGUAL al último visto.
-                        # Esto evita que el "4." dentro del Cap 5 cree un nuevo título.
+                        # Si ya vamos en el 5 y vemos un "4.", lo ignoramos (es una lista interna).
                         es_capitulo_valido = False
-                        if num_cap >= last_seen_chapter:
+                        
+                        if num_cap >= self.last_detected_chapter:
                             es_capitulo_valido = True
-                        elif num_cap == 1 and last_seen_chapter > 20: # Posible reinicio o anexo
-                            es_capitulo_valido = True
-                            
-                        # Filtro de longitud extra para evitar falsos positivos largos
-                        if es_capitulo_valido and len(txt_titulo) > 2 and len(txt_titulo) < 150: 
+                        # Excepción: Si es el 1 o 2, puede ser un reinicio legítimo (Anexos)
+                        elif num_cap < 5 and self.last_detected_chapter > 20: 
+                            es_capitulo_valido = True 
+                        
+                        if es_capitulo_valido and len(txt_titulo) > 2: 
                             current_label = f"CAPÍTULO {num_cap}: {txt_titulo[:80]}"
                             new_labels_this_line = [current_label]
                             active_labels = new_labels_this_line
-                            last_seen_chapter = num_cap # Actualizamos la memoria
+                            self.last_detected_chapter = num_cap # Actualizar memoria
 
             # -------------------------------------------------------
             # CAMINO 2: SI ES UNA NORMA (LEY, DECRETO, CÓDIGO)
@@ -361,6 +368,7 @@ class LegalEngineTITAN:
                 if l not in secciones: secciones[l] = []
 
             # GUARDADO FINAL (En Cascada)
+            # La línea se guarda en "Todo el Documento" Y en todas las etiquetas activas
             secciones["Todo el Documento"].append(linea) 
             for l in active_labels:
                 if l in secciones:
@@ -719,7 +727,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v99.1: Edición de Código Jurídico")
+    st.title("🦅 TITÁN v98 (Selectivo)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
