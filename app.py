@@ -285,6 +285,7 @@ class LegalEngineTITAN:
         
         # --- FILTRO ANTI-ÍNDICE (EL CORTAFUEGOS) - AGREGADO ---
         # Ignora líneas que terminan en número y tienen puntos suspensivos (Tabla de contenido)
+        # Esto soluciona tu problema de las preguntas basura.
         patron_basura_indice = r'\.{4,}\s*\d+\s*$' 
 
         # Función auxiliar: Mirar adelante
