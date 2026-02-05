@@ -836,7 +836,7 @@ with st.sidebar:
         
         txt_manual = st.text_area("Texto de la Norma:", height=150)
         
-        # --- BOTÓN DE PROCESO MODIFICADO (SIN SALTO AUTOMÁTICO) ---
+        # --- BOTÓN DE PROCESO (MODIFICADO UI) ---
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             contenido_final = txt_pdf if txt_pdf else txt_manual
             
