@@ -13,17 +13,15 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v99.3: SISTEMA JURÍDICO INTEGRAL (RESTRICCIÓN 2 NIVELES + SECUENCIA)
+#  TITÁN v99.5: SISTEMA JURÍDICO INTEGRAL (DETALLE NIVEL 3 + FRAGMENTOS)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN ELIMINA EL "RUIDO" DE LOS SUBNIVELES PROFUNDOS Y LISTAS CORTAS.
+#  ESTA VERSIÓN PERMITE MAYOR PROFUNDIDAD PARA ESTUDIAR FRAGMENTOS ESPECÍFICOS.
 #  
-#  MEJORAS ESPECÍFICAS (v99.3):
-#  1. SOLO 2 NIVELES: El mapa solo mostrará "5. Título" y "5.1 Subtítulo".
-#     Los nietos (5.1.1) se guardan como contenido de texto, no como secciones.
-#  2. SECUENCIA ESTRICTA: Impide que listas internas (1., 2., 3.) se confundan
-#     con capítulos si ya vamos por el 5.
-#  3. FILTROS DE LIMPIEZA: Anti-índice, Longitud Max y Tabulación activados.
-#  4. UI CONTROLADA: El botón de procesar NO inicia el juego automáticamente.
+#  MEJORAS ESPECÍFICAS (v99.5):
+#  1. PROFUNDIDAD NIVEL 3: Ahora acepta "5.1.1" como sección válida.
+#  2. SOPORTE DE FRAGMENTOS: Si el PDF empieza en el Cap 5, el sistema se adapta
+#     y no exige haber visto el Cap 1.
+#  3. UI CONTROLADA: Botón "Procesar" solo analiza, no inicia el juego.
 # ==============================================================================
 # ==============================================================================
 
@@ -52,7 +50,7 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v99.3 - Supremo Todo Terreno", 
+    page_title="TITÁN v99.5 - Supremo Todo Terreno", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -251,14 +249,14 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODO V99.3: RESTRICCIÓN 2 NIVELES)
+    # SEGMENTACIÓN INTELIGENTE (MODO V99.5: NIVEL 3 + FRAGMENTOS)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto usando los patrones adecuados.
-        MEJORAS v99.3: 
-        1. BLOQUEO NIVEL 3+: Si detecta "5.1.1", lo ignora como título.
-        2. FILTROS PREVIOS: Anti-índice, Longitud Max, Tabulación, Secuencia.
+        MEJORAS v99.5: 
+        1. NIVEL 3 PERMITIDO: Acepta "5.1.1" para mayor detalle.
+        2. SOPORTE FRAGMENTOS: Si no hay Cap 1, se adapta al primero que encuentre.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -311,22 +309,27 @@ class LegalEngineTITAN:
                      linea_limpia = re.sub(r'^[^\w\d]+', '', linea_limpia).strip()
 
                 else:
-                    # 4. LÓGICA NIVEL 2 (Subtítulos 5.1)
+                    # 4. LÓGICA NIVEL 2 y 3 (Subtítulos 5.1 y 5.1.1)
                     if re.match(p_idx_2, linea_limpia):
                         m = re.match(p_idx_2, linea_limpia)
                         num_id = m.group(1).strip()
                         txt_titulo = m.group(2).strip()
                         
-                        # --- FILTRO DE PROFUNDIDAD (V99.3 CRÍTICO) ---
+                        # --- FILTRO DE PROFUNDIDAD ---
                         partes_numericas = re.findall(r'\d+', num_id)
                         
-                        # SOLO procesamos si tiene exactamente 2 partes (Ej: 5.1).
-                        # Si tiene 3 o más (5.1.1), se ignora como título.
+                        # MODIFICACIÓN v99.5: Aceptamos 2 y 3 niveles (5.1 y 5.1.1)
                         es_valido_n2 = False
-                        if len(partes_numericas) == 2:
+                        if len(partes_numericas) in [2, 3]: 
                             padre_num = int(partes_numericas[0])
-                            # Validar que pertenezca al capítulo actual
-                            if padre_num == self.last_detected_chapter:
+                            
+                            # --- LÓGICA FRAGMENTOS ---
+                            # Si es la primera vez (last=0), aceptamos cualquier padre (es un fragmento).
+                            if self.last_detected_chapter == 0:
+                                self.last_detected_chapter = padre_num
+                                es_valido_n2 = True
+                            # Si ya tenemos historial, validamos secuencia normal
+                            elif padre_num == self.last_detected_chapter:
                                 es_valido_n2 = True
                         
                         if es_valido_n2 and len(txt_titulo) > 2: 
@@ -350,7 +353,6 @@ class LegalEngineTITAN:
                         txt_titulo = m.group(2).strip()
                         
                         # --- FILTRO DE TABULACIÓN ---
-                        # Solo si está pegado a la izquierda (indent < 2)
                         es_titulo_principal = False
                         if indentation < 2:
                             es_titulo_principal = True
@@ -358,9 +360,11 @@ class LegalEngineTITAN:
                         # --- FILTRO SECUENCIAL ---
                         es_capitulo_valido = False
                         if es_titulo_principal:
-                            if num_cap >= self.last_detected_chapter:
+                            # Si es la primera vez, aceptamos lo que venga (Fragmento)
+                            if self.last_detected_chapter == 0:
                                 es_capitulo_valido = True
-                            # Excepción para reinicios reales (Anexos al final)
+                            elif num_cap >= self.last_detected_chapter:
+                                es_capitulo_valido = True
                             elif num_cap < 5 and self.last_detected_chapter > 20: 
                                 es_capitulo_valido = True 
                         
@@ -747,7 +751,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v99.3 (Selectivo)")
+    st.title("🦅 TITÁN v99.5 (Nivel 3 + UI)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -834,7 +838,7 @@ with st.sidebar:
         
         txt_manual = st.text_area("Texto de la Norma:", height=150)
         
-        # --- BOTÓN DE PROCESO (MODIFICADO UI) ---
+        # --- BOTÓN DE PROCESO MODIFICADO (SIN SALTO AUTOMÁTICO) ---
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             contenido_final = txt_pdf if txt_pdf else txt_manual
             
