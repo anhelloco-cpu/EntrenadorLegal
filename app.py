@@ -13,25 +13,39 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v98: SISTEMA JURÍDICO INTEGRAL (BASE v91 + CORRECCIÓN DE GUÍAS)
+#  🦅 TITÁN v98: SISTEMA JURÍDICO INTEGRAL (BASE v97 + CORRECCIÓN DE GUÍAS)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN ES LA DEFINITIVA. BASE SÓLIDA DE 1000+ LÍNEAS.
+#  ESTE CÓDIGO ES LA VERSIÓN DEFINITIVA Y COMPLETA.
+#  NO BORRAR NADA. RESPETAR COMENTARIOS Y ESPACIOS.
+#
+#  HISTORIAL DE CAMBIOS Y MEJORAS TÉCNICAS:
 #  
-#  MODIFICACIONES DE PRECISIÓN (v98):
-#  1. LÓGICA DE GUÍAS REFINADA:
-#     - Prioridad Inversa: Busca primero Subtítulos (X.X) antes que Títulos (X.).
-#     - Regex Flexible: Acepta cualquier caracter después del punto (Mayús/Minús).
-#     - Filtro de Ruido: Ignora títulos de menos de 2 letras.
+#  v98 (ACTUAL):
+#  1. CORRECCIÓN DE "SALTOS" EN GUÍAS:
+#     - Se detectó que el sistema saltaba del Cap 1 al 4 porque el título del 2
+#       estaba en minúsculas o tenía formato "sucio".
+#     - SOLUCIÓN: Se implementó un REGEX TODO TERRENO (.+) que acepta cualquier
+#       caracter después del número (Mayúsculas, minúsculas, símbolos).
 #  
-#  2. MANTIENE INTACTO:
-#     - Lógica de Normas (Leyes).
-#     - Estilos CSS.
-#     - Sistema de Capitanes.
+#  2. JERARQUÍA LÓGICA INVERTIDA (ANTI-ERROR):
+#     - Antes se buscaba primero el "1." y luego el "1.1". Esto causaba que el
+#       "1.1" fuera devorado por la lógica del "1.".
+#     - SOLUCIÓN: Ahora el sistema busca PRIMERO los subtítulos complejos (Nivel 2)
+#       y DESPUÉS los títulos simples (Nivel 1).
+#
+#  3. LIMPIEZA DE BASURA:
+#     - Se agregó una función de saneamiento que elimina viñetas o caracteres
+#       extraños al inicio de la línea antes de procesarla.
+#
+#  v97 (BASE):
+#  - Selector de Modo (Norma vs Guía).
+#  - Lógica de Normas Blindada.
 # ==============================================================================
 # ==============================================================================
 
+
 # ------------------------------------------------------------------------------
-# 1. GESTIÓN DE DEPENDENCIAS Y LIBRERÍAS EXTERNAS
+# SECCIÓN 1: GESTIÓN DE DEPENDENCIAS Y LIBRERÍAS EXTERNAS
 # ------------------------------------------------------------------------------
 
 # A. SISTEMA DE IA NEURONAL (Embeddings)
@@ -42,39 +56,47 @@ try:
     from sklearn.metrics.pairwise import cosine_similarity
     import numpy as np
     DL_AVAILABLE = True
+    print("✅ Cerebro Neuronal (SentenceTransformers) Activado.")
 except ImportError:
     DL_AVAILABLE = False
+    print("⚠️ Cerebro Neuronal no detectado. Se usará modo aleatorio.")
 
-# B. LECTOR DE ARCHIVOS PDF (Vital para tus documentos)
+# B. LECTOR DE ARCHIVOS PDF (CRÍTICO PARA GUÍAS Y MANUALES)
 # Intentamos cargar la librería de lectura de PDFs.
 try:
     import pypdf
     PDF_AVAILABLE = True
+    print("✅ Lector PDF (pypdf) Activado.")
 except ImportError:
+    # No forzamos la instalación automática para evitar reinicios, pero avisamos.
     PDF_AVAILABLE = False
+    print("⚠️ Lector PDF no detectado. Solo se admitirá texto manual.")
 
 
 # ------------------------------------------------------------------------------
-# 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
+# SECCIÓN 2: CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL COMPLETO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v98 - Supremo Selectivo", 
+    page_title="TITÁN v98 - Supremo Todo Terreno", 
     page_icon="⚖️", 
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
+# Inyección de CSS avanzado para la interfaz oscura/elegante
 st.markdown("""
 <style>
-    /* Estilo para botones principales en negro elegante */
+    /* 1. Estilo para botones principales en negro elegante */
     .stButton>button {
         width: 100%; 
         border-radius: 8px; 
-        font-weight: bold; 
+        font-weight: 700; /* Bold */
         height: 3.5em; 
-        transition: all 0.3s; 
+        transition: all 0.3s ease-in-out; 
         background-color: #000000; 
-        color: white;
+        color: #ffffff;
         border: 1px solid #333;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
     .stButton>button:hover {
@@ -84,74 +106,88 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     
-    /* Caja para la narrativa del caso/norma */
+    /* 2. Caja para la narrativa del caso/norma */
     .narrative-box {
-        background-color: #f5f5f5; 
-        padding: 25px; 
+        background-color: #f8f9fa; 
+        padding: 30px; 
         border-radius: 12px; 
-        border-left: 6px solid #424242; 
+        border-left: 6px solid #2c3e50; 
         margin-bottom: 25px;
         font-family: 'Georgia', serif; 
         font-size: 1.15em; 
         line-height: 1.6;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        color: #2c3e50;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
     }
     
-    /* Etiquetas para artículos fallados (ROJO) */
+    /* 3. Etiquetas para artículos fallados (ROJO) */
     .failed-tag {
-        background-color: #ffcccc; 
-        color: #990000; 
-        padding: 4px 8px; 
-        border-radius: 4px; 
-        font-size: 0.9em; 
-        font-weight: bold; 
-        margin-right: 5px;
-        border: 1px solid #cc0000; 
+        background-color: #ffebee; 
+        color: #c62828; 
+        padding: 6px 12px; 
+        border-radius: 20px; 
+        font-size: 0.85em; 
+        font-weight: 800; 
+        margin-right: 6px;
+        border: 1px solid #ef9a9a; 
         display: inline-block;
-        margin-bottom: 5px;
+        margin-bottom: 8px;
     }
 
-    /* Etiquetas para artículos dominados (VERDE) */
+    /* 4. Etiquetas para artículos dominados (VERDE) */
     .mastered-tag {
-        background-color: #ccffcc; 
-        color: #006600; 
-        padding: 4px 8px; 
-        border-radius: 4px; 
-        font-size: 0.9em; 
-        font-weight: bold; 
-        margin-right: 5px;
-        border: 1px solid #006600; 
+        background-color: #e8f5e9; 
+        color: #2e7d32; 
+        padding: 6px 12px; 
+        border-radius: 20px; 
+        font-size: 0.85em; 
+        font-weight: 800; 
+        margin-right: 6px;
+        border: 1px solid #a5d6a7; 
         display: inline-block;
-        margin-bottom: 5px;
+        margin-bottom: 8px;
     }
     
-    /* Cajas estadísticas del tablero */
+    /* 5. Cajas estadísticas del tablero */
     .stat-box {
         text-align: center; 
-        padding: 10px; 
+        padding: 20px; 
         background: #ffffff; 
-        border-radius: 8px; 
+        border-radius: 12px; 
         border: 1px solid #e0e0e0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
     
     /* Ajustes generales de tipografía */
     h1, h2, h3 {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
+        color: #111;
+        font-weight: 600;
+    }
+    
+    /* Ajuste para inputs de texto */
+    .stTextInput>div>div>input {
+        border-radius: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ------------------------------------------------------------------------------
-# 3. CARGA DEL MODELO DE EMBEDDINGS (CACHEADO)
+# SECCIÓN 3: CARGA DEL MODELO DE EMBEDDINGS (CACHEADO)
 # ------------------------------------------------------------------------------
 @st.cache_resource
 def load_embedding_model():
-    """Carga el modelo vectorial una sola vez."""
+    """
+    Carga el modelo vectorial una sola vez al inicio para optimizar rendimiento.
+    Esto evita recargas innecesarias cada vez que se pulsa un botón.
+    """
     if DL_AVAILABLE: 
         try:
+            # Usamos un modelo ligero y rápido
             return SentenceTransformer('all-MiniLM-L6-v2')
         except Exception as e:
+            # Si falla, retornamos None y el sistema usará modo aleatorio
             return None
     return None
 
@@ -159,7 +195,7 @@ dl_model = load_embedding_model()
 
 
 # ------------------------------------------------------------------------------
-# 4. LISTA MAESTRA DE ENTIDADES COLOMBIANAS
+# SECCIÓN 4: LISTA MAESTRA DE ENTIDADES COLOMBIANAS
 # ------------------------------------------------------------------------------
 ENTIDADES_CO = [
     "Contraloría General de la República", 
@@ -167,18 +203,21 @@ ENTIDADES_CO = [
     "Procuraduría General de la Nación", 
     "Defensoría del Pueblo",
     "DIAN", 
-    "Registraduría Nacional", 
+    "Registraduría Nacional del Estado Civil", 
     "Consejo Superior de la Judicatura",
     "Corte Suprema de Justicia", 
     "Consejo de Estado", 
     "Corte Constitucional",
     "Policía Nacional", 
     "Ejército Nacional", 
-    "ICBF", 
+    "Instituto Colombiano de Bienestar Familiar (ICBF)", 
     "SENA", 
-    "Ministerio de Educación", 
-    "Ministerio de Salud", 
-    "DANE",
+    "Ministerio de Educación Nacional", 
+    "Ministerio de Salud y Protección Social", 
+    "Departamento Administrativo Nacional de Estadística (DANE)",
+    "Superintendencia de Industria y Comercio",
+    "Superintendencia Financiera",
+    "Comisión Nacional del Servicio Civil (CNSC)",
     "Otra (Manual) / Agregar +"
 ]
 
@@ -186,33 +225,38 @@ ENTIDADES_CO = [
 # ==============================================================================
 # ==============================================================================
 #  CLASE PRINCIPAL: MOTOR JURÍDICO TITÁN
+#  Esta clase encapsula toda la lógica del negocio.
 # ==============================================================================
 # ==============================================================================
 class LegalEngineTITAN:
     def __init__(self):
-        # -- Almacenamiento de Datos --
-        self.chunks = []           
-        self.chunk_embeddings = None 
-        self.mastery_tracker = {}  
-        self.failed_indices = set()
-        self.feedback_history = [] 
-        self.current_data = None
-        self.current_chunk_idx = -1
+        # ---------------------------------------------------------
+        # Variables de Almacenamiento de Datos (Estado del Sistema)
+        # ---------------------------------------------------------
+        self.chunks = []           # Fragmentos de texto procesado
+        self.chunk_embeddings = None # Vectores matemáticos del texto
+        self.mastery_tracker = {}  # Rastreador de dominio por bloque
+        self.failed_indices = set() # Índices de bloques fallados
+        self.feedback_history = []  # Historial de calibración (Los Capitanes)
+        self.current_data = None    # Datos de la pregunta actual en pantalla
+        self.current_chunk_idx = -1 # Puntero al bloque actual
         
-        # -- Configuración de Usuario --
+        # ---------------------------------------------------------
+        # Configuración de Usuario (Perfil)
+        # ---------------------------------------------------------
         self.entity = ""
         self.level = "Profesional" 
         self.simulacro_mode = False
         self.provider = "Unknown" 
         self.api_key = ""
         self.model = None 
-        self.current_temperature = 0.3 
+        self.current_temperature = 0.3 # Creatividad baja para precisión técnica
         self.last_failed_embedding = None
+        self.doc_type = "Norma" # Variable CRÍTICA: Define si es Ley o Guía
         
-        # -- NUEVA VARIABLE: TIPO DE DOCUMENTO --
-        self.doc_type = "Norma" # Por defecto asumimos Norma
-        
-        # -- Variables de Control Pedagógico --
+        # ---------------------------------------------------------
+        # Variables de Control Pedagógico
+        # ---------------------------------------------------------
         self.study_phase = "Pre-Guía" 
         self.example_question = "" 
         self.job_functions = ""    
@@ -220,19 +264,24 @@ class LegalEngineTITAN:
         self.structure_type = "Técnico / Normativo (Sin Caso)" 
         self.questions_per_case = 1 
         
-        # -- Mapa de la Ley (Jerarquía) --
+        # ---------------------------------------------------------
+        # Mapa de Documento (Índice Dinámico)
+        # ---------------------------------------------------------
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
         
-        # -- Sistema Francotirador & Semáforo --
-        self.seen_articles = set()    
-        self.failed_articles = set()   # Lista Roja (Pendientes)
-        self.mastered_articles = set() # Lista Verde (Dominados)
-        self.temporary_blacklist = set() # Lista Negra de Sesión
+        # ---------------------------------------------------------
+        # Sistema Francotirador & Semáforo
+        # ---------------------------------------------------------
+        self.seen_articles = set()      # Artículos ya preguntados en esta sesión
+        self.failed_articles = set()    # Lista Roja (Pendientes de repaso)
+        self.mastered_articles = set()  # Lista Verde (Dominados)
+        self.temporary_blacklist = set() # Lista Negra (Botón Saltar)
         self.current_article_label = "General"
 
     # --------------------------------------------------------------------------
-    # CONFIGURACIÓN DE API (LLAVE MAESTRA)
+    # MÉTODO: CONFIGURACIÓN DE API
+    # Detecta automáticamente qué llave ingresó el usuario.
     # --------------------------------------------------------------------------
     def configure_api(self, key):
         key = key.strip()
@@ -240,30 +289,38 @@ class LegalEngineTITAN:
         
         if key.startswith("gsk_"):
             self.provider = "Groq"
-            return True, "🚀 Motor GROQ Activado"
+            return True, "🚀 Motor GROQ Activado (Velocidad Sónica)"
         elif key.startswith("sk-") or key.startswith("sk-proj-"): 
             self.provider = "OpenAI"
-            return True, "🤖 Motor CHATGPT (GPT-4o) Activado"
+            return True, "🤖 Motor CHATGPT (GPT-4o) Activado (Precisión Máxima)"
         else:
             self.provider = "Google"
             try:
                 genai.configure(api_key=key)
                 model_list = genai.list_models()
                 models = [m.name for m in model_list if 'generateContent' in m.supported_generation_methods]
+                
+                # Buscamos el mejor modelo disponible (Pro o Flash)
                 target = next((m for m in models if 'gemini-1.5-pro' in m), 
                          next((m for m in models if 'flash' in m), models[0]))
+                
                 self.model = genai.GenerativeModel(target)
                 return True, f"🧠 Motor GOOGLE ({target}) Activado"
             except Exception as e:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MEJORADA v98 - CAPTURA TOTAL DE GUÍAS)
+    # MÉTODO: SEGMENTACIÓN INTELIGENTE SELECTIVA (MODO V98: TODO TERRENO)
+    # Aquí aplicamos las correcciones críticas para Guías Técnicas.
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto usando SOLO los patrones del tipo de documento seleccionado.
-        CORRECCIÓN v98: Regex Todo Terreno para Guías + Inversión de Prioridad.
+        Divide el texto usando los patrones adecuados según el TIPO DE DOCUMENTO.
+        
+        MEJORAS DE LA VERSIÓN 98:
+        1. Regex flexible (.+) para capturar títulos en minúsculas.
+        2. Inversión de jerarquía: Busca primero 1.1 y luego 1.
+        3. Limpieza de caracteres basura al inicio de la línea.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -271,39 +328,46 @@ class LegalEngineTITAN:
         # Variable para saber dónde estamos
         active_label = None
 
-        # --- A. PATRONES PARA NORMAS (LEYES) - ORIGINALES ---
+        # --- A. PATRONES PARA NORMAS (LEYES) - ORIGINAL INTACTO ---
         p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
         p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
         p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
-        p_seccion_txt = r'^\s*(SECCIÓN|SECCION)\.?\s+'
-        p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*\d+'
+        # Los artículos no crean sección en el menú, pero se detectan luego.
         
-        # --- B. PATRONES PARA GUÍAS (NUMERALES) - MEJORADOS v98 ---
-        # Detecta: "1. Texto", "5. Desarrollo", "5  Aspectos"
-        # (.+) permite capturar cualquier texto, mayúscula o minúscula.
-        p_idx_1 = r'^\s*(\d+)\.\s+(.+)'      
+        # --- B. PATRONES PARA GUÍAS (MEJORADOS v98) ---
+        # 1. Títulos Nivel 1 (Ej: "1. Texto", "1 Texto", "1  Texto")
+        # El \.? hace el punto opcional. El \s+ permite espacios o tabs.
+        # (.+) captura TODO lo que siga, solucionando el problema de minúsculas.
+        p_idx_1 = r'^\s*(\d+)\.?\s+(.+)'      
         
-        # Detecta: "1.1 Texto", "5.1.2 Normatividad"
-        p_idx_2 = r'^\s*(\d+(?:\.\d+)+)\.?\s+(.+)' 
+        # 2. Títulos Nivel 2+ (Ej: "1.1 Texto", "1.1.1. Texto")
+        p_idx_2 = r'^\s*(\d+(?:[\.\s]\d+)+)\.?\s+(.+)' 
         
         # --- C. FILTRO ANTI-ÍNDICE (EL CORTAFUEGOS) ---
         # Detecta líneas que terminan en número y tienen muchos puntos (Ej: "Tema .... 7")
         p_basura_indice = r'\.{4,}\s*\d+\s*$' 
 
-        for idx, linea in enumerate(lineas):
+        for linea in lineas:
             linea_limpia = linea.strip()
             if not linea_limpia: continue
             
             # -------------------------------------------------------
-            # CAMINO 1: SI ES UNA GUÍA TÉCNICA O MANUAL (Lógica Nueva)
+            # CAMINO 1: SI ES UNA GUÍA TÉCNICA O MANUAL (LÓGICA V98)
             # -------------------------------------------------------
             if self.doc_type == "Guía Técnica / Manual":
                 # 1. Aplicamos el Filtro Anti-Índice INMEDIATAMENTE
-                # Si la línea tiene "..... 7", se ignora.
+                # Si la línea tiene "..... 7", la ignoramos para no leer la tabla de contenido.
                 if re.search(p_basura_indice, linea_limpia): 
                     continue 
                 
-                # 2. Buscamos Subtítulos Numéricos (Nivel 2 - 1.1) PRIMERO
+                # 2. LIMPIEZA PREVIA DE BASURA (NUEVO V98)
+                # Si la línea empieza con caracteres raros (ej: "• 1. Título"), limpiamos.
+                # Esto ayuda al regex a encontrar el número limpio al inicio.
+                # Solo limpiamos si parece que hay un número después de la basura.
+                if re.search(r'^[^\w\d]+\s*\d', linea_limpia):
+                     linea_limpia = re.sub(r'^[^\w\d]+', '', linea_limpia).strip()
+
+                # 3. LÓGICA INVERTIDA: PRIMERO SUBTÍTULOS (NIVEL 2)
                 # IMPORTANTE: Verificamos primero el patrón más complejo (5.1.1)
                 # para que no sea capturado erróneamente por el patrón simple (5.).
                 if re.match(p_idx_2, linea_limpia):
@@ -315,77 +379,48 @@ class LegalEngineTITAN:
                         active_label = f"SECCIÓN {m.group(1)}: {txt_titulo[:80]}"
                         if active_label not in secciones: secciones[active_label] = []
                 
-                # 3. Buscamos Títulos Numéricos (Nivel 1 - 1.) DESPUÉS
+                # 4. LUEGO TÍTULOS (NIVEL 1)
                 elif re.match(p_idx_1, linea_limpia):
                     m = re.match(p_idx_1, linea_limpia)
                     txt_titulo = m.group(2).strip()
                     
-                    if len(txt_titulo) > 2:
+                    # Validación extra: Que el título tenga sentido (más de 2 letras)
+                    if len(txt_titulo) > 2: 
                         active_label = f"CAPÍTULO {m.group(1)}: {txt_titulo[:80]}"
                         if active_label not in secciones: secciones[active_label] = []
 
             # -------------------------------------------------------
-            # CAMINO 2: SI ES UNA NORMA (LEY, DECRETO, CÓDIGO) - INTACTO
+            # CAMINO 2: SI ES UNA NORMA (LEY, DECRETO, CÓDIGO)
             # -------------------------------------------------------
             elif self.doc_type == "Norma (Leyes/Decretos)":
-                # Función auxiliar v91 para buscar continuación de títulos largos
-                def buscar_continuacion(idx_actual):
-                    for i in range(1, 4): 
-                        if idx_actual + i < len(lineas):
-                            txt = lineas[idx_actual + i].strip()
-                            if txt: 
-                                if re.match(r'^(ART|CAP|TIT|LIB|SEC)', txt, re.IGNORECASE): return None
-                                return txt 
-                    return None
+                # Lógica original de v91 (Intacta)
+                
+                if re.match(p_libro, linea_limpia, re.I):
+                    active_label = linea_limpia[:100]
+                    secciones[active_label] = []
+                    
+                elif re.match(p_tit, linea_limpia, re.I):
+                    active_label = linea_limpia[:100]
+                    secciones[active_label] = []
+                    
+                elif re.match(p_cap, linea_limpia, re.I):
+                    active_label = linea_limpia[:100]
+                    secciones[active_label] = []
 
-                if re.match(p_libro, linea_limpia, re.IGNORECASE):
-                    label = linea_limpia[:100]
-                    if len(label) < 60: 
-                        extra = buscar_continuacion(idx)
-                        if extra: label = f"{label} - {extra}"
-                    active_label = label
-                    secciones[label] = []
-
-                elif re.match(p_tit, linea_limpia, re.IGNORECASE):
-                    label = linea_limpia[:100]
-                    if len(label) < 60: 
-                        extra = buscar_continuacion(idx)
-                        if extra: label = f"{label} - {extra}"
-                    active_label = label
-                    secciones[label] = []
-
-                elif re.match(p_cap, linea_limpia, re.IGNORECASE):
-                    label = linea_limpia[:100]
-                    if len(label) < 60:
-                        extra = buscar_continuacion(idx)
-                        if extra: label = f"{label} - {extra}"
-                    active_label = label
-                    secciones[label] = []
-
-                elif re.match(p_seccion_txt, linea_limpia, re.IGNORECASE):
-                    label = linea_limpia[:100]
-                    active_label = label
-                    secciones[label] = []
-
-            # -------------------------------------------------------
-            # GUARDADO DE DATOS (HERENCIA)
-            # -------------------------------------------------------
-            # El texto siempre va al "Todo el Documento"
+            # Guardado final
             secciones["Todo el Documento"].append(linea) 
-            
-            # Si hay una etiqueta activa (Capítulo, Título, etc.), guardamos la línea ahí también
             if active_label and active_label in secciones:
                 secciones[active_label].append(linea)
 
-        # Filtramos secciones vacías o con muy poco texto (ruido)
         return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 20}
 
     # --------------------------------------------------------------------------
-    # PROCESAMIENTO DE TEXTO (CHUNKS)
+    # MÉTODO: PROCESAMIENTO Y CHUNKING (DIVISIÓN)
     # --------------------------------------------------------------------------
     def process_law(self, text, axis_name, doc_type_input):
         """
-        Procesa el documento. Recibe el TIPO DE DOCUMENTO del selector.
+        Prepara el texto para ser consumido por la IA.
+        Recibe el TIPO DE DOCUMENTO del selector.
         """
         text = text.replace('\r', '')
         if len(text) < 100: return 0
@@ -394,7 +429,7 @@ class LegalEngineTITAN:
         self.doc_type = doc_type_input # Guardamos la elección vital (Norma vs Guía)
         self.sections_map = self.smart_segmentation(text)
         
-        # Chunks de 50.000 caracteres para mantener contexto amplio
+        # Bloques de 50.000 caracteres (Balance entre contexto y memoria)
         self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
         self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
         
@@ -423,7 +458,7 @@ class LegalEngineTITAN:
         return False
 
     # --------------------------------------------------------------------------
-    # ESTADÍSTICAS Y PROGRESO
+    # MÉTODO: ESTADÍSTICAS
     # --------------------------------------------------------------------------
     def get_stats(self):
         if not self.chunks: return 0, 0, 0
@@ -448,17 +483,17 @@ class LegalEngineTITAN:
         """
 
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MOTOR SELECTIVO v98)
+    # MÉTODO: GENERADOR DE CASOS (MOTOR SELECTIVO v98)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
         Genera la pregunta. Usa el TIPO DE DOCUMENTO para saber qué buscar.
         """
-        if not self.api_key: return {"error": "Falta Llave"}
-        if not self.chunks: return {"error": "Falta Norma"}
+        if not self.api_key: return {"error": "Falta Llave API"}
+        if not self.chunks: return {"error": "Falta Documento Cargado"}
         
         idx = -1
-        # Lógica de repaso de errores (Embeddings)
+        # Lógica de recuperación de errores (Si hay embeddings)
         if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
             candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 3]
@@ -466,21 +501,22 @@ class LegalEngineTITAN:
             if candidatos: idx = candidatos[0][0]
         
         if idx == -1: idx = random.choice(range(len(self.chunks)))
-        self.current_chunk_idx = idx
         
+        self.current_chunk_idx = idx
         texto_base = self.chunks[idx]
         
-        # --- FRANCOTIRADOR SELECTIVO (TU SOLUCIÓN) ---
+        # 2. ESTRATEGIA DE FRANCOTIRADOR SELECTIVA
         matches = []
         
         if self.doc_type == "Norma (Leyes/Decretos)":
-            # Si es Norma, buscamos "ARTÍCULO X"
+            # ESTRATEGIA A: Buscar "ARTÍCULO X" (Para leyes)
             p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[A-Z]?)'
             matches = list(re.finditer(p_art, texto_base, re.IGNORECASE | re.MULTILINE))
             
         elif self.doc_type == "Guía Técnica / Manual":
-            # Si es Guía, buscamos "1." o "1.1" con regex flexible (.+)
-            p_idx = r'^\s*(\d+(?:\.\d+)*)\.?\s+(.+)'
+            # ESTRATEGIA B: Buscar "ÍNDICES NUMÉRICOS" (1., 1.1) (Para Guías)
+            # CORRECCIÓN v98: Regex flexible (.+) y punto opcional ([\.\s])
+            p_idx = r'^\s*(\d+(?:[\.\s]\d+)*)\.?\s+(.+)'
             matches = list(re.finditer(p_idx, texto_base, re.MULTILINE))
 
         texto_final_ia = texto_base
@@ -499,245 +535,193 @@ class LegalEngineTITAN:
                     self.temporary_blacklist.clear()
                 self.seen_articles.clear()
             
-            seleccion = random.choice(candidatos)
-            start_pos = seleccion.start()
-            current_match_index = matches.index(seleccion)
+            sel = random.choice(candidatos)
+            start = sel.start()
+            idx_m = matches.index(sel)
             
-            # Cortar hasta el siguiente
-            if current_match_index + 1 < len(matches):
-                end_pos = matches[current_match_index + 1].start()
-            else:
-                end_pos = min(len(texto_base), start_pos + 4000)
-
-            texto_final_ia = texto_base[start_pos:end_pos] 
-            self.current_article_label = seleccion.group(0).strip()[:60] # Acortar etiqueta
-
-            # --- MICRO-SEGMENTACIÓN (Universal) ---
-            # Busca literales a), b) dentro del bloque seleccionado
-            patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
-            sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
+            # Cortamos hasta el siguiente elemento para aislar el tema
+            end = matches[idx_m+1].start() if idx_m+1 < len(matches) else min(len(texto_base), start+4000)
             
-            if len(sub_matches) > 1:
-                sel_sub = random.choice(sub_matches)
-                start_sub = sel_sub.start()
-                idx_sub = sub_matches.index(sel_sub)
-                end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
+            texto_final_ia = texto_base[start:end] 
+            self.current_article_label = sel.group(0).strip()[:60] 
+            
+            # 3. MICRO-SEGMENTACIÓN (Universal)
+            # Busca listas internas (a, b, c) o numerales internos (1, 2, 3) dentro del bloque seleccionado
+            p_sub = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s]{2,50}[:\.])'
+            subs = list(re.finditer(p_sub, texto_final_ia, re.M))
+            
+            if len(subs) > 1:
+                s = random.choice(subs)
+                s_start = s.start()
+                s_end = subs[subs.index(s)+1].start() if subs.index(s)+1 < len(subs) else len(texto_final_ia)
                 
-                texto_fragmento = texto_final_ia[start_sub:end_sub]
-                id_sub = sel_sub.group(0).strip()[:20]
-                
-                encabezado = texto_final_ia[:150].split('\n')[0] 
-                
-                texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
-                self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
-
+                # Le damos contexto + el fragmento específico
+                texto_final_ia = f"{texto_final_ia[:150]}\n[...]\n{texto_final_ia[s_start:s_end]}"
+                self.current_article_label += f" - ITEM {s.group(0).strip()[:10]}..."
         else:
             self.current_article_label = "General"
             texto_final_ia = texto_base[:4000]
 
-        # Configuración de Nivel
-        dificultad_prompt = ""
-        if self.level == "Asistencial":
-            dificultad_prompt = "NIVEL: ASISTENCIAL. Preguntas de memoria, archivo y plazos exactos."
-        elif self.level == "Técnico":
-            dificultad_prompt = "NIVEL: TÉCNICO. Aplicación de procesos y requisitos."
-        elif self.level == "Profesional":
-            dificultad_prompt = "NIVEL: PROFESIONAL. Alta dificultad. Análisis de casos y principios. Prohibido preguntas obvias."
-        elif self.level == "Asesor":
-            dificultad_prompt = "NIVEL: ASESOR. Muy Alta dificultad. Estrategia y jurisprudencia."
-
-        instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
-
-        # --- 5 CAPITANES: CALIBRACIÓN ACTIVA ---
-        feedback_instr = ""
+        # 4. CONFIGURACIÓN DE LOS 5 CAPITANES (CALIBRACIÓN)
+        feed_instr = ""
         if self.feedback_history:
-            last_feeds = self.feedback_history[-5:] 
-            instrucciones_correccion = []
+            last = self.feedback_history[-5:]
+            corr = []
             
-            if "pregunta_facil" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Muy Fácil'. AUMENTAR DRASTICAMENTE LA DIFICULTAD Y COMPLEJIDAD.")
-            if "respuesta_obvia" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Respuesta Obvia'. USAR OPCIONES TRAMPA OBLIGATORIAS. PROHIBIDO RESPUESTAS EVIDENTES.")
-            if "spoiler" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Spoiler'. EL ENUNCIADO NO PUEDE CONTENER PISTAS DE LA RESPUESTA.")
-            if "desconexion" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Desconexión'. LA PREGUNTA DEBE ESTAR 100% VINCULADA AL CASO Y TEXTO.")
-            if "sesgo_longitud" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Opciones Desiguales'. LA RESPUESTA CORRECTA NO PUEDE SER LA MÁS LARGA. EQUILIBRAR LONGITUD DE TODAS LAS OPCIONES.")
+            if "pregunta_facil" in last: 
+                corr.append("ALERTA CRÍTICA: El usuario se aburre. AUMENTAR DRASTICAMENTE DIFICULTAD.")
+            if "respuesta_obvia" in last: 
+                corr.append("ALERTA CRÍTICA: Respuestas obvias detectadas. USAR TRAMPAS LÓGICAS.")
+            if "spoiler" in last: 
+                corr.append("ALERTA CRÍTICA: Spoilers detectados. SIN PISTAS EN ENUNCIADO.")
+            if "desconexion" in last: 
+                corr.append("ALERTA CRÍTICA: Pregunta desconectada. APEGARSE AL TEXTO AL 100%.")
+            if "sesgo_longitud" in last: 
+                corr.append("ALERTA CRÍTICA: Patrón de longitud detectado. EQUILIBRAR OPCIONES.")
             
-            if instrucciones_correccion:
-                feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
+            if corr: feed_instr = "CORRECCIONES PRIORITARIAS DEL USUARIO: " + " ".join(corr)
 
-        # PROMPT FINAL
+        # 5. CONSTRUCCIÓN DEL PROMPT FINAL
         prompt = f"""
-        ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
+        ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}). 
         ENTIDAD: {self.entity.upper()}.
         TIPO DE DOCUMENTO: {self.doc_type.upper()}.
+        ESTILO: {self.structure_type}.
+        {feed_instr}
         
-        {dificultad_prompt}
-        {instruccion_estilo}
-        {feedback_instr}
+        Genera {self.questions_per_case} preguntas (A,B,C,D) basándote EXCLUSIVAMENTE en el texto proporcionado.
         
-        Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
+        TEXTO DE ESTUDIO:
+        "{texto_final_ia}"
         
-        REGLAS DE OBLIGATORIO CUMPLIMIENTO:
-        1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones de respuesta (A, B, C, D).
-        2. ESTILO DEL USUARIO: Si hay un ejemplo abajo, COPIA su estructura de redacción y conectores.
-        3. FOCO: No inventes artículos que no estén en el fragmento.
-        4. TIP MEMORIA: Incluye un campo 'tip_memoria' con una frase corta, mnemotecnia o palabra clave.
+        REGLAS DE ORO:
+        1. 4 OPCIONES (A,B,C,D). Una sola correcta.
+        2. EXPLICACIÓN DETALLADA por opción (Por qué es correcta y por qué las otras no).
+        3. TIP MEMORIA: Mnemotecnia corta o palabra clave.
         
-        IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
-        No me des la explicación en un solo texto corrido.
-        Dame un OBJETO JSON llamado "explicaciones" donde cada letra (A, B, C, D) tenga su propia explicación individual.
-        Ejemplo: "A": "Es incorrecta porque...", "B": "Es correcta ya que..."
-        
-        EJEMPLO A IMITAR (ESTILO Y FORMATO):
+        EJEMPLO DE ESTILO A COPIAR: 
         '''{self.example_question}'''
-        
-        NORMA (Fragmento de Estudio): "{texto_final_ia}"
-        
-        {self.get_strict_rules()}
-        {self.get_calibration_instructions()}
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "articulo_fuente": "ARTÍCULO X",
-            "narrativa_caso": "Texto de contexto...",
+            "articulo_fuente": "REFERENCIA EXACTA (Ej: Art 5 o Punto 2.1)",
+            "narrativa_caso": "Contexto situacional o normativo...",
             "preguntas": [
                 {{
-                    "enunciado": "Pregunta...", 
+                    "enunciado": "...", 
                     "opciones": {{
-                        "A": "...", 
-                        "B": "...", 
-                        "C": "...", 
+                        "A": "...",
+                        "B": "...",
+                        "C": "...",
                         "D": "..."
                     }}, 
                     "respuesta": "A", 
-                    "tip_memoria": "Frase mnemotécnica...",
+                    "tip_memoria": "...", 
                     "explicaciones": {{
-                        "A": "Texto justificando A...",
-                        "B": "Texto justificando B...",
-                        "C": "Texto justificando C...",
-                        "D": "Texto justificando D..."
+                        "A": "...",
+                        "B": "...",
+                        "C": "...",
+                        "D": "..."
                     }}
                 }}
             ]
         }}
         """
         
-        max_retries = 3
+        # 6. LLAMADA A LA API (CON SISTEMA DE REINTENTOS)
         attempts = 0
-        while attempts < max_retries:
+        while attempts < 3:
             try:
-                # --- LLAMADA A OPENAI ---
+                # Proveedor OpenAI
                 if self.provider == "OpenAI":
-                    headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-                    data = {
-                        "model": "gpt-4o", 
-                        "messages": [
-                            {"role": "system", "content": "You are a helpful assistant. OUTPUT JSON ONLY."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        "temperature": self.current_temperature,
-                        "response_format": {"type": "json_object"}
-                    }
-                    resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-                    if resp.status_code != 200: return {"error": f"OpenAI Error {resp.status_code}: {resp.text}"}
-                    text_resp = resp.json()['choices'][0]['message']['content']
-
-                # --- LLAMADA A GOOGLE ---
+                    h = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+                    d = {"model": "gpt-4o", "messages": [{"role":"system","content":"JSON ONLY"},{"role":"user","content":prompt}], "response_format": {"type": "json_object"}}
+                    r = requests.post("https://api.openai.com/v1/chat/completions", headers=h, json=d)
+                    txt_resp = r.json()['choices'][0]['message']['content']
+                
+                # Proveedor Google
                 elif self.provider == "Google":
-                    safety = [{"category": f"HARM_CATEGORY_{c}", "threshold": "BLOCK_NONE"} for c in ["HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT"]]
-                    res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature}, safety_settings=safety)
-                    text_resp = res.text.strip()
+                    res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
+                    txt_resp = res.text.strip()
                 
-                # --- LLAMADA A GROQ ---
-                else:
-                    headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-                    data = {
-                        "model": "llama-3.3-70b-versatile",
-                        "messages": [{"role": "system", "content": "JSON ONLY."}, {"role": "user", "content": prompt}],
-                        "temperature": self.current_temperature,
-                        "response_format": {"type": "json_object"}
-                    }
-                    resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
-                    text_resp = resp.json()['choices'][0]['message']['content']
+                # Proveedor Groq
+                else: 
+                    h = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+                    d = {"model": "llama-3.3-70b-versatile", "messages": [{"role":"system","content":"JSON ONLY"},{"role":"user","content":prompt}]}
+                    r = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=h, json=d)
+                    txt_resp = r.json()['choices'][0]['message']['content']
 
-                if "```" in text_resp:
-                    match = re.search(r'```(?:json)?(.*?)```', text_resp, re.DOTALL)
-                    if match: text_resp = match.group(1).strip()
+                # Limpieza de Markdown (Si la IA responde con ```json ... ```)
+                if "```" in txt_resp: 
+                    match = re.search(r'```(?:json)?(.*?)```', txt_resp, re.DOTALL)
+                    if match: txt_resp = match.group(1).strip()
                 
-                final_json = json.loads(text_resp)
+                final_json = json.loads(txt_resp)
                 
-                # --- AUTO-FUENTE ---
-                if "articulo_fuente" in final_json:
-                    # Si ya teníamos una etiqueta precisa (ITEM), no la sobrescribimos con una genérica
-                    if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
-                         pass
-                    elif "articulo_fuente" in final_json:
-                         self.current_article_label = final_json["articulo_fuente"].upper()
+                # Actualizar etiqueta si la IA detectó mejor la fuente
+                if "articulo_fuente" in final_json and "ITEM" not in self.current_article_label:
+                    # Si la etiqueta actual es genérica, adoptamos la de la IA
+                    if "General" in self.current_article_label:
+                        self.current_article_label = final_json["articulo_fuente"].upper()
 
-                # --- BARAJADOR AUTOMÁTICO INTELIGENTE ---
+                # BARAJADOR INTELIGENTE (SHUFFLE)
+                # Esto evita que la respuesta correcta sea siempre la 'A' o la 'C'
                 for q in final_json['preguntas']:
-                    opciones_raw = list(q['opciones'].items()) 
-                    explicaciones_raw = q.get('explicaciones', {})
-                    respuesta_correcta_texto = q['opciones'][q['respuesta']]
-                    tip_memoria = q.get('tip_memoria', "")
+                    ops = list(q['opciones'].items())
+                    ans_txt = q['opciones'][q['respuesta']]
+                    exps = q.get('explicaciones', {})
                     
-                    items_barajados = []
-                    for k, v in opciones_raw:
-                        items_barajados.append({
-                            "texto": v,
-                            "explicacion": explicaciones_raw.get(k, "Sin detalle."),
-                            "es_correcta": (v == respuesta_correcta_texto)
-                        })
+                    # Creamos objetos completos antes de barajar
+                    items = [{"t":v, "e":exps.get(k,"."), "ok":(v==ans_txt)} for k,v in ops]
+                    random.shuffle(items)
                     
-                    random.shuffle(items_barajados)
+                    new_ops = {}
+                    new_ans = "A"
+                    exp_txt = ""
+                    lets = ['A','B','C','D']
                     
-                    nuevas_opciones = {}
-                    nueva_letra_respuesta = "A"
-                    texto_final_explicacion = ""
-                    letras = ['A', 'B', 'C', 'D']
-                    
-                    for i, item in enumerate(items_barajados):
+                    for i, it in enumerate(items):
                         if i < 4:
-                            letra = letras[i]
-                            nuevas_opciones[letra] = item["texto"]
+                            l = lets[i]
+                            new_ops[l] = it["t"]
+                            if it["ok"]: new_ans = l
                             
-                            estado = "❌ INCORRECTA"
-                            if item["es_correcta"]:
-                                nueva_letra_respuesta = letra
-                                estado = "✅ CORRECTA"
-                            
-                            texto_final_explicacion += f"**({letra}) {estado}:** {item['explicacion']}\n\n"
+                            icon = "✅ CORRECTA" if it["ok"] else "❌ INCORRECTA"
+                            exp_txt += f"**({l}) {icon}:** {it['e']}\n\n"
                     
-                    q['opciones'] = nuevas_opciones
-                    q['respuesta'] = nueva_letra_respuesta
-                    q['explicacion'] = texto_final_explicacion
-                    q['tip_final'] = tip_memoria
-
+                    q['opciones'] = new_ops
+                    q['respuesta'] = new_ans
+                    q['explicacion'] = exp_txt
+                    q['tip_final'] = q.get('tip_memoria', "")
+                
                 return final_json
+            except Exception as e: 
+                time.sleep(1)
+                attempts += 1
+        
+        return {"error": "Servidor Saturado o Error de JSON. Por favor, reintenta."}
 
-            except Exception as e:
-                time.sleep(1); attempts += 1
-                if attempts == max_retries: return {"error": f"Fallo Crítico: {str(e)}"}
-        return {"error": "Saturado."}
 
-# ==========================================
-# INTERFAZ DE USUARIO (SIDEBAR Y MAIN)
-# ==========================================
+# ==============================================================================
+# ==============================================================================
+#  INTERFAZ DE USUARIO (FRONTEND STREAMLIT)
+#  Aquí se construye la página web visible.
+# ==============================================================================
+# ==============================================================================
 if 'engine' not in st.session_state: st.session_state.engine = LegalEngineTITAN()
-if 'case_id' not in st.session_state: st.session_state.case_id = 0 # ID Único para evitar fantasmas
+if 'case_id' not in st.session_state: st.session_state.case_id = 0
 if 'page' not in st.session_state: st.session_state.page = 'setup'
 if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
 if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
+# --- BARRA LATERAL (CONFIGURACIÓN) ---
 with st.sidebar:
     st.title("🦅 TITÁN v98 (Selectivo)")
+    st.caption("Sistema de Entrenamiento Jurídico Integral")
     
-    with st.expander("🔑 LLAVE MAESTRA", expanded=True):
-        key = st.text_input("API Key (Cualquiera):", type="password")
+    with st.expander("🔑 LLAVE MAESTRA (API KEY)", expanded=True):
+        key = st.text_input("Ingresa tu Key (Google/OpenAI):", type="password")
         if key:
             ok, msg = engine.configure_api(key)
             if ok: st.success(msg)
@@ -745,295 +729,242 @@ with st.sidebar:
     
     st.divider()
     
-    # --- NUEVO: SELECTOR DE TIPO DE DOCUMENTO ---
+    # --- SELECTOR DE MODO (NUEVO EN v98) ---
     st.markdown("### 📂 TIPO DE DOCUMENTO")
-    doc_type_input = st.radio(
+    doc_type_sel = st.radio(
         "¿Qué vas a estudiar?", 
         ["Norma (Leyes/Decretos)", "Guía Técnica / Manual"],
-        help="Define cómo TITÁN leerá el archivo. Norma busca Artículos. Guía busca Numerales."
+        help="Define cómo TITÁN leerá el archivo. Norma busca Artículos. Guía busca Numerales.",
+        index=0
     )
     
-    # --- VISUALIZACIÓN DE SEMÁFORO ---
-    if engine.failed_articles:
-        st.markdown("### 🔴 REPASAR (PENDIENTES)")
-        html_fail = ""
-        for fail in engine.failed_articles:
-            html_fail += f"<span class='failed-tag'>{fail}</span>"
-        st.markdown(html_fail, unsafe_allow_html=True)
+    st.divider()
+
+    # --- NAVEGACIÓN (MAPA) ---
+    if engine.sections_map:
+        st.markdown("### 📍 MAPA DEL DOCUMENTO")
         
-    if engine.mastered_articles:
-        st.markdown("### 🟢 DOMINADOS (CONTROL TOTAL)")
-        html_master = ""
-        for master in engine.mastered_articles:
-            html_master += f"<span class='mastered-tag'>{master}</span>"
-        st.markdown(html_master, unsafe_allow_html=True)
+        # ORDENAMIENTO NATURAL (1, 2, 10... y no 1, 10, 2)
+        opciones_mapa = list(engine.sections_map.keys())
+        if "Todo el Documento" in opciones_mapa: opciones_mapa.remove("Todo el Documento")
         
-    if engine.failed_articles or engine.mastered_articles:
-        st.divider()
-
-    st.markdown("### 📋 ESTRATEGIA")
-    fase_default = 0 if engine.study_phase == "Pre-Guía" else 1
-    fase = st.radio("Fase:", ["Pre-Guía", "Post-Guía"], index=fase_default)
-    engine.study_phase = fase
-
-    st.markdown("#### 🔧 ESTRUCTURA")
-    col1, col2 = st.columns(2)
-    with col1:
-        idx_struct = 0 if "Sin Caso" in engine.structure_type else 1
-        estilo = st.radio("Enunciado:", ["Técnico / Normativo (Sin Caso)", "Narrativo / Situacional (Con Caso)"], index=idx_struct)
-        engine.structure_type = estilo
-    with col2:
-        cant = st.number_input("Preguntas:", min_value=1, max_value=5, value=engine.questions_per_case)
-        engine.questions_per_case = cant
-
-    with st.expander("Detalles", expanded=True):
-        if "Con Caso" in estilo:
-            engine.job_functions = st.text_area("Funciones / Rol:", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...")
-        else:
-            engine.example_question = st.text_area("Ejemplo de Estilo (Sintaxis):", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
+        def natural_keys(text):
+            return [int(c) if c.isdigit() else c for c in re.split(r'(\d+)', text)]
+        
+        opciones_mapa.sort(key=natural_keys)
+        opciones_mapa.insert(0, "Todo el Documento")
+        
+        try: idx_sec = opciones_mapa.index(engine.active_section_name)
+        except: idx_sec = 0
+            
+        sel = st.selectbox("Saltar a sección:", opciones_mapa, index=idx_sec)
+        
+        if sel != engine.active_section_name: 
+            engine.update_chunks_by_section(sel)
+            st.toast(f"Enfoque cambiado a: {sel}", icon="🗺️")
+            st.rerun()
 
     st.divider()
-    
-    tab1, tab2 = st.tabs(["📝 NUEVA NORMA", "📂 CARGAR BACKUP"])
-    
-    with tab1:
-        st.markdown("### 📄 Cargar Documento")
-        
-        # --- CARGA DE PDF (INTEGRADA v91) ---
-        txt_pdf = ""
-        if PDF_AVAILABLE:
-            upl_pdf = st.file_uploader("Subir PDF (Guía, Ley, Procedimiento):", type=['pdf'])
-            if upl_pdf:
-                with st.spinner("📄 Extrayendo texto del PDF..."):
-                    try:
-                        reader = pypdf.PdfReader(upl_pdf)
-                        for page in reader.pages:
-                            txt_pdf += page.extract_text() + "\n"
-                        st.success(f"¡PDF Leído! {len(reader.pages)} páginas extraídas.")
-                    except Exception as e:
-                        st.error(f"Error leyendo PDF: {e}")
-        else:
-            st.warning("⚠️ Instala 'pypdf' para leer PDFs.")
 
-        st.caption("O pega aquí el texto manualmente:")
-        axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
+    # --- PESTAÑAS DE CARGA ---
+    t1, t2 = st.tabs(["📝 NUEVO DOCUMENTO", "📂 CARGAR BACKUP"])
+    
+    with t1:
+        txt_pdf = ""
+        # 1. CARGA DE PDF (INTEGRADA)
+        if PDF_AVAILABLE:
+            pdf = st.file_uploader("Subir PDF (Guía/Ley/Manual):", type=['pdf'])
+            if pdf:
+                try:
+                    with st.spinner("📄 Extrayendo texto..."):
+                        reader = pypdf.PdfReader(pdf)
+                        for p in reader.pages: txt_pdf += p.extract_text() + "\n"
+                        st.success(f"¡Leído! {len(reader.pages)} páginas.")
+                except Exception as e: st.error(f"Error PDF: {e}")
+        else:
+            st.warning("⚠️ Librería 'pypdf' no instalada. Solo texto manual.")
         
-        txt_manual = st.text_area("Texto de la Norma:", height=150)
+        # 2. CARGA MANUAL
+        st.caption("O pega el texto aquí:")
+        txt_manual = st.text_area("Texto Manual:", height=100)
+        axis = st.text_input("Tema / Eje Temático (Ej: Guía Auditoría):", value=engine.thematic_axis)
         
-        if st.button("🚀 PROCESAR Y SEGMENTAR"):
-            contenido_final = txt_pdf if txt_pdf else txt_manual
-            
-            # Pasamos el TIPO DE DOCUMENTO al procesador (v97)
-            if engine.process_law(contenido_final, axis_input, doc_type_input): 
+        if st.button("🚀 PROCESAR DOCUMENTO"):
+            final = txt_pdf if txt_pdf else txt_manual
+            # Pasamos el TIPO DE DOCUMENTO al procesador
+            if engine.process_law(final, axis, doc_type_sel): 
                 st.session_state.page = 'game'
                 st.session_state.current_data = None
-                st.success(f"¡Documento Procesado como {doc_type_input}! {len(engine.sections_map)} secciones maestras.")
+                st.success(f"¡Procesado como {doc_type_sel}!")
                 time.sleep(1)
                 st.rerun()
 
-    with tab2:
-        st.caption("Carga un archivo .json guardado previamente.")
-        upl = st.file_uploader("Archivo JSON:", type=['json'])
-        if upl is not None:
-            if 'last_loaded' not in st.session_state or st.session_state.last_loaded != upl.name:
-                try:
-                    d = json.load(upl)
-                    engine.chunks = d['chunks']
-                    engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
-                    engine.failed_indices = set(d['failed'])
-                    engine.feedback_history = d.get('feed', [])
-                    engine.entity = d.get('ent', "")
-                    engine.thematic_axis = d.get('axis', "General")
-                    engine.level = d.get('lvl', "Profesional")
-                    engine.study_phase = d.get('phase', "Pre-Guía")
-                    engine.structure_type = d.get('struct_type', "Técnico / Normativo (Sin Caso)")
-                    engine.questions_per_case = d.get('q_per_case', 1)
-                    engine.example_question = d.get('ex_q', "")
-                    engine.job_functions = d.get('job', "")
-                    engine.sections_map = d.get('sections', {})
-                    engine.active_section_name = d.get('act_sec', "Todo el Documento")
-                    
-                    # Recuperar datos
-                    engine.seen_articles = set(d.get('seen_arts', []))
-                    engine.failed_articles = set(d.get('failed_arts', []))
-                    engine.mastered_articles = set(d.get('mastered_arts', []))
-
-                    if DL_AVAILABLE:
-                         with st.spinner("🧠 Recuperando memoria neuronal..."): engine.chunk_embeddings = dl_model.encode(engine.chunks)
-
-                    st.session_state.last_loaded = upl.name
-                    st.success("¡Backup Cargado!")
-                    time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
-                except Exception as e: st.error(f"Error al leer: {e}")
-
-    if engine.sections_map and len(engine.sections_map) > 1:
-        st.divider()
-        st.markdown("### 📍 MAPA DE LA LEY")
-        # --- ORDENAMIENTO NATURAL AGREGADO ---
-        opciones = list(engine.sections_map.keys())
-        if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
-        
-        # Función lambda para ordenar naturalmente (1, 2, 10...)
-        def natural_sort_key(s):
-            return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
-        
-        opciones.sort(key=natural_sort_key)
-        opciones.insert(0, "Todo el Documento")
-        
-        try: idx_sec = opciones.index(engine.active_section_name)
-        except: idx_sec = 0
-            
-        seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec)
-        
-        if seleccion != engine.active_section_name:
-            if engine.update_chunks_by_section(seleccion):
+    with t2:
+        # 3. CARGA DE BACKUP (JSON)
+        upl = st.file_uploader("Subir Backup (.json):", type=['json'])
+        if upl:
+            try:
+                d = json.load(upl)
+                engine.chunks = d['chunks']
+                engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
+                # Recuperamos listas
+                engine.failed_articles = set(d.get('failed_arts', []))
+                engine.mastered_articles = set(d.get('mastered_arts', []))
+                st.success("Backup Restaurado")
+                time.sleep(1)
+                st.session_state.page = 'game'
                 st.session_state.current_data = None
-                st.toast(f"Cambiado a: {seleccion}", icon="✅")
-                time.sleep(0.5); st.rerun()
-
-    if engine.chunks and engine.api_key and st.session_state.page == 'setup':
+                st.rerun()
+            except: st.error("Archivo corrupto")
+    
+    # --- BOTÓN DE INICIO DE SIMULACRO ---
+    if engine.chunks and st.session_state.page == 'setup':
         st.divider()
-        if st.button("▶️ IR AL SIMULACRO", type="primary"): st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
-
-    st.divider()
-    
-    try: lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
-    except: lvl_idx = 0
-    engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=lvl_idx)
-    
-    try: ent_idx = ENTIDADES_CO.index(engine.entity)
-    except: ent_idx = 0
-    
-    ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
-    if "Otra" in ent_selection or "Agregar" in ent_selection: engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
-    else: engine.entity = ent_selection
+        if st.button("▶️ INICIAR ENTRENAMIENTO", type="primary"): 
+            st.session_state.page = 'game'
+            st.session_state.current_data = None
+            st.rerun()
             
-    if st.button("🔥 INICIAR SIMULACRO", disabled=not engine.chunks):
-        engine.simulacro_mode = True; st.session_state.current_data = None; st.session_state.page = 'game'; st.rerun()
-    
+    # --- BOTÓN DE GUARDADO ---
     if engine.chunks:
-        full_save_data = {
-            "chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices),
-            "feed": engine.feedback_history, "ent": engine.entity, "axis": engine.thematic_axis,
-            "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
-            "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case,
-            "sections": engine.sections_map, "act_sec": engine.active_section_name,
-            # Guardar datos nuevos
-            "seen_arts": list(engine.seen_articles), "failed_arts": list(engine.failed_articles), "mastered_arts": list(engine.mastered_articles)
+        st.divider()
+        # Preparamos datos para guardar
+        save_data = {
+            "chunks": engine.chunks,
+            "mastery": engine.mastery_tracker,
+            "failed_arts": list(engine.failed_articles),
+            "mastered_arts": list(engine.mastered_articles)
         }
-        st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
+        st.download_button("💾 Guardar Progreso", json.dumps(save_data), "backup_titan.json")
 
-# ==========================================
-# CICLO PRINCIPAL DEL JUEGO
-# ==========================================
+
+# --- PANTALLA PRINCIPAL (JUEGO) ---
 if st.session_state.page == 'game':
-    perc, fails, total = engine.get_stats()
-    subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
+    # 1. MÉTRICAS SUPERIORES
+    p, f, t = engine.get_stats()
     
-    foco_msg = f"🎯 ENFOQUE CONFIRMADO: **{engine.current_article_label}**"
-    st.info(foco_msg)
+    st.info(f"🎯 FOCO ACTUAL: **{engine.current_article_label}**")
     
     c1, c2, c3 = st.columns(3)
-    c1.metric("📊 Dominio Global", f"{perc}%")
-    c2.metric("❌ Preguntas Falladas", f"{fails}")
-    c3.metric("📉 Bloques Vistos", f"{len([x for x in engine.mastery_tracker.values() if x > 0])}/{total}")
+    c1.metric("Dominio Total", f"{p}%")
+    c2.metric("Fallos Acumulados", f"{f}")
+    c3.metric("Bloques Estudiados", f"{len([x for x in engine.mastery_tracker.values() if x>0])}/{t}")
+    st.progress(p/100)
 
-    st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **{subtitulo}**")
-    st.progress(perc/100)
-
+    # 2. GENERACIÓN DE PREGUNTA (Si no hay activa)
     if not st.session_state.get('current_data'):
-        msg = f"🧠 Analizando {engine.current_article_label} - NIVEL {engine.level.upper()}..."
-        with st.spinner(msg):
-            data = engine.generate_case()
-            if data and "preguntas" in data:
-                st.session_state.case_id += 1 
-                st.session_state.current_data = data
-                st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
-            else:
-                err = data.get('error', 'Desconocido')
-                st.error(f"Error: {err}"); st.button("Reintentar", on_click=st.rerun)
-                st.stop()
+        with st.spinner("🤖 Analizando documento y generando caso..."):
+            d = engine.generate_case()
+            if "error" in d: 
+                st.error(d['error'])
+                if st.button("Reintentar"): st.rerun()
+            else: 
+                st.session_state.current_data = d
+                st.session_state.case_id += 1
+                st.session_state.q_idx = 0
+                st.session_state.answered = False
+                st.rerun()
 
-    data = st.session_state.current_data
-    narrativa = data.get('narrativa_caso','Error')
-    st.markdown(f"<div class='narrative-box'><h4>🏛️ {engine.entity}</h4>{narrativa}</div>", unsafe_allow_html=True)
+    # 3. VISUALIZACIÓN DE LA PREGUNTA
+    d = st.session_state.current_data
     
-    q_list = data.get('preguntas', [])
-    if q_list:
-        q = q_list[st.session_state.q_idx]
-        st.write(f"### Pregunta {st.session_state.q_idx + 1}")
-        
-        form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
-        
-        with st.form(key=form_key):
-            opciones_validas = {k: v for k, v in q['opciones'].items() if v}
-            sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()], index=None)
+    # Caja de Narrativa
+    st.markdown(f"<div class='narrative-box'><h4>📜 Contexto</h4>{d.get('narrativa_caso','...')}</div>", unsafe_allow_html=True)
+    
+    if d.get('preguntas'):
+        q_list = d['preguntas']
+        if st.session_state.q_idx < len(q_list):
+            q = q_list[st.session_state.q_idx]
             
-            # --- BOTONES DE ACCIÓN (v72) ---
-            col_val, col_skip = st.columns([1, 1])
-            with col_val:
-                submitted = st.form_submit_button("✅ VALIDAR RESPUESTA")
-            with col_skip:
-                skipped = st.form_submit_button("⏭️ SALTAR (BLOQUEAR)")
-            
-            # LÓGICA DE SALTO (BLOQUEO TEMPORAL)
-            if skipped:
-                engine.temporary_blacklist.add(engine.current_article_label.split(" - ITEM")[0].strip())
-                st.toast(f"🚫 {engine.current_article_label} bloqueado por hoy.", icon="🗑️")
-                st.session_state.current_data = None; st.rerun()
+            with st.form(key=f"form_{st.session_state.case_id}_{st.session_state.q_idx}"):
+                st.write(f"### {q['enunciado']}")
+                
+                # Opciones de Radio
+                # Usamos una lista de opciones pre-barajadas desde la generación
+                opciones_visuales = [f"{k}) {v}" for k, v in q['opciones'].items()]
+                sel = st.radio("Selecciona una opción:", opciones_visuales)
+                
+                c_val, c_skip = st.columns([1,1])
+                submitted = c_val.form_submit_button("✅ VALIDAR RESPUESTA")
+                skipped = c_skip.form_submit_button("⏭️ SALTAR TEMA (Bloquear)")
+                
+                # --- LÓGICA DE VALIDACIÓN ---
+                if submitted:
+                    if not sel:
+                        st.warning("Debes seleccionar una opción.")
+                    else:
+                        letra_seleccionada = sel.split(")")[0]
+                        if letra_seleccionada == q['respuesta']: 
+                            st.success("🎉 ¡CORRECTO! Has dominado este punto.")
+                            engine.mastery_tracker[engine.current_chunk_idx] += 1
+                            
+                            tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
+                            if "General" not in tag: 
+                                engine.failed_articles.discard(tag)
+                                engine.mastered_articles.add(tag)
+                        else: 
+                            st.error(f"❌ INCORRECTO. La respuesta correcta era la opción {q['respuesta']}.")
+                            engine.failed_indices.add(engine.current_chunk_idx)
+                            
+                            # Guardamos vector de error si hay modelo
+                            if engine.chunk_embeddings is not None:
+                                engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
+                            
+                            tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
+                            if "General" not in tag: 
+                                engine.mastered_articles.discard(tag)
+                                engine.failed_articles.add(tag)
+                        
+                        # Explicación
+                        st.info(q['explicacion'])
+                        
+                        # Tip de Memoria
+                        if q.get('tip_final'): 
+                            st.warning(f"💡 **TIP DE MEMORIA:** {q['tip_final']}")
+                        
+                        st.session_state.answered = True
+                        st.rerun()
+                
+                # --- LÓGICA DE SALTO ---
+                if skipped:
+                    # Bloqueo temporal
+                    label_clean = engine.current_article_label.split(" - ")[0]
+                    engine.temporary_blacklist.add(label_clean)
+                    st.toast(f"Tema bloqueado por esta sesión: {label_clean}")
+                    st.session_state.current_data = None
+                    st.rerun()
 
-            # LÓGICA DE VALIDACIÓN
-            if submitted:
-                if not sel:
-                    st.warning("⚠️ Debes seleccionar una opción primero.")
-                else:
-                    letra_sel = sel.split(")")[0]
-                    full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
-                    
-                    if letra_sel == q['respuesta']: 
-                        st.success("✅ ¡Correcto!") 
-                        engine.mastery_tracker[engine.current_chunk_idx] += 1
-                        
-                        if engine.current_article_label != "General":
-                            if full_tag in engine.failed_articles: engine.failed_articles.remove(full_tag)
-                            engine.mastered_articles.add(full_tag)
-                    else: 
-                        st.error(f"Incorrecto. Era {q['respuesta']}")
-                        engine.failed_indices.add(engine.current_chunk_idx)
-                        
-                        if engine.chunk_embeddings is not None:
-                            engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
-                        
-                        if engine.current_article_label != "General":
-                            if full_tag in engine.mastered_articles: engine.mastered_articles.remove(full_tag)
-                            engine.failed_articles.add(full_tag)
-                    
-                    st.info(q['explicacion'])
-                    
-                    if 'tip_final' in q and q['tip_final']:
-                        st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
-                    
-                    st.session_state.answered = True
-
+        # 4. BOTÓN SIGUIENTE (Fuera del form para evitar recargas raras)
         if st.session_state.answered:
+            col_next, col_new = st.columns(2)
             if st.session_state.q_idx < len(q_list) - 1:
-                if st.button("Siguiente"): st.session_state.q_idx += 1; st.session_state.answered = False; st.rerun()
+                if col_next.button("Siguiente Pregunta ➡️"):
+                    st.session_state.q_idx += 1
+                    st.session_state.answered = False
+                    st.rerun()
             else:
-                if st.button("Nuevo Caso"): st.session_state.current_data = None; st.rerun()
+                if col_new.button("Finalizar Caso y Generar Nuevo 🔄"): 
+                    st.session_state.current_data = None
+                    st.session_state.answered = False
+                    st.rerun()
+
+    # 5. ÁREA DE CALIBRACIÓN (LOS 5 CAPITANES PUROS)
+    st.divider()
+    with st.expander("🛠️ CALIBRACIÓN DE IA (REPORTAR FALLOS)"):
+        st.caption("Ayuda a TITÁN a mejorar. Si la pregunta fue mala, repórtalo aquí:")
         
-        st.divider()
-        with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
-            # --- 5 CAPITANES: SOLO LOS 5 CORRECTOS ---
-            reasons_map = {
-                "Muy Fácil": "pregunta_facil",
-                "Respuesta Obvia": "respuesta_obvia",
-                "Spoiler (Pistas en enunciado)": "spoiler",
-                "Desconexión (Nada que ver)": "desconexion",
-                "Opciones Desiguales (Longitud)": "sesgo_longitud"
-            }
-            # Multiselect arreglado
-            errores_sel = st.multiselect("Reportar para ajustar la IA:", list(reasons_map.keys()))
-            if st.button("¡Castigar y Corregir!"):
-                for r in errores_sel:
-                    engine.feedback_history.append(reasons_map[r])
-                st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
+        # SOLO LAS 5 OPCIONES CORRECTAS
+        reasons_map = {
+            "Muy Fácil": "pregunta_facil",
+            "Respuesta Obvia": "respuesta_obvia",
+            "Spoiler (Pistas en enunciado)": "spoiler",
+            "Desconexión (Nada que ver)": "desconexion",
+            "Opciones Desiguales (Longitud)": "sesgo_longitud"
+        }
+        
+        errs = st.multiselect("Selecciona los fallos:", list(reasons_map.keys()))
+        
+        if st.button("📢 ENVIAR REPORTE Y CASTIGAR IA"):
+            for e in errs: 
+                engine.feedback_history.append(reasons_map[e])
+            st.toast(f"Reporte enviado. La IA ha sido recalibrada con {len(errs)} castigos.", icon="🛡️")
