@@ -13,16 +13,16 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v99: SISTEMA JURÍDICO INTEGRAL (CASCADA + FILTRO ESTRICTO DE PUNTOS)
+#  TITÁN v99.1: SISTEMA JURÍDICO INTEGRAL (CASCADA + MEMORIA SECUENCIAL)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN INCLUYE LA CORRECCIÓN CRÍTICA PARA GUÍAS TÉCNICAS.
+#  ESTA VERSIÓN CORRIGE LA LECTURA DE ÍNDICES Y LISTAS INTERNAS.
 #  
-#  MEJORAS TÉCNICAS:
-#  1. CANDADO DEL PUNTO (FIX): Se modificó el Regex del Nivel 1. Ahora es 
-#     OBLIGATORIO que el número tenga un punto ("2. Título") para ser detectado.
-#     Esto elimina automáticamente las notas al pie ("27 Texto") y las citas.
-#  2. LÓGICA DE HERENCIA: Los hijos (1.1) alimentan al padre (1).
-#  3. UI AJUSTADA: El selector de documento está dentro de la carga.
+#  MEJORAS TÉCNICAS (v99.1):
+#  1. MEMORIA SECUENCIAL: Si ya vamos por el Cap. 5, un "4." interno no reinicia
+#     el capítulo, sino que se guarda como contenido del 5.
+#  2. FILTRO TOC: Ignora líneas con puntos suspensivos ("....") para no leer
+#     la tabla de contenido como títulos reales.
+#  3. CASCADA: Herencia de contenido (Hijo -> Padre) mantenida.
 # ==============================================================================
 # ==============================================================================
 
@@ -249,37 +249,39 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODO V99: CASCADA + FILTRO ESTRICTO)
+    # SEGMENTACIÓN INTELIGENTE (MODO V99.1: CASCADA + SECUENCIAL)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto usando los patrones adecuados.
-        MEJORA v99: 
-        1. CASCADA: Herencia Padre-Hijo.
-        2. FILTRO DE PUNTO: El nivel 1 exige punto ("2.") para no leer notas al pie.
+        MEJORAS v99.1:
+        1. MEMORIA SECUENCIAL: Evita que listas internas (4.) se lean como capítulos si ya vamos adelante.
+        2. FILTRO TOC: Ignora líneas con puntos suspensivos.
+        3. CASCADA: Herencia Padre-Hijo.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
         
         # Variable para saber dónde estamos (LISTA PARA HERENCIA)
         active_labels = []
+        
+        # MEMORIA SECUENCIAL: Rastrea el último capítulo mayor visto
+        last_seen_chapter = 0
 
         # --- A. PATRONES PARA NORMAS (LEYES) - INTACTO ---
         p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
         p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
         p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
         
-        # --- B. PATRONES PARA GUÍAS (MEJORA CRÍTICA v99) ---
-        # 1. Títulos Nivel 1 (Ej: "2. Objetivo").
-        # CAMBIO: Se quitó el "?" del punto. Ahora es \. (OBLIGATORIO)
-        # Esto filtra las notas al pie como "27 Parágrafo..."
+        # --- B. PATRONES PARA GUÍAS ---
+        # 1. Títulos Nivel 1 (Ej: "2. Objetivo"). EXIGE PUNTO.
         p_idx_1 = r'^\s*(\d+)\.\s+(.+)'       
         
         # 2. Títulos Nivel 2+ (Ej: "1.1 Texto")
         p_idx_2 = r'^\s*(\d+(?:[\.\s]\d+)+)\.?\s+(.+)' 
         
-        # --- C. FILTRO ANTI-ÍNDICE (EL CORTAFUEGOS) ---
-        p_basura_indice = r'\.{4,}\s*\d+\s*$' 
+        # --- C. FILTRO ANTI-ÍNDICE (DETECTA PUNTOS SUSPENSIVOS) ---
+        p_basura_indice = r'\.{3,}' 
 
         for linea in lineas:
             linea_limpia = linea.strip()
@@ -292,39 +294,54 @@ class LegalEngineTITAN:
             # CAMINO 1: SI ES UNA GUÍA TÉCNICA O MANUAL
             # -------------------------------------------------------
             if self.doc_type == "Guía Técnica / Manual":
-                # 1. Filtro Anti-Índice
+                # 1. Filtro Anti-Índice (Tabla de Contenido)
                 if re.search(p_basura_indice, linea_limpia): 
-                    continue 
+                    # Ignoramos la línea si parece índice (tiene "...")
+                    pass
                 
-                # 2. LIMPIEZA PREVIA DE BASURA
-                if re.search(r'^[^\w\d]+\s*\d', linea_limpia):
+                # 2. Limpieza Previa de Basura
+                elif re.search(r'^[^\w\d]+\s*\d', linea_limpia):
                      linea_limpia = re.sub(r'^[^\w\d]+', '', linea_limpia).strip()
 
-                # 3. LÓGICA DE HERENCIA (V99): PRIMERO SUBTÍTULOS (NIVEL 2)
-                if re.match(p_idx_2, linea_limpia):
-                    m = re.match(p_idx_2, linea_limpia)
-                    txt_titulo = m.group(2).strip()
-                    if len(txt_titulo) > 2: 
-                        current_label = f"SECCIÓN {m.group(1)}: {txt_titulo[:80]}"
+                else:
+                    # 3. LÓGICA DE HERENCIA (V99): PRIMERO SUBTÍTULOS (NIVEL 2)
+                    if re.match(p_idx_2, linea_limpia):
+                        m = re.match(p_idx_2, linea_limpia)
+                        txt_titulo = m.group(2).strip()
+                        if len(txt_titulo) > 2: 
+                            current_label = f"SECCIÓN {m.group(1)}: {txt_titulo[:80]}"
+                            
+                            # --- CASCADA: BUSCAR AL PADRE ---
+                            padre_num = m.group(1).split('.')[0]
+                            padre_label = next((k for k in secciones.keys() if k.startswith(f"CAPÍTULO {padre_num}:")), None)
+                            
+                            new_labels_this_line = [current_label]
+                            if padre_label:
+                                new_labels_this_line.append(padre_label) # Agregamos al padre
+                            
+                            active_labels = new_labels_this_line
+                    
+                    # 4. LUEGO TÍTULOS (NIVEL 1) - CON MEMORIA SECUENCIAL
+                    elif re.match(p_idx_1, linea_limpia):
+                        m = re.match(p_idx_1, linea_limpia)
+                        num_cap = int(m.group(1))
+                        txt_titulo = m.group(2).strip()
                         
-                        # --- CASCADA: BUSCAR AL PADRE ---
-                        padre_num = m.group(1).split('.')[0]
-                        padre_label = next((k for k in secciones.keys() if k.startswith(f"CAPÍTULO {padre_num}:")), None)
-                        
-                        new_labels_this_line = [current_label]
-                        if padre_label:
-                            new_labels_this_line.append(padre_label) # Agregamos al padre
-                        
-                        active_labels = new_labels_this_line
-                
-                # 4. LUEGO TÍTULOS (NIVEL 1) - AHORA EXIGE PUNTO
-                elif re.match(p_idx_1, linea_limpia):
-                    m = re.match(p_idx_1, linea_limpia)
-                    txt_titulo = m.group(2).strip()
-                    if len(txt_titulo) > 2: 
-                        current_label = f"CAPÍTULO {m.group(1)}: {txt_titulo[:80]}"
-                        new_labels_this_line = [current_label]
-                        active_labels = new_labels_this_line
+                        # --- FILTRO SECUENCIAL ---
+                        # Solo aceptamos el capítulo si es MAYOR o IGUAL al último visto.
+                        # Esto evita que el "4." dentro del Cap 5 cree un nuevo título.
+                        es_capitulo_valido = False
+                        if num_cap >= last_seen_chapter:
+                            es_capitulo_valido = True
+                        elif num_cap == 1 and last_seen_chapter > 20: # Posible reinicio o anexo
+                            es_capitulo_valido = True
+                            
+                        # Filtro de longitud extra para evitar falsos positivos largos
+                        if es_capitulo_valido and len(txt_titulo) > 2 and len(txt_titulo) < 150: 
+                            current_label = f"CAPÍTULO {num_cap}: {txt_titulo[:80]}"
+                            new_labels_this_line = [current_label]
+                            active_labels = new_labels_this_line
+                            last_seen_chapter = num_cap # Actualizamos la memoria
 
             # -------------------------------------------------------
             # CAMINO 2: SI ES UNA NORMA (LEY, DECRETO, CÓDIGO)
