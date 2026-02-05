@@ -13,15 +13,14 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v99.6: SISTEMA JURÍDICO INTEGRAL (FRAGMENTOS + NIVEL 3 + RELAJADO)
+#  TITÁN v99.7: SISTEMA JURÍDICO INTEGRAL (DETALLE MÁXIMO + FILTRO CORREGIDO)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN ESTÁ OPTIMIZADA PARA DOCUMENTOS RECORTADOS O CON "RUIDO" DE OCR.
+#  ESTA VERSIÓN SOLUCIONA EL "BORRADO SILENCIOSO" DE SECCIONES CORTAS.
 #  
-#  MEJORAS ESPECÍFICAS (v99.6):
-#  1. TABULACIÓN RELAJADA: Tolera hasta 5 espacios antes del título (corrige errores OCR).
-#  2. MODO HUÉRFANO: Si el documento empieza en "5.1", lo acepta sin pedir el "5.".
-#  3. PROFUNDIDAD N3: Mapea hasta "5.1.1" para máximo detalle.
-#  4. UI CONTROLADA: Botón "Procesar" solo analiza, no inicia el juego.
+#  MEJORAS ESPECÍFICAS (v99.7):
+#  1. FILTRO DE LIMPIEZA: Se redujo la exigencia de 20 líneas a 1 línea.
+#     (Ahora guarda secciones pequeñas como 5.1.1 aunque sean breves).
+#  2. MANTIENE: Nivel 3 (5.1.1), Modo Huérfano (Fragmentos) y UI Controlada.
 # ==============================================================================
 # ==============================================================================
 
@@ -50,7 +49,7 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v99.6 - Supremo Todo Terreno", 
+    page_title="TITÁN v99.7 - Supremo Todo Terreno", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -249,15 +248,14 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODO V99.6: NIVEL 3 + RELAJADO + HUÉRFANOS)
+    # SEGMENTACIÓN INTELIGENTE (MODO V99.7: DETALLE MÁXIMO + FILTRO CORREGIDO)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto usando los patrones adecuados.
-        MEJORAS v99.6: 
-        1. NIVEL 3 PERMITIDO: Acepta "5.1.1".
-        2. MODO HUÉRFANO: Acepta 5.1 sin haber visto el 5 (Vital para fragmentos).
-        3. TOLERANCIA ESPACIOS: Relaja el filtro de indentación (< 5).
+        MEJORAS v99.7: 
+        1. UMBRAL DE GUARDADO: Se reduce de 20 líneas a 1 línea para capturar todo.
+        2. MANTIENE: Nivel 3, Modo Huérfano y Tabulación Relajada.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -305,7 +303,7 @@ class LegalEngineTITAN:
                 elif len(linea_limpia) > 120:
                     pass
 
-                # 3. LIMPIEZA PREVIA DE BASURA (Ajustado)
+                # 3. LIMPIEZA PREVIA DE BASURA
                 elif re.search(r'^[^\w\d]+\s*\d', linea_limpia):
                      linea_limpia = re.sub(r'^[^\w\d]+', '', linea_limpia).strip()
 
@@ -319,17 +317,15 @@ class LegalEngineTITAN:
                         # --- FILTRO DE PROFUNDIDAD ---
                         partes_numericas = re.findall(r'\d+', num_id)
                         
-                        # MODIFICACIÓN v99.6: Aceptamos 2 y 3 niveles (5.1 y 5.1.1)
+                        # Aceptamos 2 y 3 niveles (5.1 y 5.1.1)
                         es_valido_n2 = False
                         if len(partes_numericas) in [2, 3]: 
                             padre_num = int(partes_numericas[0])
                             
-                            # --- LÓGICA FRAGMENTOS (MODO HUÉRFANO) ---
-                            # Si es la primera vez (last=0), aceptamos cualquier padre (es un fragmento).
+                            # --- LÓGICA FRAGMENTOS ---
                             if self.last_detected_chapter == 0:
-                                self.last_detected_chapter = padre_num # Sincronizamos memoria
+                                self.last_detected_chapter = padre_num
                                 es_valido_n2 = True
-                            # Si ya tenemos historial, validamos secuencia normal
                             elif padre_num == self.last_detected_chapter:
                                 es_valido_n2 = True
                         
@@ -353,8 +349,7 @@ class LegalEngineTITAN:
                         num_cap = int(m.group(1))
                         txt_titulo = m.group(2).strip()
                         
-                        # --- FILTRO DE TABULACIÓN RELAJADO (v99.6) ---
-                        # Ahora permitimos hasta 5 espacios para tolerar fragmentos
+                        # --- FILTRO DE TABULACIÓN RELAJADO (5 espacios) ---
                         es_titulo_principal = False
                         if indentation < 5:
                             es_titulo_principal = True
@@ -362,7 +357,6 @@ class LegalEngineTITAN:
                         # --- FILTRO SECUENCIAL ---
                         es_capitulo_valido = False
                         if es_titulo_principal:
-                            # Si es la primera vez, aceptamos lo que venga (Fragmento)
                             if self.last_detected_chapter == 0:
                                 es_capitulo_valido = True
                             elif num_cap >= self.last_detected_chapter:
@@ -371,7 +365,7 @@ class LegalEngineTITAN:
                                 es_capitulo_valido = True 
                         
                         if es_capitulo_valido and len(txt_titulo) > 2: 
-                            # Etiqueta limpia (Sin palabra CAPÍTULO)
+                            # Etiqueta limpia
                             current_label = f"{num_cap}. {txt_titulo[:80]}"
                             new_labels_this_line = [current_label]
                             active_labels = new_labels_this_line
@@ -400,7 +394,9 @@ class LegalEngineTITAN:
                 if l in secciones:
                     secciones[l].append(linea)
 
-        return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 20}
+        # --- AQUÍ ESTABA EL ERROR: EL FILTRO > 20 ELIMINABA SECCIONES PEQUEÑAS ---
+        # AHORA: Guardamos todo lo que tenga más de 1 línea.
+        return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 1}
 
     # --------------------------------------------------------------------------
     # PROCESAMIENTO DE TEXTO (CHUNKS)
@@ -753,7 +749,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v99.6 (Nivel 3 + UI)")
+    st.title("🦅 TITÁN v99.7 (N3 + UI + Fix)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
