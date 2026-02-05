@@ -23,6 +23,7 @@ from collections import Counter
 #  2. SECUENCIA ESTRICTA: Impide que listas internas (1., 2., 3.) se confundan
 #     con capítulos si ya vamos por el 5.
 #  3. FILTROS DE LIMPIEZA: Anti-índice, Longitud Max y Tabulación activados.
+#  4. UI CONTROLADA: El botón de procesar NO inicia el juego automáticamente.
 # ==============================================================================
 # ==============================================================================
 
@@ -833,15 +834,17 @@ with st.sidebar:
         
         txt_manual = st.text_area("Texto de la Norma:", height=150)
         
-        # --- BOTÓN DE PROCESO MODIFICADO (SIN SALTO AUTOMÁTICO) ---
+        # --- BOTÓN DE PROCESO (MODIFICADO UI) ---
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             contenido_final = txt_pdf if txt_pdf else txt_manual
             
             # Pasamos el TIPO DE DOCUMENTO al procesador
             if engine.process_law(contenido_final, axis_input, doc_type_input): 
-                # AQUÍ ESTÁ EL CAMBIO: Ya no cambiamos de página automáticamente.
+                # AQUÍ ESTÁ EL CAMBIO: No saltamos a 'game', solo notificamos
                 st.session_state.current_data = None
-                st.success(f"¡Documento Procesado! {len(engine.sections_map)} secciones detectadas. Selecciona una en el menú y presiona 'INICIAR SIMULACRO' para comenzar.")
+                st.success(f"¡Documento Procesado! {len(engine.sections_map)} secciones detectadas. Selecciona una en el menú y presiona 'INICIAR SIMULACRO' en la barra lateral.")
+                time.sleep(0.5)
+                st.rerun() # Refresca para que el dropdown lateral se llene
 
     with tab2:
         st.caption("Carga un archivo .json guardado previamente.")
