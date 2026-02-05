@@ -833,16 +833,15 @@ with st.sidebar:
         
         txt_manual = st.text_area("Texto de la Norma:", height=150)
         
+        # --- BOTÓN DE PROCESO MODIFICADO (SIN SALTO AUTOMÁTICO) ---
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             contenido_final = txt_pdf if txt_pdf else txt_manual
             
             # Pasamos el TIPO DE DOCUMENTO al procesador
             if engine.process_law(contenido_final, axis_input, doc_type_input): 
-                st.session_state.page = 'game'
+                # AQUÍ ESTÁ EL CAMBIO: Ya no cambiamos de página automáticamente.
                 st.session_state.current_data = None
-                st.success(f"¡Norma Procesada como {doc_type_input}! {len(engine.sections_map)} secciones maestras.")
-                time.sleep(1)
-                st.rerun()
+                st.success(f"¡Documento Procesado! {len(engine.sections_map)} secciones detectadas. Selecciona una en el menú y presiona 'INICIAR SIMULACRO' para comenzar.")
 
     with tab2:
         st.caption("Carga un archivo .json guardado previamente.")
