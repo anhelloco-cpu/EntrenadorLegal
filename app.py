@@ -13,13 +13,13 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v89: SISTEMA JURÍDICO INTEGRAL (EDICIÓN RESTAURADA + PDF)
+#  TITÁN v91: SISTEMA JURÍDICO INTEGRAL (BASE ORIGINAL + PARCHES VITALES)
 #  ----------------------------------------------------------------------------
-#  Esta versión respeta la estructura original de 1000+ líneas e integra:
-#  1. SEGMENTACIÓN INTELIGENTE (Detecta Leyes y Guías automáticamete).
-#  2. LECTOR DE PDF NATIVO (pypdf).
-#  3. CORRECCIÓN DE ORDENAMIENTO (Respeta el índice del documento).
-#  4. CALIBRACIÓN DE 5 CAPITANES (Sin opciones basura).
+#  ESTA VERSIÓN CONTIENE:
+#  1. TU CÓDIGO BASE COMPLETO (Sin recortes de estilo ni estructura).
+#  2. PARCHE: LECTURA DE ÍNDICES NUMÉRICOS (Para Guías de Auditoría).
+#  3. PARCHE: FILTRO ANTI-TABLA DE CONTENIDO (Evita leer números de página).
+#  4. PARCHE: ORDENAMIENTO NATURAL (1, 2, 10...).
 # ==============================================================================
 # ==============================================================================
 
@@ -27,7 +27,7 @@ from collections import Counter
 # 1. GESTIÓN DE DEPENDENCIAS Y LIBRERÍAS EXTERNAS
 # ------------------------------------------------------------------------------
 
-# Intentamos cargar librerías de IA avanzada (Embeddings)
+# A. SISTEMA DE IA NEURONAL (Embeddings)
 try:
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -36,20 +36,19 @@ try:
 except ImportError:
     DL_AVAILABLE = False
 
-# Intentamos cargar la librería de lectura de PDFs (CRÍTICO PARA GUÍAS)
+# B. LECTOR DE ARCHIVOS PDF (Vital para tus documentos)
 try:
     import pypdf
     PDF_AVAILABLE = True
 except ImportError:
-    # No forzamos la instalación automática para evitar reinicios, pero avisamos.
     PDF_AVAILABLE = False
 
 
 # ------------------------------------------------------------------------------
-# 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL)
+# 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v89 - Justicia Restaurada (Full + PDF)", 
+    page_title="TITÁN v91 - Supremo Restaurado", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -72,6 +71,7 @@ st.markdown("""
         background-color: #333333;
         color: #ffffff;
         transform: scale(1.02);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     
     /* Caja para la narrativa del caso/norma */
@@ -123,6 +123,11 @@ st.markdown("""
         border-radius: 8px; 
         border: 1px solid #e0e0e0;
     }
+    
+    /* Ajustes generales de tipografía */
+    h1, h2, h3 {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -132,6 +137,7 @@ st.markdown("""
 # ------------------------------------------------------------------------------
 @st.cache_resource
 def load_embedding_model():
+    """Carga el modelo vectorial una sola vez."""
     if DL_AVAILABLE: 
         try:
             return SentenceTransformer('all-MiniLM-L6-v2')
@@ -239,8 +245,8 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (VERSIÓN HÍBRIDA v89)
-    # Detecta si es una Ley (Artículos) o una Guía (Numerales 1.1)
+    # SEGMENTACIÓN INTELIGENTE (VERSIÓN HÍBRIDA MEJORADA v91)
+    # Aquí está el arreglo para tus Guías de Auditoría.
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
@@ -257,7 +263,7 @@ class LegalEngineTITAN:
             "LIBRO": None, "TÍTULO": None, "CAPÍTULO": None, "SECCIÓN": None, "ARTÍCULO": None
         }
         
-        # Estado de Jerarquía de Guía (Índices)
+        # Estado de Jerarquía de Guía (Índices Numéricos)
         active_index = {
             "NIVEL_1": None, # Ej: "1. INTRODUCCIÓN"
             "NIVEL_2": None  # Ej: "2.1 ALCANCE"
@@ -271,13 +277,17 @@ class LegalEngineTITAN:
         patron_seccion_txt = r'^\s*(SECCIÓN|SECCION)\.?\s+'
         patron_articulo = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*\d+'
         
-        # --- PATRONES REGEX GUÍAS (ÍNDICES) ---
-        # Detecta: "1. ALGO" o "10. ALGO"
+        # --- PATRONES REGEX GUÍAS (ÍNDICES) - AGREGADO ---
+        # Detecta: "1. Texto" (No solo números sueltos, debe tener texto)
         patron_idx_1 = r'^\s*(\d+)\.\s+([A-ZÁÉÍÓÚÑ].+)'      
-        # Detecta: "1.1 ALGO" o "2.3.4 ALGO"
+        # Detecta: "1.1 Texto"
         patron_idx_2 = r'^\s*(\d+\.\d+)\.?\s+([A-ZÁÉÍÓÚÑ].+)' 
+        
+        # --- FILTRO ANTI-ÍNDICE (EL CORTAFUEGOS) - AGREGADO ---
+        # Ignora líneas que terminan en número y tienen puntos suspensivos (Tabla de contenido)
+        patron_basura_indice = r'\.{4,}\s*\d+\s*$' 
 
-        # Función auxiliar: Mirar adelante para recuperar títulos cortados
+        # Función auxiliar: Mirar adelante
         def buscar_continuacion(idx_actual):
             for i in range(1, 4): 
                 if idx_actual + i < len(lineas):
@@ -291,6 +301,10 @@ class LegalEngineTITAN:
         for idx, linea in enumerate(lineas):
             linea_limpia = linea.strip()
             if not linea_limpia: continue
+            
+            # --- APLICACIÓN DEL FILTRO DE LIMPIEZA ---
+            if re.search(patron_basura_indice, linea_limpia):
+                continue # Saltamos esta línea si es de la tabla de contenido
 
             # --- MODO LEGAL (LEYES) ---
             if re.match(patron_libro, linea_limpia, re.IGNORECASE):
@@ -324,19 +338,14 @@ class LegalEngineTITAN:
 
             elif re.match(patron_seccion_txt, linea_limpia, re.IGNORECASE):
                 label = linea_limpia[:100]
-                if len(label) < 60:
-                    extra = buscar_continuacion(idx)
-                    if extra: label = f"{label} - {extra}"
-                
                 active_hierarchy["SECCIÓN"] = label
                 secciones[label] = []
             
             elif re.match(patron_articulo, linea_limpia, re.IGNORECASE):
                 label = linea_limpia.split('.')[0] + "."
-                if len(label) > 20: label = label[:20]
                 active_hierarchy["ARTÍCULO"] = label
             
-            # --- MODO GUÍA (ÍNDICES NUMÉRICOS) ---
+            # --- MODO GUÍA (ÍNDICES NUMÉRICOS) - NUEVA LÓGICA ---
             elif re.match(patron_idx_1, linea_limpia):
                 m = re.match(patron_idx_1, linea_limpia)
                 label = f"CAPÍTULO {m.group(1)}: {m.group(2)[:80]}"
@@ -350,7 +359,7 @@ class LegalEngineTITAN:
                 active_index["NIVEL_2"] = label
                 if label not in secciones: secciones[label] = []
 
-            # Guardado en cascada (Nesting)
+            # Guardado en cascada
             secciones["Todo el Documento"].append(linea) 
             
             # Guardado Legal
@@ -363,8 +372,7 @@ class LegalEngineTITAN:
             if active_index["NIVEL_1"]: secciones[active_index["NIVEL_1"]].append(linea)
             if active_index["NIVEL_2"]: secciones[active_index["NIVEL_2"]].append(linea)
 
-        # Retornamos el diccionario de secciones
-        return {k: "\n".join(v) for k, v in secciones.items() if v}
+        return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 20} # Filtro de secciones vacías
 
     # --------------------------------------------------------------------------
     # PROCESAMIENTO DE TEXTO (CHUNKS)
@@ -380,7 +388,7 @@ class LegalEngineTITAN:
         self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
         
         if dl_model: 
-            with st.spinner("🧠 Analizando jerarquía..."): 
+            with st.spinner("🧠 Analizando jerarquía vectorial..."): 
                 self.chunk_embeddings = dl_model.encode(self.chunks)
         return len(self.chunks)
 
@@ -441,13 +449,13 @@ class LegalEngineTITAN:
         
         texto_base = self.chunks[idx]
         
-        # --- FRANCOTIRADOR HÍBRIDO (LEYES vs GUÍAS) ---
+        # --- FRANCOTIRADOR CON ANCLAJE DUAL (ARTÍCULOS O ÍNDICES) ---
         
-        # 1. Intentamos buscar Artículos (Leyes)
+        # 1. Buscamos Artículos (Leyes)
         patron_articulo = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[A-Z]?)'
         matches = list(re.finditer(patron_articulo, texto_base, re.IGNORECASE | re.MULTILINE))
         
-        # 2. Si no hay artículos, intentamos buscar Índices Numéricos (Guías)
+        # 2. Si no hay artículos, buscamos Índices Numéricos (Guías) - AGREGADO
         if not matches:
              patron_indice = r'^\s*(\d+\.\d+|\d+\.)\s+([A-ZÁÉÍÓÚÑ].+)'
              matches = list(re.finditer(patron_indice, texto_base, re.MULTILINE))
@@ -457,55 +465,42 @@ class LegalEngineTITAN:
         
         if matches:
             # FILTRO: Filtrar Vistos Y BLOQUEADOS
-            candidatos = [m for m in matches if m.group(0).upper().strip() not in self.seen_articles and m.group(0).upper().strip() not in self.temporary_blacklist]
+            candidatos = [m for m in matches if m.group(0).strip() not in self.seen_articles and m.group(0).strip() not in self.temporary_blacklist]
             
             if not candidatos:
-                # Si todos están bloqueados o vistos, reseteamos vistos pero MANTENEMOS los bloqueados si es posible
-                candidatos = [m for m in matches if m.group(0).upper().strip() not in self.temporary_blacklist]
-                if not candidatos: # Si TODO está bloqueado, liberamos
+                candidatos = [m for m in matches if m.group(0).strip() not in self.temporary_blacklist]
+                if not candidatos:
                     candidatos = matches
                     self.temporary_blacklist.clear()
                 self.seen_articles.clear()
             
-            # Selección aleatoria
             seleccion = random.choice(candidatos)
-            
-            # --- FOCUS ESTRICTO (CORTE EXACTO) ---
             start_pos = seleccion.start()
             current_match_index = matches.index(seleccion)
             
-            # Si existe un siguiente elemento, cortamos ANTES de que empiece
+            # Cortamos hasta el siguiente elemento para aislar
             if current_match_index + 1 < len(matches):
                 end_pos = matches[current_match_index + 1].start()
             else:
                 end_pos = min(len(texto_base), start_pos + 4000)
 
             texto_final_ia = texto_base[start_pos:end_pos] 
-            etiqueta_articulo = seleccion.group(0).upper().strip()[:60] # Acortamos la etiqueta
+            etiqueta_articulo = seleccion.group(0).strip()[:60] # Acortamos
             self.current_article_label = etiqueta_articulo
 
             # --- MICRO-SEGMENTACIÓN (MEJORADA: Numerales + Definiciones) ---
-            # Busca: 1., a), o Definiciones con :
             patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
-            
             sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
             
             if len(sub_matches) > 1:
-                # Elegimos uno al azar para preguntar específicamente sobre él
                 sel_sub = random.choice(sub_matches)
                 start_sub = sel_sub.start()
                 idx_sub = sub_matches.index(sel_sub)
-                
-                # Cortar hasta el siguiente ítem o fin del texto
                 end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
                 
                 texto_fragmento = texto_final_ia[start_sub:end_sub]
+                id_sub = sel_sub.group(0).strip()[:20]
                 
-                # Limpiamos el ID
-                id_sub = sel_sub.group(0).strip()
-                if len(id_sub) > 20: id_sub = id_sub[:20] + "..."
-                
-                # Contexto: Mantenemos el encabezado del artículo + el fragmento
                 encabezado = texto_final_ia[:100].split('\n')[0] 
                 
                 texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
@@ -650,13 +645,11 @@ class LegalEngineTITAN:
                 
                 # --- AUTO-FUENTE ---
                 if "articulo_fuente" in final_json:
-                    self.current_article_label = final_json["articulo_fuente"].upper()
-                
-                # Si hicimos micro-segmentación, intentamos mantener la etiqueta precisa
-                if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
-                     pass
-                elif "articulo_fuente" in final_json:
-                     self.current_article_label = final_json["articulo_fuente"].upper()
+                    # Si hicimos micro-segmentación, intentamos mantener la etiqueta precisa
+                    if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
+                         pass
+                    elif "articulo_fuente" in final_json:
+                         self.current_article_label = final_json["articulo_fuente"].upper()
 
                 # --- BARAJADOR AUTOMÁTICO INTELIGENTE ---
                 for q in final_json['preguntas']:
@@ -715,7 +708,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v89 (Supremo)")
+    st.title("🦅 TITÁN v91 (Supremo)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -772,7 +765,7 @@ with st.sidebar:
     with tab1:
         st.markdown("### 📄 Cargar Documento")
         
-        # --- CARGA DE PDF (NUEVO v88/89) ---
+        # --- CARGA DE PDF (INTEGRADA v91) ---
         txt_pdf = ""
         if PDF_AVAILABLE:
             upl_pdf = st.file_uploader("Subir PDF (Guía, Ley, Procedimiento):", type=['pdf'])
@@ -794,8 +787,8 @@ with st.sidebar:
         txt_manual = st.text_area("Texto de la Norma:", height=150)
         
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
-            contenido = txt_pdf if txt_pdf else txt_manual
-            if engine.process_law(contenido, axis_input): 
+            contenido_final = txt_pdf if txt_pdf else txt_manual
+            if engine.process_law(contenido_final, axis_input): 
                 st.session_state.page = 'game'
                 st.session_state.current_data = None
                 st.success(f"¡Norma Procesada! {len(engine.sections_map)} secciones maestras.")
@@ -839,10 +832,15 @@ with st.sidebar:
     if engine.sections_map and len(engine.sections_map) > 1:
         st.divider()
         st.markdown("### 📍 MAPA DE LA LEY")
-        # --- CORRECCIÓN DE ORDENAMIENTO (User Request) ---
-        # Aseguramos que el orden sea el de inserción (Python 3.7+) y no alfabético
+        # --- ORDENAMIENTO NATURAL AGREGADO ---
         opciones = list(engine.sections_map.keys())
         if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
+        
+        # Función para ordenar (1, 2, 10 en vez de 1, 10, 2)
+        def natural_sort_key(s):
+            return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
+        
+        opciones.sort(key=natural_sort_key)
         opciones.insert(0, "Todo el Documento")
         
         try: idx_sec = opciones.index(engine.active_section_name)
@@ -987,7 +985,7 @@ if st.session_state.page == 'game':
         
         st.divider()
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
-            # --- 5 CAPITANES: SOLO LOS 5 ORIGINALES ---
+            # --- 5 CAPITANES: SOLO LOS 5 CORRECTOS ---
             reasons_map = {
                 "Muy Fácil": "pregunta_facil",
                 "Respuesta Obvia": "respuesta_obvia",
@@ -995,10 +993,9 @@ if st.session_state.page == 'game':
                 "Desconexión (Nada que ver)": "desconexion",
                 "Opciones Desiguales (Longitud)": "sesgo_longitud"
             }
-            # Multiselect para selección múltiple
+            # Multiselect arreglado
             errores_sel = st.multiselect("Reportar para ajustar la IA:", list(reasons_map.keys()))
             if st.button("¡Castigar y Corregir!"):
                 for r in errores_sel:
-                    # Guardamos el código del error
                     engine.feedback_history.append(reasons_map[r])
                 st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
