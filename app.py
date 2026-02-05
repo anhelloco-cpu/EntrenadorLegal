@@ -13,13 +13,16 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v98.1: UI AJUSTADA (TIPO DE DOC EN CARGA)
+#  TITÁN v99: SISTEMA JURÍDICO INTEGRAL (BASE v98 + LÓGICA DE CASCADA)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN CONTIENE LA BASE v98 ORIGINAL.
+#  ESTA VERSIÓN CONTIENE LA EVOLUCIÓN FINAL DEL MOTOR DE LECTURA.
 #  
-#  CAMBIO ÚNICO:
-#  - Se movió el selector "TIPO DE DOCUMENTO" de la parte superior del sidebar
-#    al interior de la pestaña de carga ("NUEVO DOCUMENTO").
+#  MEJORAS ESPECÍFICAS (v99):
+#  1. CASCADA (HERENCIA): Ahora los numerales hijos (1.1, 1.2) alimentan
+#     automáticamente al contenedor padre (1). Si seleccionas "Capítulo 1",
+#     leerás todo el contenido secuencial (1 -> 1.1 -> 1.2 -> 2).
+#  2. REGEX FLEXIBLE & LIMPIEZA (Heredado de v98).
+#  3. ORDEN LÓGICO (Heredado de v98).
 # ==============================================================================
 # ==============================================================================
 
@@ -48,7 +51,7 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v98 - Supremo Todo Terreno", 
+    page_title="TITÁN v99 - Supremo Todo Terreno", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -246,18 +249,18 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODO V98: TODO TERRENO)
+    # SEGMENTACIÓN INTELIGENTE (MODO V99: CASCADA)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto usando los patrones adecuados.
-        MEJORA v98: Regex flexible para Guías (Punto opcional + Limpieza).
+        MEJORA v99: Lógica de Cascada (Herencia Padre-Hijo).
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
         
-        # Variable para saber dónde estamos
-        active_label = None
+        # Variable para saber dónde estamos (AHORA ES UNA LISTA PARA HERENCIA)
+        active_labels = []
 
         # --- A. PATRONES PARA NORMAS (LEYES) - INTACTO ---
         p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
@@ -265,11 +268,7 @@ class LegalEngineTITAN:
         p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
         
         # --- B. PATRONES PARA GUÍAS (MEJORADOS v98) ---
-        # 1. Títulos Nivel 1 (Ej: "1. Texto", "1 Texto", "1  Texto")
-        # El \.? hace el punto opcional. El \s+ permite espacios o tabs.
         p_idx_1 = r'^\s*(\d+)\.?\s+(.+)'       
-        
-        # 2. Títulos Nivel 2+ (Ej: "1.1 Texto", "1.1.1. Texto")
         p_idx_2 = r'^\s*(\d+(?:[\.\s]\d+)+)\.?\s+(.+)' 
         
         # --- C. FILTRO ANTI-ÍNDICE (EL CORTAFUEGOS) ---
@@ -279,6 +278,9 @@ class LegalEngineTITAN:
             linea_limpia = linea.strip()
             if not linea_limpia: continue
             
+            # Etiquetas detectadas en esta línea específica
+            new_labels_this_line = []
+
             # -------------------------------------------------------
             # CAMINO 1: SI ES UNA GUÍA TÉCNICA O MANUAL
             # -------------------------------------------------------
@@ -288,49 +290,59 @@ class LegalEngineTITAN:
                     continue 
                 
                 # 2. LIMPIEZA PREVIA DE BASURA
-                # Si la línea empieza con caracteres raros (ej: "• 1. Título"), limpiamos.
-                # Esto ayuda al regex a encontrar el número limpio al inicio.
-                # Solo limpiamos si parece que hay un número después de la basura.
                 if re.search(r'^[^\w\d]+\s*\d', linea_limpia):
                      linea_limpia = re.sub(r'^[^\w\d]+', '', linea_limpia).strip()
 
-                # 3. LÓGICA INVERTIDA: PRIMERO SUBTÍTULOS (NIVEL 2)
-                # Para que "1.1" no sea capturado erróneamente como "1."
+                # 3. LÓGICA DE HERENCIA (V99): PRIMERO SUBTÍTULOS (NIVEL 2)
                 if re.match(p_idx_2, linea_limpia):
                     m = re.match(p_idx_2, linea_limpia)
                     txt_titulo = m.group(2).strip()
                     if len(txt_titulo) > 2: # Filtro de ruido
-                        active_label = f"SECCIÓN {m.group(1)}: {txt_titulo[:80]}"
-                        if active_label not in secciones: secciones[active_label] = []
+                        current_label = f"SECCIÓN {m.group(1)}: {txt_titulo[:80]}"
+                        
+                        # --- MAGIA V99: CASCADA ---
+                        # Si es 5.1, buscamos al padre "5"
+                        padre_num = m.group(1).split('.')[0]
+                        padre_label = next((k for k in secciones.keys() if k.startswith(f"CAPÍTULO {padre_num}:")), None)
+                        
+                        new_labels_this_line = [current_label]
+                        if padre_label:
+                            new_labels_this_line.append(padre_label) # Agregamos al padre
+                        
+                        active_labels = new_labels_this_line
                 
                 # 4. LUEGO TÍTULOS (NIVEL 1)
                 elif re.match(p_idx_1, linea_limpia):
                     m = re.match(p_idx_1, linea_limpia)
                     txt_titulo = m.group(2).strip()
-                    # Validación extra: Que el título tenga sentido (más de 2 letras)
                     if len(txt_titulo) > 2: 
-                        active_label = f"CAPÍTULO {m.group(1)}: {txt_titulo[:80]}"
-                        if active_label not in secciones: secciones[active_label] = []
+                        current_label = f"CAPÍTULO {m.group(1)}: {txt_titulo[:80]}"
+                        new_labels_this_line = [current_label]
+                        active_labels = new_labels_this_line
 
             # -------------------------------------------------------
             # CAMINO 2: SI ES UNA NORMA (LEY, DECRETO, CÓDIGO)
             # -------------------------------------------------------
             elif self.doc_type == "Norma (Leyes/Decretos)":
-                # Lógica original v91 (Intacta)
-                if re.match(p_libro, linea_limpia, re.I):
-                    active_label = linea_limpia[:100]
-                    secciones[active_label] = []
-                elif re.match(p_tit, linea_limpia, re.I):
-                    active_label = linea_limpia[:100]
-                    secciones[active_label] = []
-                elif re.match(p_cap, linea_limpia, re.I):
-                    active_label = linea_limpia[:100]
-                    secciones[active_label] = []
+                current_label = None
+                if re.match(p_libro, linea_limpia, re.I): current_label = linea_limpia[:100]
+                elif re.match(p_tit, linea_limpia, re.I): current_label = linea_limpia[:100]
+                elif re.match(p_cap, linea_limpia, re.I): current_label = linea_limpia[:100]
+                
+                if current_label:
+                    new_labels_this_line = [current_label]
+                    active_labels = new_labels_this_line
 
-            # Guardado final
+            # Inicializar etiquetas si no existen
+            for l in new_labels_this_line:
+                if l not in secciones: secciones[l] = []
+
+            # GUARDADO FINAL (En Cascada)
+            # La línea se guarda en "Todo el Documento" Y en todas las etiquetas activas
             secciones["Todo el Documento"].append(linea) 
-            if active_label and active_label in secciones:
-                secciones[active_label].append(linea)
+            for l in active_labels:
+                if l in secciones:
+                    secciones[l].append(linea)
 
         return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 20}
 
@@ -645,7 +657,7 @@ class LegalEngineTITAN:
                     
                     random.shuffle(items_barajados)
                     
-                    nuevas_opciones = {}
+                    nuevas_ops = {}
                     nueva_letra_respuesta = "A"
                     texto_final_explicacion = ""
                     letras = ['A', 'B', 'C', 'D']
@@ -653,7 +665,7 @@ class LegalEngineTITAN:
                     for i, item in enumerate(items_barajados):
                         if i < 4:
                             letra = letras[i]
-                            nuevas_opciones[letra] = item["texto"]
+                            nuevas_ops[letra] = item["texto"]
                             
                             estado = "❌ INCORRECTA"
                             if item["es_correcta"]:
@@ -662,7 +674,7 @@ class LegalEngineTITAN:
                             
                             texto_final_explicacion += f"**({letra}) {estado}:** {item['explicacion']}\n\n"
                     
-                    q['opciones'] = nuevas_opciones
+                    q['opciones'] = nuevas_ops
                     q['respuesta'] = nueva_letra_respuesta
                     q['explicacion'] = texto_final_explicacion
                     q['tip_final'] = tip_memoria
@@ -685,7 +697,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v98 (Selectivo)")
+    st.title("🦅 TITÁN v99 (Selectivo)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -740,7 +752,7 @@ with st.sidebar:
     tab1, tab2 = st.tabs(["📝 NUEVO DOCUMENTO", "📂 CARGAR BACKUP"])
     
     with tab1:
-        # --- AQUÍ MOVI EL SELECTOR DE DOCUMENTO ---
+        # --- AQUÍ MOVI EL SELECTOR DE DOCUMENTO (UI AJUSTADA) ---
         st.markdown("### 📂 TIPO DE DOCUMENTO")
         doc_type_input = st.radio(
             "¿Qué vas a estudiar?", 
