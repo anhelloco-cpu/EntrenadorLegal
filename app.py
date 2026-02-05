@@ -18,11 +18,11 @@ from collections import Counter
 #  ESTA VERSIÓN CONTIENE LA LÓGICA DE SEGMENTACIÓN CORREGIDA PARA GUÍAS.
 #  
 #  MEJORAS ESPECÍFICAS (v99.2):
-#  1. FILTRO ANTI-ÍNDICE: Ignora líneas con "..." (Tabla de contenido).
-#  2. FILTRO DE LONGITUD: Ignora títulos > 150 caracteres (Notas al pie).
-#  3. MEMORIA SECUENCIAL: Evita que listas internas (4.) reinicien capítulos.
-#  4. CASCADA: Herencia de contenido (Hijo -> Padre).
-#  5. UI: Selector de documento ubicado dentro de la pestaña de carga.
+#  1. FILTRO DE TABULACIÓN: Solo las líneas pegadas a la izquierda son Títulos Nivel 1.
+#  2. FILTRO ANTI-ÍNDICE: Ignora líneas con "..." (Tabla de contenido).
+#  3. MEMORIA SECUENCIAL: Evita que listas internas reinicien capítulos.
+#  4. ETIQUETAS LIMPIAS: Se elimina la palabra forzada "CAPÍTULO".
+#  5. CASCADA: Herencia de contenido (Hijo -> Padre).
 # ==============================================================================
 # ==============================================================================
 
@@ -260,6 +260,7 @@ class LegalEngineTITAN:
         2. Filtro de Longitud (Notas al pie).
         3. Memoria Secuencial (No volver al Cap 4 si voy en el 5).
         4. Cascada (Herencia).
+        5. Filtro de Tabulación (Indentación).
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -286,6 +287,8 @@ class LegalEngineTITAN:
         p_basura_indice = r'\.{3,}' # Detecta 3 o más puntos seguidos "..."
 
         for linea in lineas:
+            # Medimos la indentación ANTES de limpiar
+            indentation = len(linea) - len(linea.lstrip())
             linea_limpia = linea.strip()
             if not linea_limpia: continue
             
@@ -315,11 +318,13 @@ class LegalEngineTITAN:
                         m = re.match(p_idx_2, linea_limpia)
                         txt_titulo = m.group(2).strip()
                         if len(txt_titulo) > 2: 
-                            current_label = f"SECCIÓN {m.group(1)}: {txt_titulo[:80]}"
+                            # Etiqueta limpia
+                            current_label = f"{m.group(1)} {txt_titulo[:80]}"
                             
                             # --- CASCADA: HERENCIA PADRE ---
                             padre_num = m.group(1).split('.')[0]
-                            padre_label = next((k for k in secciones.keys() if k.startswith(f"CAPÍTULO {padre_num}:")), None)
+                            # Buscamos al padre (ahora sin "CAPÍTULO")
+                            padre_label = next((k for k in secciones.keys() if k.startswith(f"{padre_num}. ")), None)
                             
                             new_labels_this_line = [current_label]
                             if padre_label:
@@ -327,25 +332,30 @@ class LegalEngineTITAN:
                             
                             active_labels = new_labels_this_line
                     
-                    # 5. LÓGICA NIVEL 1 (Títulos 5.) + SECUENCIAL
+                    # 5. LÓGICA NIVEL 1 (Títulos 5.) + SECUENCIAL + TABULACIÓN
                     elif re.match(p_idx_1, linea_limpia):
                         m = re.match(p_idx_1, linea_limpia)
                         num_cap = int(m.group(1))
                         txt_titulo = m.group(2).strip()
                         
-                        # --- FILTRO SECUENCIAL ---
-                        # Solo aceptamos el capítulo si es MAYOR o IGUAL al último visto.
-                        # Si ya vamos en el 5 y vemos un "4.", lo ignoramos (es una lista interna).
-                        es_capitulo_valido = False
+                        # --- FILTRO DE TABULACIÓN ---
+                        # Si tiene espacios al inicio (>1), NO es un título principal.
+                        es_titulo_principal = False
+                        if indentation < 2:
+                            es_titulo_principal = True
                         
-                        if num_cap >= self.last_detected_chapter:
-                            es_capitulo_valido = True
-                        # Excepción: Si es el 1 o 2, puede ser un reinicio legítimo (Anexos)
-                        elif num_cap < 5 and self.last_detected_chapter > 20: 
-                            es_capitulo_valido = True 
+                        # --- FILTRO SECUENCIAL ---
+                        es_capitulo_valido = False
+                        if es_titulo_principal:
+                            if num_cap >= self.last_detected_chapter:
+                                es_capitulo_valido = True
+                            # Excepción: Si es el 1 o 2, puede ser un reinicio legítimo (Anexos)
+                            elif num_cap < 5 and self.last_detected_chapter > 20: 
+                                es_capitulo_valido = True 
                         
                         if es_capitulo_valido and len(txt_titulo) > 2: 
-                            current_label = f"CAPÍTULO {num_cap}: {txt_titulo[:80]}"
+                            # Etiqueta limpia
+                            current_label = f"{num_cap}. {txt_titulo[:80]}"
                             new_labels_this_line = [current_label]
                             active_labels = new_labels_this_line
                             self.last_detected_chapter = num_cap # Actualizar memoria
