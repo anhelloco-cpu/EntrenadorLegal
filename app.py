@@ -22,7 +22,7 @@ from collections import Counter
 #     Los nietos (5.1.1) se guardan como contenido de texto, no como secciones.
 #  2. SECUENCIA ESTRICTA: Impide que listas internas (1., 2., 3.) se confundan
 #     con capítulos si ya vamos por el 5.
-#  3. LIMPIEZA TOTAL: Anti-índice y Tabulación se mantienen.
+#  3. FILTROS DE LIMPIEZA: Anti-índice, Longitud Max y Tabulación activados.
 # ==============================================================================
 # ==============================================================================
 
@@ -214,7 +214,7 @@ class LegalEngineTITAN:
         # -- Mapa de la Ley (Jerarquía) --
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
-        self.last_detected_chapter = 0 # Memoria de capítulo
+        self.last_detected_chapter = 0 # NUEVO: Memoria de capítulo para evitar retrocesos
         
         # -- Sistema Francotirador & Semáforo --
         self.seen_articles = set()    
@@ -256,8 +256,8 @@ class LegalEngineTITAN:
         """
         Divide el texto usando los patrones adecuados.
         MEJORAS v99.3: 
-        1. BLOQUEO NIVEL 3: Si detecta más de 2 niveles numéricos (5.1.1), lo ignora como título.
-        2. FILTROS PREVIOS: Anti-índice, Longitud, Tabulación, Secuencia.
+        1. BLOQUEO NIVEL 3+: Si detecta "5.1.1", lo ignora como título.
+        2. FILTROS PREVIOS: Anti-índice, Longitud Max, Tabulación, Secuencia.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -297,12 +297,12 @@ class LegalEngineTITAN:
             # -------------------------------------------------------
             if self.doc_type == "Guía Técnica / Manual":
                 
-                # 1. FILTRO ANTI-ÍNDICE: Si tiene "...", es basura.
+                # 1. FILTRO ANTI-ÍNDICE
                 if re.search(p_basura_indice, linea_limpia): 
                     pass
                 
-                # 2. FILTRO DE LONGITUD: Si tiene > 150 caracteres, es nota al pie o texto.
-                elif len(linea_limpia) > 150:
+                # 2. FILTRO DE LONGITUD (Notas al pie)
+                elif len(linea_limpia) > 120:
                     pass
 
                 # 3. LIMPIEZA PREVIA DE BASURA
@@ -317,15 +317,14 @@ class LegalEngineTITAN:
                         txt_titulo = m.group(2).strip()
                         
                         # --- FILTRO DE PROFUNDIDAD (V99.3 CRÍTICO) ---
-                        # Contamos cuántas partes numéricas tiene "5.1" (2 partes) vs "5.1.1" (3 partes)
-                        # También filtramos listas que empiezan con "1.1" pero son cortas y no secuenciales.
                         partes_numericas = re.findall(r'\d+', num_id)
                         
-                        # SOLO procesamos si tiene 2 partes (Ej: 5.1). Si tiene 3 (5.1.1), se ignora como título.
-                        # Además validamos que el Padre (5) coincida con la memoria secuencial.
+                        # SOLO procesamos si tiene exactamente 2 partes (Ej: 5.1).
+                        # Si tiene 3 o más (5.1.1), se ignora como título.
                         es_valido_n2 = False
                         if len(partes_numericas) == 2:
                             padre_num = int(partes_numericas[0])
+                            # Validar que pertenezca al capítulo actual
                             if padre_num == self.last_detected_chapter:
                                 es_valido_n2 = True
                         
@@ -335,7 +334,6 @@ class LegalEngineTITAN:
                             
                             # --- CASCADA: HERENCIA PADRE ---
                             padre_num_str = partes_numericas[0] # "5"
-                            # Buscamos al padre (ahora sin "CAPÍTULO")
                             padre_label = next((k for k in secciones.keys() if k.startswith(f"{padre_num_str}. ")), None)
                             
                             new_labels_this_line = [current_label]
@@ -351,7 +349,7 @@ class LegalEngineTITAN:
                         txt_titulo = m.group(2).strip()
                         
                         # --- FILTRO DE TABULACIÓN ---
-                        # Si tiene espacios al inicio (>1), NO es un título principal.
+                        # Solo si está pegado a la izquierda (indent < 2)
                         es_titulo_principal = False
                         if indentation < 2:
                             es_titulo_principal = True
@@ -361,12 +359,12 @@ class LegalEngineTITAN:
                         if es_titulo_principal:
                             if num_cap >= self.last_detected_chapter:
                                 es_capitulo_valido = True
-                            # Excepción: Si es el 1 o 2, puede ser un reinicio legítimo (Anexos)
+                            # Excepción para reinicios reales (Anexos al final)
                             elif num_cap < 5 and self.last_detected_chapter > 20: 
                                 es_capitulo_valido = True 
                         
                         if es_capitulo_valido and len(txt_titulo) > 2: 
-                            # Etiqueta limpia
+                            # Etiqueta limpia (Sin palabra CAPÍTULO)
                             current_label = f"{num_cap}. {txt_titulo[:80]}"
                             new_labels_this_line = [current_label]
                             active_labels = new_labels_this_line
@@ -390,7 +388,6 @@ class LegalEngineTITAN:
                 if l not in secciones: secciones[l] = []
 
             # GUARDADO FINAL (En Cascada)
-            # La línea se guarda en "Todo el Documento" Y en todas las etiquetas activas
             secciones["Todo el Documento"].append(linea) 
             for l in active_labels:
                 if l in secciones:
