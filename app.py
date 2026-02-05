@@ -20,7 +20,7 @@ from collections import Counter
 #  MEJORAS ESPECÍFICAS (v99.2):
 #  1. FILTRO DE TABULACIÓN: Solo las líneas pegadas a la izquierda son Títulos Nivel 1.
 #  2. FILTRO ANTI-ÍNDICE: Ignora líneas con "..." (Tabla de contenido).
-#  3. MEMORIA SECUENCIAL: Evita que listas internas reinicien capítulos.
+#  3. MEMORIA SECUENCIAL: Evita que listas internas (4.) reinicien capítulos.
 #  4. ETIQUETAS LIMPIAS: Se elimina la palabra forzada "CAPÍTULO".
 #  5. CASCADA: Herencia de contenido (Hijo -> Padre).
 # ==============================================================================
