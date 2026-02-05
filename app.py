@@ -13,16 +13,16 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v99: SISTEMA JURÍDICO INTEGRAL (BASE v98 + LÓGICA DE CASCADA)
+#  TITÁN v99: SISTEMA JURÍDICO INTEGRAL (CASCADA + FILTRO ESTRICTO DE PUNTOS)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN CONTIENE LA EVOLUCIÓN FINAL DEL MOTOR DE LECTURA.
+#  ESTA VERSIÓN INCLUYE LA CORRECCIÓN CRÍTICA PARA GUÍAS TÉCNICAS.
 #  
-#  MEJORAS ESPECÍFICAS (v99):
-#  1. CASCADA (HERENCIA): Ahora los numerales hijos (1.1, 1.2) alimentan
-#     automáticamente al contenedor padre (1). Si seleccionas "Capítulo 1",
-#     leerás todo el contenido secuencial (1 -> 1.1 -> 1.2 -> 2).
-#  2. REGEX FLEXIBLE & LIMPIEZA (Heredado de v98).
-#  3. ORDEN LÓGICO (Heredado de v98).
+#  MEJORAS TÉCNICAS:
+#  1. CANDADO DEL PUNTO (FIX): Se modificó el Regex del Nivel 1. Ahora es 
+#     OBLIGATORIO que el número tenga un punto ("2. Título") para ser detectado.
+#     Esto elimina automáticamente las notas al pie ("27 Texto") y las citas.
+#  2. LÓGICA DE HERENCIA: Los hijos (1.1) alimentan al padre (1).
+#  3. UI AJUSTADA: El selector de documento está dentro de la carga.
 # ==============================================================================
 # ==============================================================================
 
@@ -249,17 +249,19 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODO V99: CASCADA)
+    # SEGMENTACIÓN INTELIGENTE (MODO V99: CASCADA + FILTRO ESTRICTO)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto usando los patrones adecuados.
-        MEJORA v99: Lógica de Cascada (Herencia Padre-Hijo).
+        MEJORA v99: 
+        1. CASCADA: Herencia Padre-Hijo.
+        2. FILTRO DE PUNTO: El nivel 1 exige punto ("2.") para no leer notas al pie.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
         
-        # Variable para saber dónde estamos (AHORA ES UNA LISTA PARA HERENCIA)
+        # Variable para saber dónde estamos (LISTA PARA HERENCIA)
         active_labels = []
 
         # --- A. PATRONES PARA NORMAS (LEYES) - INTACTO ---
@@ -267,8 +269,13 @@ class LegalEngineTITAN:
         p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
         p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
         
-        # --- B. PATRONES PARA GUÍAS (MEJORADOS v98) ---
-        p_idx_1 = r'^\s*(\d+)\.?\s+(.+)'       
+        # --- B. PATRONES PARA GUÍAS (MEJORA CRÍTICA v99) ---
+        # 1. Títulos Nivel 1 (Ej: "2. Objetivo").
+        # CAMBIO: Se quitó el "?" del punto. Ahora es \. (OBLIGATORIO)
+        # Esto filtra las notas al pie como "27 Parágrafo..."
+        p_idx_1 = r'^\s*(\d+)\.\s+(.+)'       
+        
+        # 2. Títulos Nivel 2+ (Ej: "1.1 Texto")
         p_idx_2 = r'^\s*(\d+(?:[\.\s]\d+)+)\.?\s+(.+)' 
         
         # --- C. FILTRO ANTI-ÍNDICE (EL CORTAFUEGOS) ---
@@ -297,11 +304,10 @@ class LegalEngineTITAN:
                 if re.match(p_idx_2, linea_limpia):
                     m = re.match(p_idx_2, linea_limpia)
                     txt_titulo = m.group(2).strip()
-                    if len(txt_titulo) > 2: # Filtro de ruido
+                    if len(txt_titulo) > 2: 
                         current_label = f"SECCIÓN {m.group(1)}: {txt_titulo[:80]}"
                         
-                        # --- MAGIA V99: CASCADA ---
-                        # Si es 5.1, buscamos al padre "5"
+                        # --- CASCADA: BUSCAR AL PADRE ---
                         padre_num = m.group(1).split('.')[0]
                         padre_label = next((k for k in secciones.keys() if k.startswith(f"CAPÍTULO {padre_num}:")), None)
                         
@@ -311,7 +317,7 @@ class LegalEngineTITAN:
                         
                         active_labels = new_labels_this_line
                 
-                # 4. LUEGO TÍTULOS (NIVEL 1)
+                # 4. LUEGO TÍTULOS (NIVEL 1) - AHORA EXIGE PUNTO
                 elif re.match(p_idx_1, linea_limpia):
                     m = re.match(p_idx_1, linea_limpia)
                     txt_titulo = m.group(2).strip()
@@ -338,7 +344,6 @@ class LegalEngineTITAN:
                 if l not in secciones: secciones[l] = []
 
             # GUARDADO FINAL (En Cascada)
-            # La línea se guarda en "Todo el Documento" Y en todas las etiquetas activas
             secciones["Todo el Documento"].append(linea) 
             for l in active_labels:
                 if l in secciones:
@@ -697,7 +702,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v99 (Selectivo)")
+    st.title("🦅 TITÁN v98 (Selectivo)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
