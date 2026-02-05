@@ -13,16 +13,15 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v99.2: SISTEMA JURÍDICO INTEGRAL (CASCADA + FILTROS INTELIGENTES)
+#  TITÁN v99.3: SISTEMA JURÍDICO INTEGRAL (RESTRICCIÓN 2 NIVELES)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN CONTIENE LA LÓGICA DE SEGMENTACIÓN CORREGIDA PARA GUÍAS.
+#  ESTA VERSIÓN ELIMINA EL "RUIDO" DE LOS SUBNIVELES PROFUNDOS.
 #  
-#  MEJORAS ESPECÍFICAS (v99.2):
-#  1. FILTRO DE TABULACIÓN: Solo las líneas pegadas a la izquierda son Títulos Nivel 1.
-#  2. FILTRO ANTI-ÍNDICE: Ignora líneas con "..." (Tabla de contenido).
-#  3. MEMORIA SECUENCIAL: Evita que listas internas (4.) reinicien capítulos.
-#  4. ETIQUETAS LIMPIAS: Se elimina la palabra forzada "CAPÍTULO".
-#  5. CASCADA: Herencia de contenido (Hijo -> Padre).
+#  MEJORAS ESPECÍFICAS (v99.3):
+#  1. BLOQUEO DE NIVEL 3+: Si detecta "5.1.1" o "5.1.1.1", NO crea una sección.
+#     Lo guarda como texto dentro del nivel superior (5.1). Esto limpia el mapa.
+#  2. SOLO 2 NIVELES: El mapa solo mostrará "5. Título" y "5.1 Subtítulo".
+#  3. FILTROS ANTERIORES: Se mantienen (Anti-índice, Longitud, Tabulación).
 # ==============================================================================
 # ==============================================================================
 
@@ -51,7 +50,7 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v99.2 - Supremo Todo Terreno", 
+    page_title="TITÁN v99.3 - Supremo Todo Terreno", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -214,7 +213,7 @@ class LegalEngineTITAN:
         # -- Mapa de la Ley (Jerarquía) --
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
-        self.last_detected_chapter = 0 # NUEVO: Memoria de capítulo para evitar retrocesos
+        self.last_detected_chapter = 0 # Memoria de capítulo
         
         # -- Sistema Francotirador & Semáforo --
         self.seen_articles = set()    
@@ -250,17 +249,14 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODO V99.2: FILTROS DE INTELIGENCIA)
+    # SEGMENTACIÓN INTELIGENTE (MODO V99.3: RESTRICCIÓN DE NIVELES)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto usando los patrones adecuados.
-        MEJORAS v99.2: 
-        1. Filtro Anti-Índice ("...").
-        2. Filtro de Longitud (Notas al pie).
-        3. Memoria Secuencial (No volver al Cap 4 si voy en el 5).
-        4. Cascada (Herencia).
-        5. Filtro de Tabulación (Indentación).
+        MEJORAS v99.3: 
+        1. BLOQUEO NIVEL 3: Si detecta más de 2 niveles numéricos (5.1.1), lo ignora como título.
+        2. FILTROS PREVIOS: Anti-índice, Longitud, Tabulación, Secuencia.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -316,13 +312,20 @@ class LegalEngineTITAN:
                     # 4. LÓGICA NIVEL 2 (Subtítulos 5.1)
                     if re.match(p_idx_2, linea_limpia):
                         m = re.match(p_idx_2, linea_limpia)
+                        num_id = m.group(1).strip()
                         txt_titulo = m.group(2).strip()
-                        if len(txt_titulo) > 2: 
+                        
+                        # --- FILTRO DE PROFUNDIDAD (V99.3 CRÍTICO) ---
+                        # Contamos cuántas partes numéricas tiene "5.1" (2 partes) vs "5.1.1" (3 partes)
+                        partes_numericas = re.findall(r'\d+', num_id)
+                        
+                        # SOLO procesamos si tiene 2 partes (Ej: 5.1). Si tiene 3 (5.1.1), se ignora como título.
+                        if len(partes_numericas) == 2 and len(txt_titulo) > 2: 
                             # Etiqueta limpia
-                            current_label = f"{m.group(1)} {txt_titulo[:80]}"
+                            current_label = f"{num_id} {txt_titulo[:80]}"
                             
                             # --- CASCADA: HERENCIA PADRE ---
-                            padre_num = m.group(1).split('.')[0]
+                            padre_num = partes_numericas[0] # "5"
                             # Buscamos al padre (ahora sin "CAPÍTULO")
                             padre_label = next((k for k in secciones.keys() if k.startswith(f"{padre_num}. ")), None)
                             
