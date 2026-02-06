@@ -13,10 +13,11 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v100: SISTEMA JURÍDICO INTEGRAL (VERSIÓN FINAL COMPLETAMENTE EXTENDIDA)
+#  TITÁN v100: SISTEMA JURÍDICO INTEGRAL (CEREBRO INSTITUCIONAL + SEGMENTACIÓN)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN INCLUYE:
-#  1. CEREBRO INSTITUCIONAL: Personalidad de Auditor, Fiscal, etc.
+#  NOVEDADES v100:
+#  1. CEREBRO INSTITUCIONAL: La IA ahora "actúa" con la personalidad exacta
+#     de la entidad seleccionada (Auditor, Fiscal, Juez, etc.).
 #  2. SEGMENTACIÓN HÍBRIDA: Normas (Artículos) vs Guías (Párrafos).
 #  3. MODO TRAMPA & FUNCIONES: Lógica anti-obviedad y contexto laboral.
 # ==============================================================================
@@ -44,7 +45,7 @@ except ImportError:
 
 
 # ------------------------------------------------------------------------------
-# 2. CONFIGURACIÓN VISUAL Y ESTILOS
+# 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
     page_title="TITÁN v100 - Edición Definitiva", 
@@ -219,7 +220,7 @@ class LegalEngineTITAN:
         self.temporary_blacklist = set() # Lista Negra de Sesión
         self.current_article_label = "General"
 
-        # --- DICCIONARIO DE MISIONES (El Cerebro) ---
+        # --- MODIFICACIÓN 1: DICCIONARIO DE MISIONES (CEREBRO INSTITUCIONAL) ---
         self.mission_profiles = {
             "Contraloría General de la República": "TU ROL: AUDITOR FISCAL. Tu misión es proteger el PATRIMONIO PÚBLICO. Al generar la pregunta, enfócate exclusivamente en detectar DAÑO PATRIMONIAL, gestión antieconómica, ineficaz o ineficiente. Ignora definiciones de diccionario (RAE) o temas puramente teóricos a menos que sirvan para probar un detrimento económico real. Si el texto es un Manual, pregunta sobre el PROCEDIMIENTO para auditar.",
             "Procuraduría General de la Nación": "TU ROL: JUEZ DISCIPLINARIO. Tu misión es vigilar la CONDUCTA OFICIAL. Enfócate en el cumplimiento de deberes, prohibiciones, inhabilidades e incompatibilidades. No busques cárcel ni dinero, busca FALTAS DISCIPLINARIAS (Gravísimas, Graves, Leves) y afectación a la función pública.",
@@ -260,7 +261,7 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (HÍBRIDA: NORMAS vs GUÍAS)
+    # SEGMENTACIÓN INTELIGENTE (MODIFICACIÓN 2: HÍBRIDA)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
@@ -298,27 +299,31 @@ class LegalEngineTITAN:
                     secciones[l].append(linea)
                 secciones["Todo el Documento"].append(linea)
                 
+            # Filtro simple: solo guardar secciones con contenido
             return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
 
         # --- ESTRATEGIA 2: GUÍAS Y MANUALES (Párrafos Inteligentes) ---
         else:
-            # 1. Unificar saltos de línea para detectar párrafos reales (doble salto)
+            # 1. Normalizar saltos de línea para detectar párrafos reales (doble salto)
+            # Primero unificamos saltos múltiples en un marcador único
             text_clean = re.sub(r'\n\s*\n', '<PARAGRAPH_BREAK>', full_text)
+            
+            # Dividimos por ese marcador
             raw_paragraphs = text_clean.split('<PARAGRAPH_BREAK>')
             
             final_blocks = {}
             current_block_content = ""
             block_count = 1
             
-            # Tamaño máximo sugerido por bloque (aprox 1 página)
+            # Tamaño objetivo por bloque (aprox 2000-3000 caracteres)
             BLOCK_SIZE_LIMIT = 2500 
             
             for p in raw_paragraphs:
                 p = p.strip()
-                # Filtro: Ignorar líneas de índice (....... 7)
+                # Filtro Anti-Índice: Ignorar líneas tipo "....... 7"
                 if not p or re.search(r'\.{4,}\s*\d+$', p): continue
                 
-                # Si el párrafo es GIGANTE (>3000 chars), lo partimos a la fuerza
+                # Si el párrafo individual es GIGANTE (>3000 chars), lo partimos por oraciones
                 if len(p) > 3000:
                     sentences = p.split('. ')
                     temp_chunk = ""
@@ -332,7 +337,7 @@ class LegalEngineTITAN:
                             block_count += 1
                             temp_chunk = s + ". "
                     if temp_chunk: 
-                        p = temp_chunk 
+                        p = temp_chunk # Lo que sobre se procesa abajo
                     else:
                         continue 
 
@@ -343,15 +348,16 @@ class LegalEngineTITAN:
                     # Cerrar bloque actual
                     name = f"Bloque Temático {block_count}"
                     
-                    # Intentar encontrar un título dentro del bloque para el nombre
+                    # Intentar encontrar un título dentro del bloque para el nombre (Opcional, estético)
                     lines = current_block_content.strip().split('\n')
                     first_line = lines[0].strip()[:60]
+                    # Si la primera línea parece título (Mayúscula o número), usarla
                     if len(first_line) > 5 and (first_line.isupper() or re.match(r'^\d+\.', first_line)):
                         name = f"Bloque {block_count}: {first_line}..."
                     
                     final_blocks[name] = [current_block_content]
                     block_count += 1
-                    current_block_content = p # Iniciar nuevo bloque
+                    current_block_content = p # Iniciar nuevo bloque con el párrafo actual
             
             # Guardar el último remanente
             if current_block_content:
@@ -427,7 +433,7 @@ class LegalEngineTITAN:
         """
 
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICADO: CEREBRO + TRAMPAS + FUNCIONES)
+    # GENERADOR DE CASOS (MODIFICACIÓN 3: CEREBRO + TRAMPAS + FUNCIONES)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
