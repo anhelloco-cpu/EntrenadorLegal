@@ -15,9 +15,8 @@ from collections import Counter
 # ==============================================================================
 #  TITÁN v100: SISTEMA JURÍDICO INTEGRAL (CEREBRO INSTITUCIONAL + SEGMENTACIÓN)
 #  ----------------------------------------------------------------------------
-#  NOVEDADES v100:
-#  1. CEREBRO INSTITUCIONAL: La IA ahora "actúa" con la personalidad exacta
-#     de la entidad seleccionada (Auditor, Fiscal, Juez, etc.).
+#  ESTA VERSIÓN INCLUYE:
+#  1. CEREBRO INSTITUCIONAL: Personalidad de Auditor, Fiscal, etc.
 #  2. SEGMENTACIÓN HÍBRIDA: Normas (Artículos) vs Guías (Párrafos).
 #  3. MODO TRAMPA & FUNCIONES: Lógica anti-obviedad y contexto laboral.
 # ==============================================================================
@@ -198,7 +197,7 @@ class LegalEngineTITAN:
         self.model = None 
         self.current_temperature = 0.3 
         self.last_failed_embedding = None
-        self.doc_type = "Norma" # Variable CRÍTICA: Define si es Ley o Guía
+        self.doc_type = "Norma" 
         
         # -- Variables de Control Pedagógico --
         self.study_phase = "Pre-Guía" 
@@ -215,12 +214,15 @@ class LegalEngineTITAN:
         
         # -- Sistema Francotirador & Semáforo --
         self.seen_articles = set()     
-        self.failed_articles = set()   # Lista Roja (Pendientes)
-        self.mastered_articles = set() # Lista Verde (Dominados)
-        self.temporary_blacklist = set() # Lista Negra de Sesión
+        self.failed_articles = set()   
+        self.mastered_articles = set() 
+        self.temporary_blacklist = set() 
         self.current_article_label = "General"
 
-        # --- MODIFICACIÓN 1: DICCIONARIO DE MISIONES (CEREBRO INSTITUCIONAL) ---
+        # --- NUEVO: VARIABLE PARA MANUAL DE FUNCIONES ---
+        self.manual_text = ""
+
+        # --- DICCIONARIO DE MISIONES (El Cerebro) ---
         self.mission_profiles = {
             "Contraloría General de la República": "TU ROL: AUDITOR FISCAL. Tu misión es proteger el PATRIMONIO PÚBLICO. Al generar la pregunta, enfócate exclusivamente en detectar DAÑO PATRIMONIAL, gestión antieconómica, ineficaz o ineficiente. Ignora definiciones de diccionario (RAE) o temas puramente teóricos a menos que sirvan para probar un detrimento económico real. Si el texto es un Manual, pregunta sobre el PROCEDIMIENTO para auditar.",
             "Procuraduría General de la Nación": "TU ROL: JUEZ DISCIPLINARIO. Tu misión es vigilar la CONDUCTA OFICIAL. Enfócate en el cumplimiento de deberes, prohibiciones, inhabilidades e incompatibilidades. No busques cárcel ni dinero, busca FALTAS DISCIPLINARIAS (Gravísimas, Graves, Leves) y afectación a la función pública.",
@@ -261,17 +263,17 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODIFICACIÓN 2: HÍBRIDA)
+    # SEGMENTACIÓN INTELIGENTE (MODIFICADA: HÍBRIDA)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto según el tipo de documento.
-        1. NORMAS: Jerarquía estricta (Artículos, Títulos).
+        1. NORMAS: Jerarquía estricta.
         2. GUÍAS: Párrafos Inteligentes (Corte por tamaño/fusión).
         """
         secciones = {}
         
-        # --- ESTRATEGIA 1: NORMAS (Jerarquía Legal Estricta) ---
+        # --- ESTRATEGIA 1: NORMAS (Jerarquía Legal) ---
         if self.doc_type == "Norma (Leyes/Decretos)":
             lineas = full_text.split('\n')
             secciones = {"Todo el Documento": []} 
@@ -299,31 +301,27 @@ class LegalEngineTITAN:
                     secciones[l].append(linea)
                 secciones["Todo el Documento"].append(linea)
                 
-            # Filtro simple: solo guardar secciones con contenido
             return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
 
         # --- ESTRATEGIA 2: GUÍAS Y MANUALES (Párrafos Inteligentes) ---
         else:
-            # 1. Normalizar saltos de línea para detectar párrafos reales (doble salto)
-            # Primero unificamos saltos múltiples en un marcador único
+            # 1. Unificar saltos de línea para detectar párrafos reales (doble salto)
             text_clean = re.sub(r'\n\s*\n', '<PARAGRAPH_BREAK>', full_text)
-            
-            # Dividimos por ese marcador
             raw_paragraphs = text_clean.split('<PARAGRAPH_BREAK>')
             
             final_blocks = {}
             current_block_content = ""
             block_count = 1
             
-            # Tamaño objetivo por bloque (aprox 2000-3000 caracteres)
+            # Tamaño máximo sugerido por bloque (aprox 1 página)
             BLOCK_SIZE_LIMIT = 2500 
             
             for p in raw_paragraphs:
                 p = p.strip()
-                # Filtro Anti-Índice: Ignorar líneas tipo "....... 7"
+                # Filtro: Ignorar líneas de índice (....... 7)
                 if not p or re.search(r'\.{4,}\s*\d+$', p): continue
                 
-                # Si el párrafo individual es GIGANTE (>3000 chars), lo partimos por oraciones
+                # Si el párrafo es GIGANTE (>3000 chars), lo partimos a la fuerza
                 if len(p) > 3000:
                     sentences = p.split('. ')
                     temp_chunk = ""
@@ -337,7 +335,7 @@ class LegalEngineTITAN:
                             block_count += 1
                             temp_chunk = s + ". "
                     if temp_chunk: 
-                        p = temp_chunk # Lo que sobre se procesa abajo
+                        p = temp_chunk 
                     else:
                         continue 
 
@@ -348,16 +346,15 @@ class LegalEngineTITAN:
                     # Cerrar bloque actual
                     name = f"Bloque Temático {block_count}"
                     
-                    # Intentar encontrar un título dentro del bloque para el nombre (Opcional, estético)
+                    # Intentar encontrar un título dentro del bloque para el nombre
                     lines = current_block_content.strip().split('\n')
                     first_line = lines[0].strip()[:60]
-                    # Si la primera línea parece título (Mayúscula o número), usarla
                     if len(first_line) > 5 and (first_line.isupper() or re.match(r'^\d+\.', first_line)):
                         name = f"Bloque {block_count}: {first_line}..."
                     
                     final_blocks[name] = [current_block_content]
                     block_count += 1
-                    current_block_content = p # Iniciar nuevo bloque con el párrafo actual
+                    current_block_content = p # Iniciar nuevo bloque
             
             # Guardar el último remanente
             if current_block_content:
@@ -433,7 +430,7 @@ class LegalEngineTITAN:
         """
 
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICACIÓN 3: CEREBRO + TRAMPAS + FUNCIONES)
+    # GENERADOR DE CASOS (MODIFICADO: MANUAL + CEREBRO + TRAMPAS)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
@@ -455,7 +452,7 @@ class LegalEngineTITAN:
         
         texto_base = self.chunks[idx]
         
-        # --- FRANCOTIRADOR SELECTIVO (TU SOLUCIÓN) ---
+        # --- FRANCOTIRADOR SELECTIVO ---
         matches = []
         
         if self.doc_type == "Norma (Leyes/Decretos)":
@@ -520,19 +517,24 @@ class LegalEngineTITAN:
             self.current_article_label = "General"
             texto_final_ia = texto_base[:4000]
 
-        # --- CONSTRUCCIÓN DEL CEREBRO (MODIFICACIONES AQUÍ) ---
+        # --- CONSTRUCCIÓN DEL CEREBRO ---
         dificultad_prompt = f"NIVEL: {self.level.upper()}."
         instruccion_estilo = "ESTILO: TÉCNICO." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO."
         
-        # 1. TRAMPAS Y DIFICULTAD (Modo Asesor/Profesional)
+        # 1. TRAMPAS Y DIFICULTAD
         instruccion_trampas = ""
         if self.level in ["Profesional", "Asesor"]:
             instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES, basadas en errores comunes de la práctica o interpretaciones ligeras. Castiga el pensamiento automático."
 
-        # 2. FUNCIONES DEL CARGO (Inyección Contextual)
+        # 2. FUNCIONES DEL CARGO (LÓGICA NUEVA PARA EL MANUAL PDF)
+        # Aquí verificamos si hay texto del manual (PDF) o usamos el texto manual
+        texto_funciones_real = self.manual_text if self.manual_text else self.job_functions
+        
         contexto_funcional = ""
-        if self.job_functions:
-            contexto_funcional = f"CONTEXTO OBLIGATORIO: El usuario aspira a un cargo con estas funciones: '{self.job_functions}'. TU OBLIGACIÓN ES AMBIENTAR LA PREGUNTA EN LA EJECUCIÓN PRÁCTICA DE ESTAS FUNCIONES. No inventes casos ajenos a este rol."
+        if texto_funciones_real:
+            # Recortamos el manual para no saturar si es gigante (primeros 15.000 chars son suficientes para contexto)
+            funciones_safe = texto_funciones_real[:15000]
+            contexto_funcional = f"CONTEXTO OBLIGATORIO (MANUAL DE FUNCIONES): El usuario aspira a un cargo con estas funciones: '{funciones_safe}'. TU OBLIGACIÓN ES AMBIENTAR LA PREGUNTA EN LA EJECUCIÓN PRÁCTICA DE ESTAS FUNCIONES. No inventes casos ajenos a este rol."
 
         # 3. MISIÓN INSTITUCIONAL
         mision_entidad = self.mission_profiles.get(self.entity, self.mission_profiles["Genérico"])
@@ -771,9 +773,27 @@ with st.sidebar:
         cant = st.number_input("Preguntas:", min_value=1, max_value=5, value=engine.questions_per_case)
         engine.questions_per_case = cant
 
-    with st.expander("Detalles", expanded=True):
+    # --- AQUÍ ESTÁ EL CAMBIO DE INTERFAZ SOLICITADO ---
+    with st.expander("Detalles / Manual de Funciones", expanded=True):
         if "Con Caso" in estilo:
-            engine.job_functions = st.text_area("Funciones / Rol:", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...")
+            # Opción 1: Texto manual
+            engine.job_functions = st.text_area("Funciones / Rol (Resumen):", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...", help="Escribe un resumen o carga el PDF abajo.")
+            
+            # Opción 2: Cargar PDF del Manual
+            upl_manual = st.file_uploader("📂 Cargar Manual de Funciones (PDF):", type=['pdf'])
+            if upl_manual:
+                if PDF_AVAILABLE:
+                    try:
+                        reader = pypdf.PdfReader(upl_manual)
+                        manual_text = ""
+                        for page in reader.pages:
+                            manual_text += page.extract_text() + "\n"
+                        engine.manual_text = manual_text # Guardamos en el motor
+                        st.caption(f"✅ Manual cargado: {len(manual_text)} caracteres leídos.")
+                    except Exception as e:
+                        st.error(f"Error leyendo manual: {e}")
+                else:
+                    st.warning("Instala pypdf para cargar manuales.")
         else:
             engine.example_question = st.text_area("Ejemplo de Estilo (Sintaxis):", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
 
