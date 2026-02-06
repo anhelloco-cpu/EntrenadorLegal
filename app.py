@@ -13,13 +13,12 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v100: SISTEMA JURÍDICO INTEGRAL (CEREBRO INSTITUCIONAL + SEGMENTACIÓN)
+#  TITÁN v100: SISTEMA JURÍDICO INTEGRAL (VERSIÓN FINAL COMPLETAMENTE EXTENDIDA)
 #  ----------------------------------------------------------------------------
-#  NOVEDADES v100:
-#  1. CEREBRO INSTITUCIONAL: La IA ahora "actúa" con la personalidad exacta
-#     de la entidad seleccionada (Auditor, Fiscal, Juez, etc.).
-#  2. MANTIENE: Toda la lógica de segmentación v99.7 (Red de seguridad,
-#     filtro de 1 línea, detección de mayúsculas).
+#  ESTA VERSIÓN INCLUYE:
+#  1. CEREBRO INSTITUCIONAL: Personalidad de Auditor, Fiscal, etc.
+#  2. SEGMENTACIÓN HÍBRIDA: Normas (Artículos) vs Guías (Párrafos).
+#  3. MODO TRAMPA & FUNCIONES: Lógica anti-obviedad y contexto laboral.
 # ==============================================================================
 # ==============================================================================
 
@@ -45,7 +44,7 @@ except ImportError:
 
 
 # ------------------------------------------------------------------------------
-# 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
+# 2. CONFIGURACIÓN VISUAL Y ESTILOS
 # ------------------------------------------------------------------------------
 st.set_page_config(
     page_title="TITÁN v100 - Edición Definitiva", 
@@ -198,7 +197,7 @@ class LegalEngineTITAN:
         self.model = None 
         self.current_temperature = 0.3 
         self.last_failed_embedding = None
-        self.doc_type = "Norma" 
+        self.doc_type = "Norma" # Variable CRÍTICA: Define si es Ley o Guía
         
         # -- Variables de Control Pedagógico --
         self.study_phase = "Pre-Guía" 
@@ -215,12 +214,12 @@ class LegalEngineTITAN:
         
         # -- Sistema Francotirador & Semáforo --
         self.seen_articles = set()     
-        self.failed_articles = set()   
-        self.mastered_articles = set() 
-        self.temporary_blacklist = set() 
+        self.failed_articles = set()   # Lista Roja (Pendientes)
+        self.mastered_articles = set() # Lista Verde (Dominados)
+        self.temporary_blacklist = set() # Lista Negra de Sesión
         self.current_article_label = "General"
 
-        # --- NUEVO EN v100: DICCIONARIO DE MISIONES (EL CEREBRO) ---
+        # --- DICCIONARIO DE MISIONES (El Cerebro) ---
         self.mission_profiles = {
             "Contraloría General de la República": "TU ROL: AUDITOR FISCAL. Tu misión es proteger el PATRIMONIO PÚBLICO. Al generar la pregunta, enfócate exclusivamente en detectar DAÑO PATRIMONIAL, gestión antieconómica, ineficaz o ineficiente. Ignora definiciones de diccionario (RAE) o temas puramente teóricos a menos que sirvan para probar un detrimento económico real. Si el texto es un Manual, pregunta sobre el PROCEDIMIENTO para auditar.",
             "Procuraduría General de la Nación": "TU ROL: JUEZ DISCIPLINARIO. Tu misión es vigilar la CONDUCTA OFICIAL. Enfócate en el cumplimiento de deberes, prohibiciones, inhabilidades e incompatibilidades. No busques cárcel ni dinero, busca FALTAS DISCIPLINARIAS (Gravísimas, Graves, Leves) y afectación a la función pública.",
@@ -261,13 +260,13 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODIFICADA: HÍBRIDA POR PÁRRAFOS)
+    # SEGMENTACIÓN INTELIGENTE (HÍBRIDA: NORMAS vs GUÍAS)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto.
-        1. NORMAS: Jerarquía estricta (Artículos).
-        2. GUÍAS/OTROS: Párrafos Inteligentes (Corte por tamaño/fusión).
+        Divide el texto según el tipo de documento.
+        1. NORMAS: Jerarquía estricta (Artículos, Títulos).
+        2. GUÍAS: Párrafos Inteligentes (Corte por tamaño/fusión).
         """
         secciones = {}
         
@@ -428,7 +427,7 @@ class LegalEngineTITAN:
         """
 
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MOTOR SELECTIVO v100 - CON CEREBRO)
+    # GENERADOR DE CASOS (MODIFICADO: CEREBRO + TRAMPAS + FUNCIONES)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
@@ -515,20 +514,24 @@ class LegalEngineTITAN:
             self.current_article_label = "General"
             texto_final_ia = texto_base[:4000]
 
-        # Configuración de Nivel
-        dificultad_prompt = ""
-        if self.level == "Asistencial":
-            dificultad_prompt = "NIVEL: ASISTENCIAL. Preguntas de memoria, archivo y plazos exactos."
-        elif self.level == "Técnico":
-            dificultad_prompt = "NIVEL: TÉCNICO. Aplicación de procesos y requisitos."
-        elif self.level == "Profesional":
-            dificultad_prompt = "NIVEL: PROFESIONAL. Alta dificultad. Análisis de casos y principios. Prohibido preguntas obvias."
-        elif self.level == "Asesor":
-            dificultad_prompt = "NIVEL: ASESOR. Muy Alta dificultad. Estrategia y jurisprudencia."
+        # --- CONSTRUCCIÓN DEL CEREBRO (MODIFICACIONES AQUÍ) ---
+        dificultad_prompt = f"NIVEL: {self.level.upper()}."
+        instruccion_estilo = "ESTILO: TÉCNICO." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO."
+        
+        # 1. TRAMPAS Y DIFICULTAD (Modo Asesor/Profesional)
+        instruccion_trampas = ""
+        if self.level in ["Profesional", "Asesor"]:
+            instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES, basadas en errores comunes de la práctica o interpretaciones ligeras. Castiga el pensamiento automático."
 
-        instruccion_estilo = "ESTILO: TÉCNICO. 'narrativa_caso' = Contexto normativo." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO. Historia laboral realista."
+        # 2. FUNCIONES DEL CARGO (Inyección Contextual)
+        contexto_funcional = ""
+        if self.job_functions:
+            contexto_funcional = f"CONTEXTO OBLIGATORIO: El usuario aspira a un cargo con estas funciones: '{self.job_functions}'. TU OBLIGACIÓN ES AMBIENTAR LA PREGUNTA EN LA EJECUCIÓN PRÁCTICA DE ESTAS FUNCIONES. No inventes casos ajenos a este rol."
 
-        # --- 5 CAPITANES: CALIBRACIÓN ACTIVA ---
+        # 3. MISIÓN INSTITUCIONAL
+        mision_entidad = self.mission_profiles.get(self.entity, self.mission_profiles["Genérico"])
+
+        # 4. FEEDBACK
         feedback_instr = ""
         if self.feedback_history:
             last_feeds = self.feedback_history[-5:] 
@@ -548,10 +551,6 @@ class LegalEngineTITAN:
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
 
-        # --- AQUÍ OCURRE LA MAGIA DEL CEREBRO INSTITUCIONAL ---
-        # Seleccionamos la misión basada en la entidad.
-        mision_entidad = self.mission_profiles.get(self.entity, self.mission_profiles["Genérico"])
-
         # PROMPT FINAL
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
@@ -559,18 +558,20 @@ class LegalEngineTITAN:
         TIPO DE DOCUMENTO: {self.doc_type.upper()}.
         
         {mision_entidad}
+        {contexto_funcional}
         
         {dificultad_prompt}
         {instruccion_estilo}
+        {instruccion_trampas}
         {feedback_instr}
         
         Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
         
-        REGLAS DE OBLIGATORIO CUMPLIMIENTO:
-        1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones de respuesta (A, B, C, D).
-        2. ESTILO DEL USUARIO: Si hay un ejemplo abajo, COPIA su estructura de redacción y conectores.
-        3. FOCO: No inventes artículos que no estén en el fragmento. NO PREGUNTES SOBRE LA ESTRUCTURA DEL DOCUMENTO (índices, bibliografía, números de página). PREGUNTA SOBRE EL CONTENIDO JURÍDICO O TÉCNICO.
-        4. TIP MEMORIA: Incluye un campo 'tip_memoria' con una frase corta, mnemotecnia o palabra clave.
+        REGLAS DE ORO (ANTI-META):
+        1. PROHIBIDO preguntar sobre la estructura del documento (títulos, índices, números de página, bibliografía).
+        2. Si el texto es una lista o un título sin desarrollo, NO preguntes "¿Qué dice el título?". INVENTA UN CASO HIPOTÉTICO donde se aplique ese concepto.
+        3. EXTRAPOLACIÓN: Si el texto es una definición (ej: RAE), NO preguntes el significado. Pregunta CÓMO SE APLICA en un caso real de la entidad.
+        4. OBLIGATORIO: Tip de Memoria y 4 Opciones (A,B,C,D).
         
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
