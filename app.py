@@ -13,14 +13,13 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v99.7: SISTEMA JURÍDICO INTEGRAL (DETALLE MÁXIMO + RED DE SEGURIDAD)
+#  TITÁN v100: SISTEMA JURÍDICO INTEGRAL (CEREBRO INSTITUCIONAL + SEGMENTACIÓN)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN SOLUCIONA EL "BORRADO SILENCIOSO" Y EVITA BLOQUEOS.
-#  
-#  MEJORAS APLICADAS EN SMART_SEGMENTATION:
-#  1. RED DE SEGURIDAD: Si no detecta títulos, corta el texto en bloques automáticos.
-#  2. DETECCIÓN DE MAYÚSCULAS: Reconoce "INTRODUCCIÓN" como título válido.
-#  3. FILTRO CORREGIDO: Mantiene el umbral de 1 línea para guardar todo.
+#  NOVEDADES v100:
+#  1. CEREBRO INSTITUCIONAL: La IA ahora "actúa" con la personalidad exacta
+#     de la entidad seleccionada (Auditor, Fiscal, Juez, etc.).
+#  2. MANTIENE: Toda la lógica de segmentación v99.7 (Red de seguridad,
+#     filtro de 1 línea, detección de mayúsculas).
 # ==============================================================================
 # ==============================================================================
 
@@ -49,7 +48,7 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v99.7 - Supremo Todo Terreno", 
+    page_title="TITÁN v100 - Edición Definitiva", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -199,7 +198,7 @@ class LegalEngineTITAN:
         self.model = None 
         self.current_temperature = 0.3 
         self.last_failed_embedding = None
-        self.doc_type = "Norma" # Variable CRÍTICA: Define si es Ley o Guía
+        self.doc_type = "Norma" 
         
         # -- Variables de Control Pedagógico --
         self.study_phase = "Pre-Guía" 
@@ -216,10 +215,24 @@ class LegalEngineTITAN:
         
         # -- Sistema Francotirador & Semáforo --
         self.seen_articles = set()     
-        self.failed_articles = set()   # Lista Roja (Pendientes)
-        self.mastered_articles = set() # Lista Verde (Dominados)
-        self.temporary_blacklist = set() # Lista Negra de Sesión
+        self.failed_articles = set()   
+        self.mastered_articles = set() 
+        self.temporary_blacklist = set() 
         self.current_article_label = "General"
+
+        # --- NUEVO EN v100: DICCIONARIO DE MISIONES (EL CEREBRO) ---
+        self.mission_profiles = {
+            "Contraloría General de la República": "TU ROL: AUDITOR FISCAL. Tu misión es proteger el PATRIMONIO PÚBLICO. Al generar la pregunta, enfócate exclusivamente en detectar DAÑO PATRIMONIAL, gestión antieconómica, ineficaz o ineficiente. Ignora definiciones de diccionario (RAE) o temas puramente teóricos a menos que sirvan para probar un detrimento económico real. Si el texto es un Manual, pregunta sobre el PROCEDIMIENTO para auditar.",
+            "Procuraduría General de la Nación": "TU ROL: JUEZ DISCIPLINARIO. Tu misión es vigilar la CONDUCTA OFICIAL. Enfócate en el cumplimiento de deberes, prohibiciones, inhabilidades e incompatibilidades. No busques cárcel ni dinero, busca FALTAS DISCIPLINARIAS (Gravísimas, Graves, Leves) y afectación a la función pública.",
+            "Fiscalía General de la Nación": "TU ROL: FISCAL PENAL. Tu misión es la persecución del DELITO. Enfócate en la tipicidad, antijuridicidad y culpabilidad (Dolo/Culpa). Busca elementos materiales probatorios para un juicio penal. Pregunta sobre requisitos para configurar tipos penales (Peculado, Cohecho, Contratos sin requisitos).",
+            "Defensoría del Pueblo": "TU ROL: DEFENSOR DE DERECHOS HUMANOS. Tu misión es la prevención y protección. Enfócate en la tutela de derechos fundamentales, alertas tempranas y garantías constitucionales. Pregunta desde la óptica de la protección al ciudadano.",
+            "DIAN": "TU ROL: AUDITOR TRIBUTARIO Y ADUANERO. Tu misión es el recaudo y control. Enfócate en obligaciones tributarias, estatuto tributario, evasión, elusión y control cambiario/aduanero.",
+            "Consejo Superior de la Judicatura": "TU ROL: ADMINISTRADOR DE JUSTICIA. Enfócate en la eficiencia de la rama judicial, listas de elegibles, carrera judicial y sanciones disciplinarias a abogados/jueces.",
+            "Policía Nacional": "TU ROL: AUTORIDAD DE POLICÍA. Enfócate en la convivencia ciudadana, Código Nacional de Policía, seguridad y orden público civil.",
+            "Ejército Nacional": "TU ROL: DEFENSOR DE LA SOBERANÍA. Enfócate en defensa nacional, Derechos Humanos en el marco del DIH y régimen especial de las fuerzas militares.",
+            "ICBF": "TU ROL: DEFENSOR DE FAMILIA. Enfócate en el restablecimiento de derechos de niños, niñas y adolescentes. Interés superior del menor.",
+            "Genérico": "TU ROL: SERVIDOR PÚBLICO INTEGRAL. Enfócate en los principios de la función pública (Art. 209 Constitución): Igualdad, moralidad, eficacia, economía, celeridad, imparcialidad y publicidad."
+        }
 
     # --------------------------------------------------------------------------
     # CONFIGURACIÓN DE API (LLAVE MAESTRA)
@@ -248,7 +261,7 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (REFORMADA: RED DE SEGURIDAD + MAYÚSCULAS)
+    # SEGMENTACIÓN INTELIGENTE (v99.7: RED DE SEGURIDAD + MAYÚSCULAS)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
@@ -470,7 +483,7 @@ class LegalEngineTITAN:
         """
 
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MOTOR SELECTIVO v98)
+    # GENERADOR DE CASOS (MOTOR SELECTIVO v100 - CON CEREBRO)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
@@ -590,11 +603,17 @@ class LegalEngineTITAN:
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
 
+        # --- AQUÍ OCURRE LA MAGIA DEL CEREBRO INSTITUCIONAL ---
+        # Seleccionamos la misión basada en la entidad.
+        mision_entidad = self.mission_profiles.get(self.entity, self.mission_profiles["Genérico"])
+
         # PROMPT FINAL
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
         TIPO DE DOCUMENTO: {self.doc_type.upper()}.
+        
+        {mision_entidad}
         
         {dificultad_prompt}
         {instruccion_estilo}
@@ -605,7 +624,7 @@ class LegalEngineTITAN:
         REGLAS DE OBLIGATORIO CUMPLIMIENTO:
         1. CANTIDAD DE OPCIONES: Genera SIEMPRE 4 opciones de respuesta (A, B, C, D).
         2. ESTILO DEL USUARIO: Si hay un ejemplo abajo, COPIA su estructura de redacción y conectores.
-        3. FOCO: No inventes artículos que no estén en el fragmento.
+        3. FOCO: No inventes artículos que no estén en el fragmento. NO PREGUNTES SOBRE LA ESTRUCTURA DEL DOCUMENTO (índices, bibliografía, números de página). PREGUNTA SOBRE EL CONTENIDO JURÍDICO O TÉCNICO.
         4. TIP MEMORIA: Incluye un campo 'tip_memoria' con una frase corta, mnemotecnia o palabra clave.
         
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
@@ -756,7 +775,7 @@ if 'answered' not in st.session_state: st.session_state.answered = False
 engine = st.session_state.engine
 
 with st.sidebar:
-    st.title("🦅 TITÁN v99.7 (N3 + UI + Fix)")
+    st.title("🦅 TITÁN v100 (Cerebro + UI)")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
