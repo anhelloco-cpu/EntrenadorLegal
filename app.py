@@ -265,62 +265,73 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (CORRECCIÓN: JERARQUÍA CON HERENCIA REAL)
+    # SEGMENTACIÓN INTELIGENTE (CORRECCIÓN: CONTENEDORES JERÁRQUICOS)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto según el tipo de documento.
-        1. NORMAS: Jerarquía con HERENCIA REAL (Título > Capítulo > Artículo).
+        1. NORMAS: Acumula Artículos dentro de Títulos > Capítulos > Secciones.
         2. GUÍAS: Párrafos Inteligentes (Corte por tamaño/fusión).
         """
         secciones = {}
         
-        # --- ESTRATEGIA 1: NORMAS (CON RUTA JERÁRQUICA COMPLETA) ---
+        # --- ESTRATEGIA 1: NORMAS (JERARQUÍA DE CONTENEDORES) ---
         if self.doc_type == "Norma (Leyes/Decretos)":
             lineas = full_text.split('\n')
             secciones = {"Todo el Documento": []} 
             
-            # Memoria de niveles superiores para construir el mapeo real
+            # Memoria de niveles superiores
             c_libro = ""
             c_titulo = ""
             c_capitulo = ""
-            active_labels = []
+            c_seccion = ""
             
+            # Etiqueta de contenedor activo (donde caerá el texto de los artículos)
+            current_container = "Todo el Documento"
+            
+            # Patrones de detección
             p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
             p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
             p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
+            p_sec = r'^\s*(SECCIÓN|SECCION)\.?\s+[IVXLCDM0-9]+\b'
+            # Patrón de artículo (solo para detectar, no para crear llaves)
             p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*(\d+)'
 
             for linea in lineas:
                 linea_limpia = linea.strip()
-                if not linea_limpia: 
-                    continue
+                if not linea_limpia: continue
                 
-                # Detectar niveles para herencia
+                # 1. Detectar cambios de jerarquía para actualizar el CONTENEDOR ACTIVO
                 if re.match(p_libro, linea_limpia, re.I): 
-                    c_libro = linea_limpia[:50]
-                    c_titulo = ""
-                    c_capitulo = ""
+                    c_libro = linea_limpia[:60]
+                    c_titulo = ""; c_capitulo = ""; c_seccion = ""
+                    current_container = c_libro
+                
                 elif re.match(p_tit, linea_limpia, re.I): 
-                    c_titulo = linea_limpia[:50]
-                    c_capitulo = ""
+                    c_titulo = linea_limpia[:60]
+                    c_capitulo = ""; c_seccion = ""
+                    current_container = f"{c_libro} > {c_titulo}" if c_libro else c_titulo
+                
                 elif re.match(p_cap, linea_limpia, re.I): 
-                    c_capitulo = linea_limpia[:50]
+                    c_capitulo = linea_limpia[:60]
+                    c_seccion = ""
+                    prefix = f"{c_libro} > " if c_libro else ""
+                    prefix += f"{c_titulo} > " if c_titulo else ""
+                    current_container = prefix + c_capitulo
                 
-                # Si detectamos un artículo, construimos la ruta "Breadcrumb"
-                if re.match(p_art, linea_limpia, re.I):
-                    breadcrumb = ""
-                    if c_libro: breadcrumb += f"{c_libro} > "
-                    if c_titulo: breadcrumb += f"{c_titulo} > "
-                    if c_capitulo: breadcrumb += f"{c_capitulo} > "
-                    breadcrumb += linea_limpia[:40]
-                    active_labels = [breadcrumb]
+                elif re.match(p_sec, linea_limpia, re.I):
+                    c_seccion = linea_limpia[:60]
+                    prefix = f"{c_libro} > " if c_libro else ""
+                    prefix += f"{c_titulo} > " if c_titulo else ""
+                    prefix += f"{c_capitulo} > " if c_capitulo else ""
+                    current_container = prefix + c_seccion
+
+                # 2. Inicializar el contenedor en el diccionario si no existe
+                if current_container not in secciones:
+                    secciones[current_container] = []
                 
-                # Guardar el contenido en las secciones correspondientes
-                for l in active_labels:
-                    if l not in secciones: 
-                        secciones[l] = []
-                    secciones[l].append(linea)
+                # 3. ACUMULAR: Todo el texto (incluyendo artículos) se guarda en el contenedor actual
+                secciones[current_container].append(linea)
                 secciones["Todo el Documento"].append(linea)
                 
             return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
@@ -337,8 +348,7 @@ class LegalEngineTITAN:
 
             for p in raw_paragraphs:
                 p = p.strip()
-                if not p or re.search(r'\.{4,}\s*\d+$', p): 
-                    continue
+                if not p or re.search(r'\.{4,}\s*\d+$', p): continue
                 
                 if len(p) > 3000:
                     sentences = p.split('. ')
@@ -383,6 +393,7 @@ class LegalEngineTITAN:
         self.doc_type = doc_type_input 
         self.sections_map = self.smart_segmentation(text)
         
+        # Chunks internos para la IA
         self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
         self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
         
@@ -394,6 +405,7 @@ class LegalEngineTITAN:
     def update_chunks_by_section(self, section_name):
         if section_name in self.sections_map:
             texto_seccion = self.sections_map[section_name]
+            # La sección ahora contiene todos los artículos vinculados
             self.chunks = [texto_seccion[i:i+50000] for i in range(0, len(texto_seccion), 50000)]
             self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.active_section_name = section_name
@@ -878,13 +890,24 @@ with st.sidebar:
     if engine.sections_map and len(engine.sections_map) > 1:
         st.divider()
         st.markdown("### 📍 MAPA DE LA LEY")
-        opciones = list(engine.sections_map.keys())
+        
+        # --- FILTRO DE EXCLUSIÓN PARA OCULTAR ARTÍCULOS ---
+        # Filtramos para que solo aparezcan niveles jerárquicos superiores
+        opciones_brutas = list(engine.sections_map.keys())
+        opciones = [
+            opt for opt in opciones_brutas 
+            if not any(x in opt.upper() for x in ["ARTÍCULO", "ARTICULO", "ART.", "ITEM"])
+        ]
+        
         if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
+        
+        # Ordenamiento natural (jerárquico)
         opciones.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('([0-9]+)', s)])
         opciones.insert(0, "Todo el Documento")
         
         try: idx_sec = opciones.index(engine.active_section_name)
         except: idx_sec = 0
+            
         seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec)
         
         if seleccion != engine.active_section_name:
@@ -893,14 +916,15 @@ with st.sidebar:
                 st.rerun()
 
     st.divider()
+    
     try: lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
     except: lvl_idx = 0
     engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=lvl_idx)
     
     try: ent_idx = ENTIDADES_CO.index(engine.entity)
     except: ent_idx = 0
-    ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
     
+    ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
     if "Otra" in ent_selection or "Agregar" in ent_selection: 
         engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
     else: 
