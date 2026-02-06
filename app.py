@@ -265,27 +265,21 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (CORRECCIÓN: CAPTURA DE NOMBRES COMPLETOS)
+    # SEGMENTACIÓN INTELIGENTE (VERIFICADA: CONTENEDORES Y LIMPIEZA)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto según el tipo de documento.
-        1. NORMAS: Acumula Artículos dentro de Títulos > Capítulos > Secciones.
-           Captura nombres descriptivos que están en la línea de abajo.
-        2. GUÍAS: Párrafos Inteligentes (Corte por tamaño/fusión).
+        1. NORMAS: Acumula Artículos en Títulos > Capítulos > Secciones.
+        2. CAPTURA: Une nombres de la línea inferior y normaliza etiquetas.
         """
         secciones = {}
         
-        # --- ESTRATEGIA 1: NORMAS (JERARQUÍA DE CONTENEDORES CON CAPTURA MULTILÍNEA) ---
         if self.doc_type == "Norma (Leyes/Decretos)":
             lineas = full_text.split('\n')
-            secciones = {"Todo el Documento": []} 
+            secciones = {"TODO EL DOCUMENTO": []} 
             
-            c_libro = ""
-            c_titulo = ""
-            c_capitulo = ""
-            c_seccion = ""
-            current_container = "Todo el Documento"
+            c_libro = ""; c_titulo = ""; c_capitulo = ""; c_seccion = ""
+            current_container = "TODO EL DOCUMENTO"
             
             p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
             p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
@@ -297,18 +291,17 @@ class LegalEngineTITAN:
                 linea_limpia = lineas[i].strip()
                 if not linea_limpia: continue
 
-                # Función interna para capturar el nombre descriptivo (si está debajo)
                 def get_full_name(idx, base_name):
+                    base_name = base_name.strip().upper()
                     full_name = base_name
                     if idx + 1 < len(lineas):
                         next_line = lineas[idx + 1].strip()
-                        # Si la siguiente línea no es otra jerarquía ni un artículo, es el nombre
+                        # Si la siguiente línea es texto descriptivo, la unimos
                         if next_line and not any(re.match(p, next_line, re.I) for p in [p_libro, p_tit, p_cap, p_sec, p_art]):
-                            if len(next_line) > 2:
-                                full_name = f"{base_name}: {next_line}"
-                    return full_name[:100] # Límite razonable para el selector
+                            full_name = f"{base_name}: {next_line.upper()}"
+                    return full_name[:120].strip()
 
-                # 1. Detectar cambios de jerarquía y capturar el nombre completo (look-ahead)
+                # Detección de Jerarquías con Look-ahead
                 if re.match(p_libro, linea_limpia, re.I): 
                     c_libro = get_full_name(i, linea_limpia)
                     c_titulo = ""; c_capitulo = ""; c_seccion = ""
@@ -333,77 +326,45 @@ class LegalEngineTITAN:
                     prefix += f"{c_capitulo} > " if c_capitulo else ""
                     current_container = prefix + c_seccion
 
-                # 2. Inicializar contenedor y acumular texto
                 if current_container not in secciones:
                     secciones[current_container] = []
                 
                 secciones[current_container].append(lineas[i])
-                secciones["Todo el Documento"].append(lineas[i])
+                secciones["TODO EL DOCUMENTO"].append(lineas[i])
                 
             return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
 
-        # --- ESTRATEGIA 2: GUÍAS Y MANUALES (Párrafos Inteligentes) ---
         else:
+            # Estrategia 2: Guías Técnicas
             text_clean = re.sub(r'\n\s*\n', '<PARAGRAPH_BREAK>', full_text)
             raw_paragraphs = text_clean.split('<PARAGRAPH_BREAK>')
-            
-            final_blocks = {}
-            current_block_content = ""
-            block_count = 1
-            BLOCK_SIZE_LIMIT = 2500 
-
+            final_blocks = {}; current_block_content = ""; block_count = 1
             for p in raw_paragraphs:
                 p = p.strip()
-                if not p or re.search(r'\.{4,}\s*\d+$', p): continue
-                
-                if len(p) > 3000:
-                    sentences = p.split('. ')
-                    temp_chunk = ""
-                    for s in sentences:
-                        if len(temp_chunk) + len(s) < 3000:
-                            temp_chunk += s + ". "
-                        else:
-                            name = f"Bloque Temático {block_count}"
-                            final_blocks[name] = [temp_chunk]
-                            block_count += 1
-                            temp_chunk = s + ". "
-                    p = temp_chunk if temp_chunk else p
-
-                if len(current_block_content) + len(p) < BLOCK_SIZE_LIMIT:
+                if not p: continue
+                if len(current_block_content) + len(p) < 2500:
                     current_block_content += "\n\n" + p
                 else:
-                    name = f"Bloque Temático {block_count}"
-                    lines = current_block_content.strip().split('\n')
-                    first_line = lines[0].strip()[:60]
-                    if len(first_line) > 5 and (first_line.isupper() or re.match(r'^\d+\.', first_line)):
-                        name = f"Bloque {block_count}: {first_line}..."
-                    
-                    final_blocks[name] = [current_block_content]
-                    block_count += 1
-                    current_block_content = p 
-            
+                    final_blocks[f"BLOQUE {block_count}"] = [current_block_content]
+                    block_count += 1; current_block_content = p 
             if current_block_content:
-                final_blocks[f"Bloque Temático {block_count}"] = [current_block_content]
-                
-            final_blocks["Todo el Documento"] = [full_text]
+                final_blocks[f"BLOQUE {block_count}"] = [current_block_content]
+            final_blocks["TODO EL DOCUMENTO"] = [full_text]
             return {k: "\n".join(v) for k, v in final_blocks.items()}
 
     # --------------------------------------------------------------------------
-    # PROCESAMIENTO DE TEXTO (CHUNKS)
+    # PROCESAMIENTO Y ACTUALIZACIÓN
     # --------------------------------------------------------------------------
     def process_law(self, text, axis_name, doc_type_input):
         text = text.replace('\r', '')
         if len(text) < 100: return 0
-        
         self.thematic_axis = axis_name 
         self.doc_type = doc_type_input 
         self.sections_map = self.smart_segmentation(text)
-        
         self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
         self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
-        
         if dl_model: 
-            with st.spinner("🧠 Generando mapa neuronal del documento..."): 
+            with st.spinner("🧠 Generando mapa neuronal..."): 
                 self.chunk_embeddings = dl_model.encode(self.chunks)
         return len(self.chunks)
 
@@ -413,32 +374,23 @@ class LegalEngineTITAN:
             self.chunks = [texto_seccion[i:i+50000] for i in range(0, len(texto_seccion), 50000)]
             self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.active_section_name = section_name
-            
-            if dl_model: 
-                self.chunk_embeddings = dl_model.encode(self.chunks)
-            
-            self.seen_articles.clear()
-            self.temporary_blacklist.clear()
+            if dl_model: self.chunk_embeddings = dl_model.encode(self.chunks)
+            self.seen_articles.clear(); self.temporary_blacklist.clear()
             return True
         return False
 
     def get_stats(self):
         if not self.chunks: return 0, 0, 0
         total = len(self.chunks)
-        SCORE_THRESHOLD = 50
-        score = sum([min(v, SCORE_THRESHOLD) for v in self.mastery_tracker.values()])
-        perc = int((score / (total * SCORE_THRESHOLD)) * 100) if total > 0 else 0
+        score = sum([min(v, 50) for v in self.mastery_tracker.values()])
+        perc = int((score / (total * 50)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
     def get_strict_rules(self):
-        return "1. NO SPOILERS: La pregunta NO debe dar la respuesta. 2. DEPENDENCIA: Obligatorio leer el texto."
+        return "1. NO SPOILERS. 2. DEPENDENCIA DEL TEXTO."
 
     def get_calibration_instructions(self):
-        return """
-        INSTRUCCIONES DE FORMATO:
-        1. NO REPETIR TEXTO: El 'enunciado' NO debe repetir lo que ya dice la 'narrativa_caso'.
-        2. NO CHIVATEAR: No digas "Según el Título X". Di "Según la norma/guía".
-        """
+        return "INSTRUCCIONES: NO REPETIR TEXTO, NO 'CHIVATEAR' NIVELES."
 # ### --- FIN PARTE 3 ---
 # ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER) ---
     # --------------------------------------------------------------------------
@@ -744,6 +696,40 @@ if 'raw_text_study' not in st.session_state: st.session_state.raw_text_study = "
 
 engine = st.session_state.engine
 
+# --- FUNCIONES DE ORDENAMIENTO (NUEVO: SOPORTE NÚMEROS ROMANOS) ---
+def roman_to_int(s):
+    """Convierte números romanos a enteros para ordenar correctamente."""
+    romanos = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
+    try:
+        res = 0
+        for i in range(len(s)):
+            if i > 0 and romanos[s[i]] > romanos[s[i-1]]:
+                res += romanos[s[i]] - 2 * romanos[s[i-1]]
+            else:
+                res += romanos[s[i]]
+        return res
+    except:
+        return 0
+
+def natural_sort_key(s):
+    """Clave de ordenamiento que entiende Números y Romanos."""
+    # Separa el texto en bloques de números o palabras
+    parts = re.split(r'(\d+|[IVXLCDM]+)', s.upper())
+    key = []
+    for part in parts:
+        if not part: continue
+        # Si es dígito normal
+        if part.isdigit():
+            key.append(int(part))
+        # Si parece romano (ej. "IV", "X") lo convertimos
+        elif re.match(r'^[IVXLCDM]+$', part):
+            val = roman_to_int(part)
+            # Si la conversión da 0 o es muy raro, lo dejamos como texto
+            key.append(val if val > 0 else part)
+        else:
+            key.append(part)
+    return key
+
 with st.sidebar:
     st.title("🦅 TITÁN v100 (Cerebro + UI)")
     
@@ -896,7 +882,6 @@ with st.sidebar:
         st.markdown("### 📍 MAPA DE LA LEY")
         
         # --- FILTRO DE EXCLUSIÓN PARA OCULTAR ARTÍCULOS ---
-        # Filtramos para que solo aparezcan niveles jerárquicos superiores
         opciones_brutas = list(engine.sections_map.keys())
         opciones = [
             opt for opt in opciones_brutas 
@@ -905,8 +890,10 @@ with st.sidebar:
         
         if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
         
-        # Ordenamiento natural (jerárquico)
-        opciones.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('([0-9]+)', s)])
+        # --- AQUÍ ESTÁ EL CAMBIO CLAVE: USAMOS LA NUEVA LÓGICA DE ORDENAMIENTO ---
+        opciones.sort(key=natural_sort_key)
+        # ------------------------------------------------------------------------
+        
         opciones.insert(0, "Todo el Documento")
         
         try: idx_sec = opciones.index(engine.active_section_name)
