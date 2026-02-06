@@ -14,7 +14,7 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v100: SISTEMA JURÍDICO INTEGRAL (CEREBRO INSTITUCIONAL + SEGMENTACIÓN)
+#  TITÁN v103: IMPERIUM
 #  ----------------------------------------------------------------------------
 #  ESTA VERSIÓN INCLUYE:
 #  1. CEREBRO INSTITUCIONAL: Personalidad de Auditor, Fiscal, etc.
@@ -48,7 +48,7 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v100 - Edición Definitiva", 
+    page_title="TITÁN v103 - IMPERIUM", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -739,7 +739,7 @@ def natural_sort_key(s):
     return key
 
 with st.sidebar:
-    st.title("🦅 TITÁN v100 (Cerebro + UI)")
+    st.title("🦅 TITÁN v104 IMPERIUM")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -779,27 +779,30 @@ with st.sidebar:
         cant = st.number_input("Preguntas:", min_value=1, max_value=5, value=engine.questions_per_case)
         engine.questions_per_case = cant
 
-    # --- CAMBIO DE INTERFAZ: CARGADOR DE MANUAL DE FUNCIONES ---
+    # --- CAMBIO DE INTERFAZ: UNIFICACIÓN MANUAL + EJEMPLO (V104) ---
     with st.expander("Detalles / Manual de Funciones", expanded=True):
-        if "Con Caso" in estilo:
-            engine.job_functions = st.text_area("Funciones / Rol (Resumen):", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...", help="Escribe un resumen o carga el PDF abajo.")
-            
-            upl_manual = st.file_uploader("📂 Cargar Manual de Funciones (PDF):", type=['pdf'])
-            if upl_manual:
-                if PDF_AVAILABLE:
-                    try:
-                        reader = pypdf.PdfReader(upl_manual)
-                        manual_text = ""
-                        for page in reader.pages:
-                            manual_text += page.extract_text() + "\n"
-                        engine.manual_text = manual_text 
-                        st.caption(f"✅ Manual cargado.")
-                    except Exception as e:
-                        st.error(f"Error leyendo manual: {e}")
-                else:
-                    st.warning("Instala pypdf para cargar manuales.")
-        else:
-            engine.example_question = st.text_area("Ejemplo de Estilo (Sintaxis):", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
+        # 1. SIEMPRE DISPONIBLE: MANUAL DE FUNCIONES
+        engine.job_functions = st.text_area("Funciones / Rol (Resumen):", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...", help="Escribe un resumen o carga el PDF abajo.")
+        
+        upl_manual = st.file_uploader("📂 Cargar Manual de Funciones (PDF):", type=['pdf'])
+        if upl_manual:
+            if PDF_AVAILABLE:
+                try:
+                    reader = pypdf.PdfReader(upl_manual)
+                    manual_text = ""
+                    for page in reader.pages:
+                        manual_text += page.extract_text() + "\n"
+                    engine.manual_text = manual_text 
+                    st.caption(f"✅ Manual cargado.")
+                except Exception as e:
+                    st.error(f"Error leyendo manual: {e}")
+            else:
+                st.warning("Instala pypdf para cargar manuales.")
+        
+        st.divider()
+        
+        # 2. SIEMPRE DISPONIBLE: EJEMPLO DE ESTILO
+        engine.example_question = st.text_area("Ejemplo de Estilo (Sintaxis):", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
 
     st.divider()
     
