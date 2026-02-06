@@ -267,7 +267,7 @@ class LegalEngineTITAN:
     # --------------------------------------------------------------------------
     # SEGMENTACIÓN INTELIGENTE (CORRECCIÓN: JERARQUÍA CON HERENCIA REAL)
     # --------------------------------------------------------------------------
- def smart_segmentation(self, full_text):
+    def smart_segmentation(self, full_text):
         """
         Divide el texto según el tipo de documento.
         1. NORMAS: Jerarquía con HERENCIA REAL (Título > Capítulo > Artículo).
@@ -376,17 +376,13 @@ class LegalEngineTITAN:
     # PROCESAMIENTO DE TEXTO (CHUNKS)
     # --------------------------------------------------------------------------
     def process_law(self, text, axis_name, doc_type_input):
-        """
-        Procesa el documento. Recibe el TIPO DE DOCUMENTO del selector.
-        """
         text = text.replace('\r', '')
         if len(text) < 100: return 0
         
         self.thematic_axis = axis_name 
-        self.doc_type = doc_type_input # Guardamos la elección
+        self.doc_type = doc_type_input 
         self.sections_map = self.smart_segmentation(text)
         
-        # Chunks de 50.000 caracteres para mantener contexto amplio
         self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
         self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
         
@@ -405,25 +401,17 @@ class LegalEngineTITAN:
             if dl_model: 
                 self.chunk_embeddings = dl_model.encode(self.chunks)
             
-            # Limpieza de memoria temporal
             self.seen_articles.clear()
             self.temporary_blacklist.clear()
             return True
         return False
 
-    # --------------------------------------------------------------------------
-    # ESTADÍSTICAS Y PROGRESO
-    # --------------------------------------------------------------------------
     def get_stats(self):
         if not self.chunks: return 0, 0, 0
         total = len(self.chunks)
-        
-        # --- AJUSTE MATEMÁTICO (50 Puntos para llenado lento) ---
         SCORE_THRESHOLD = 50
-        
         score = sum([min(v, SCORE_THRESHOLD) for v in self.mastery_tracker.values()])
         perc = int((score / (total * SCORE_THRESHOLD)) * 100) if total > 0 else 0
-        
         return min(perc, 100), len(self.failed_indices), total
 
     def get_strict_rules(self):
