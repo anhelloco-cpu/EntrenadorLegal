@@ -401,7 +401,7 @@ class LegalEngineTITAN:
 # ### --- FIN PARTE 3 ---
 # ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER) ---
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICADO: PRIORIDAD ABSOLUTA AL MANUAL DE FUNCIONES)
+    # GENERADOR DE CASOS (MODIFICADO: ANTI-PEREZA + ROL PRIORITARIO)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
@@ -497,20 +497,19 @@ class LegalEngineTITAN:
         if self.level in ["Profesional", "Asesor"]:
             instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES, basadas en errores comunes de la práctica o interpretaciones ligeras. Castiga el pensamiento automático."
 
-        # 2. LÓGICA DE ROL: MANUAL vs DEFECTO
-        # Aquí verificamos si hay texto del manual (PDF) o usamos el texto manual
+        # 2. LÓGICA DE ROL (CORREGIDA: Prioridad Manual)
         texto_funciones_real = self.manual_text if self.manual_text else self.job_functions
         
         contexto_funcional = ""
-        mision_entidad = ""
+        mision_entidad = "" # Variable base vacía
 
         if texto_funciones_real:
-            # CASO A: USUARIO TIENE MANUAL -> IGNORAR ROL POR DEFECTO
+            # SI HAY MANUAL: SE BORRA EL ROL POR DEFECTO Y SE USA SOLO EL MANUAL
             funciones_safe = texto_funciones_real[:15000]
             contexto_funcional = f"CONTEXTO OBLIGATORIO (MANUAL DE FUNCIONES): El usuario aspira a un cargo con estas funciones ESPECÍFICAS: '{funciones_safe}'. TU OBLIGACIÓN ES AMBIENTAR LA PREGUNTA EN LA EJECUCIÓN PRÁCTICA DE ESTAS FUNCIONES. IGNORA CUALQUIER OTRO ROL GENÉRICO."
-            mision_entidad = "" # Se anula para que no interfiera
+            mision_entidad = "" # Se anula para evitar conflictos
         else:
-            # CASO B: NO HAY MANUAL -> USAR ROL POR DEFECTO DE LA ENTIDAD
+            # SI NO HAY MANUAL: SE USA EL CEREBRO POR DEFECTO
             mision_entidad = self.mission_profiles.get(self.entity, self.mission_profiles["Genérico"])
 
         # 4. FEEDBACK
@@ -555,6 +554,8 @@ class LegalEngineTITAN:
         3. EXTRAPOLACIÓN: Si el texto es una definición (ej: RAE), NO preguntes el significado. Pregunta CÓMO SE APLICA en un caso real de la entidad.
         4. OBLIGATORIO: Tip de Memoria y 4 Opciones (A,B,C,D).
         5. FORMATO DE ENUNCIADO: El 'enunciado' NO debe ser una pregunta ni terminar con signos de interrogación. Debe ser una instrucción directa, afirmativa o imperativa (ej: 'Determine la acción correcta...', 'Identifique el concepto que se aplica...', 'Indique la consecuencia jurídica...').
+        6. ANTI-PEREZA (CRÍTICO): PROHIBIDO TERMINANTEMENTE preguntar sobre fórmulas de cierre, vigencias, firmas o la frase "Publíquese y ejecútese". Si el fragmento contiene eso, IGNÓRALO y busca contenido técnico en el resto del texto.
+        7. FIDELIDAD: NO te salgas del tema del fragmento proporcionado.
         
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
