@@ -401,7 +401,7 @@ class LegalEngineTITAN:
 # ### --- FIN PARTE 3 ---
 # ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER) ---
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICADO: MANUAL + CEREBRO + TRAMPAS)
+    # GENERADOR DE CASOS (MODIFICADO: MANUAL + CEREBRO + TRAMPAS + FIX BUG)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
@@ -653,7 +653,7 @@ class LegalEngineTITAN:
                     for k, v in opciones_raw:
                         items_barajados.append({
                             "texto": v,
-                            "explicacion": opciones_raw.get(k, "Sin detalle."),
+                            "explicacion": explicaciones_raw.get(k, "Sin detalle."), # <--- CORREGIDO AQUÍ
                             "es_correcta": (v == respuesta_correcta_texto)
                         })
                     
