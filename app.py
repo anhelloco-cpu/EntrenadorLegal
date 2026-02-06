@@ -265,74 +265,80 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (CORRECCIÓN: CONTENEDORES JERÁRQUICOS)
+    # SEGMENTACIÓN INTELIGENTE (CORRECCIÓN: CAPTURA DE NOMBRES COMPLETOS)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
         Divide el texto según el tipo de documento.
         1. NORMAS: Acumula Artículos dentro de Títulos > Capítulos > Secciones.
+           Captura nombres descriptivos que están en la línea de abajo.
         2. GUÍAS: Párrafos Inteligentes (Corte por tamaño/fusión).
         """
         secciones = {}
         
-        # --- ESTRATEGIA 1: NORMAS (JERARQUÍA DE CONTENEDORES) ---
+        # --- ESTRATEGIA 1: NORMAS (JERARQUÍA DE CONTENEDORES CON CAPTURA MULTILÍNEA) ---
         if self.doc_type == "Norma (Leyes/Decretos)":
             lineas = full_text.split('\n')
             secciones = {"Todo el Documento": []} 
             
-            # Memoria de niveles superiores
             c_libro = ""
             c_titulo = ""
             c_capitulo = ""
             c_seccion = ""
-            
-            # Etiqueta de contenedor activo (donde caerá el texto de los artículos)
             current_container = "Todo el Documento"
             
-            # Patrones de detección
             p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
             p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
             p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
             p_sec = r'^\s*(SECCIÓN|SECCION)\.?\s+[IVXLCDM0-9]+\b'
-            # Patrón de artículo (solo para detectar, no para crear llaves)
             p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*(\d+)'
 
-            for linea in lineas:
-                linea_limpia = linea.strip()
+            for i in range(len(lineas)):
+                linea_limpia = lineas[i].strip()
                 if not linea_limpia: continue
-                
-                # 1. Detectar cambios de jerarquía para actualizar el CONTENEDOR ACTIVO
+
+                # Función interna para capturar el nombre descriptivo (si está debajo)
+                def get_full_name(idx, base_name):
+                    full_name = base_name
+                    if idx + 1 < len(lineas):
+                        next_line = lineas[idx + 1].strip()
+                        # Si la siguiente línea no es otra jerarquía ni un artículo, es el nombre
+                        if next_line and not any(re.match(p, next_line, re.I) for p in [p_libro, p_tit, p_cap, p_sec, p_art]):
+                            if len(next_line) > 2:
+                                full_name = f"{base_name}: {next_line}"
+                    return full_name[:100] # Límite razonable para el selector
+
+                # 1. Detectar cambios de jerarquía y capturar el nombre completo (look-ahead)
                 if re.match(p_libro, linea_limpia, re.I): 
-                    c_libro = linea_limpia[:60]
+                    c_libro = get_full_name(i, linea_limpia)
                     c_titulo = ""; c_capitulo = ""; c_seccion = ""
                     current_container = c_libro
                 
                 elif re.match(p_tit, linea_limpia, re.I): 
-                    c_titulo = linea_limpia[:60]
+                    c_titulo = get_full_name(i, linea_limpia)
                     c_capitulo = ""; c_seccion = ""
                     current_container = f"{c_libro} > {c_titulo}" if c_libro else c_titulo
                 
                 elif re.match(p_cap, linea_limpia, re.I): 
-                    c_capitulo = linea_limpia[:60]
+                    c_capitulo = get_full_name(i, linea_limpia)
                     c_seccion = ""
                     prefix = f"{c_libro} > " if c_libro else ""
                     prefix += f"{c_titulo} > " if c_titulo else ""
                     current_container = prefix + c_capitulo
                 
                 elif re.match(p_sec, linea_limpia, re.I):
-                    c_seccion = linea_limpia[:60]
+                    c_seccion = get_full_name(i, linea_limpia)
                     prefix = f"{c_libro} > " if c_libro else ""
                     prefix += f"{c_titulo} > " if c_titulo else ""
                     prefix += f"{c_capitulo} > " if c_capitulo else ""
                     current_container = prefix + c_seccion
 
-                # 2. Inicializar el contenedor en el diccionario si no existe
+                # 2. Inicializar contenedor y acumular texto
                 if current_container not in secciones:
                     secciones[current_container] = []
                 
-                # 3. ACUMULAR: Todo el texto (incluyendo artículos) se guarda en el contenedor actual
-                secciones[current_container].append(linea)
-                secciones["Todo el Documento"].append(linea)
+                secciones[current_container].append(lineas[i])
+                secciones["Todo el Documento"].append(lineas[i])
                 
             return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
 
@@ -393,7 +399,6 @@ class LegalEngineTITAN:
         self.doc_type = doc_type_input 
         self.sections_map = self.smart_segmentation(text)
         
-        # Chunks internos para la IA
         self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
         self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
         
@@ -405,7 +410,6 @@ class LegalEngineTITAN:
     def update_chunks_by_section(self, section_name):
         if section_name in self.sections_map:
             texto_seccion = self.sections_map[section_name]
-            # La sección ahora contiene todos los artículos vinculados
             self.chunks = [texto_seccion[i:i+50000] for i in range(0, len(texto_seccion), 50000)]
             self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.active_section_name = section_name
