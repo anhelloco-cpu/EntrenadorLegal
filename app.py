@@ -265,12 +265,13 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (VERIFICADA: CONTENEDORES Y LIMPIEZA)
+    # SEGMENTACIÓN INTELIGENTE (CORRECCIÓN: SOLDADURA DE ROMANOS Y LIMPIEZA)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        1. NORMAS: Acumula Artículos en Títulos > Capítulos > Secciones.
-        2. CAPTURA: Une nombres de la línea inferior y normaliza etiquetas.
+        Divide el texto según el tipo de documento.
+        1. NORMAS: Acumula Artículos en Títulos/Capítulos/Secciones.
+           REPARA: Une números romanos rotos (I I -> II) y limpia espacios.
         """
         secciones = {}
         
@@ -281,27 +282,32 @@ class LegalEngineTITAN:
             c_libro = ""; c_titulo = ""; c_capitulo = ""; c_seccion = ""
             current_container = "TODO EL DOCUMENTO"
             
-            p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
-            p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
-            p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
-            p_sec = r'^\s*(SECCIÓN|SECCION)\.?\s+[IVXLCDM0-9]+\b'
+            # Patrones mejorados para detectar jerarquías incluso con ruido
+            p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM\s]+\b'
+            p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM\s]+\b' 
+            p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9\s]+\b'
+            p_sec = r'^\s*(SECCIÓN|SECCION)\.?\s+[IVXLCDM0-9\s]+\b'
             p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*(\d+)'
 
             for i in range(len(lineas)):
-                linea_limpia = lineas[i].strip()
+                # LIMPIEZA INICIAL: Soldar romanos rotos (ej: I I -> II)
+                linea_raw = lineas[i]
+                linea_limpia = re.sub(r'(?<=[IVXLCDM])\s+(?=[IVXLCDM])', '', linea_raw, flags=re.I).strip()
+                
                 if not linea_limpia: continue
 
                 def get_full_name(idx, base_name):
-                    base_name = base_name.strip().upper()
+                    # Normalización extrema de la etiqueta
+                    base_name = re.sub(r'\s+', ' ', base_name).strip().upper()
                     full_name = base_name
                     if idx + 1 < len(lineas):
+                        # Revisar si la línea de abajo es el nombre descriptivo
                         next_line = lineas[idx + 1].strip()
-                        # Si la siguiente línea es texto descriptivo, la unimos
                         if next_line and not any(re.match(p, next_line, re.I) for p in [p_libro, p_tit, p_cap, p_sec, p_art]):
                             full_name = f"{base_name}: {next_line.upper()}"
                     return full_name[:120].strip()
 
-                # Detección de Jerarquías con Look-ahead
+                # Detección y actualización de contenedores
                 if re.match(p_libro, linea_limpia, re.I): 
                     c_libro = get_full_name(i, linea_limpia)
                     c_titulo = ""; c_capitulo = ""; c_seccion = ""
@@ -326,16 +332,17 @@ class LegalEngineTITAN:
                     prefix += f"{c_capitulo} > " if c_capitulo else ""
                     current_container = prefix + c_seccion
 
+                # Acumulación de texto en el contenedor activo
                 if current_container not in secciones:
                     secciones[current_container] = []
                 
-                secciones[current_container].append(lineas[i])
-                secciones["TODO EL DOCUMENTO"].append(lineas[i])
+                secciones[current_container].append(linea_raw)
+                secciones["TODO EL DOCUMENTO"].append(linea_raw)
                 
             return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
 
         else:
-            # Estrategia 2: Guías Técnicas
+            # Estrategia 2: Guías Técnicas (Permanece igual)
             text_clean = re.sub(r'\n\s*\n', '<PARAGRAPH_BREAK>', full_text)
             raw_paragraphs = text_clean.split('<PARAGRAPH_BREAK>')
             final_blocks = {}; current_block_content = ""; block_count = 1
@@ -353,7 +360,7 @@ class LegalEngineTITAN:
             return {k: "\n".join(v) for k, v in final_blocks.items()}
 
     # --------------------------------------------------------------------------
-    # PROCESAMIENTO Y ACTUALIZACIÓN
+    # PROCESAMIENTO Y ACTUALIZACIÓN (INTACTO)
     # --------------------------------------------------------------------------
     def process_law(self, text, axis_name, doc_type_input):
         text = text.replace('\r', '')
