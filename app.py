@@ -885,10 +885,17 @@ with st.sidebar:
                     st.error(f"Error al leer: {e}")
 
     # --- ELEMENTOS FINALES DENTRO DEL SIDEBAR ---
-    # 1. BOTÓN SIMPLE RESTAURADO (APARECE ANTES DEL MAPA)
+    
+    # 1. BOTÓN SUPERIOR BLINDADO (AHORA TAMBIÉN HACE SYNC)
     if engine.chunks:
         st.divider()
         if st.button("▶️ INICIAR SIMULACRO", type="primary"):
+            # LÓGICA DE SINCRONIZACIÓN (NUEVA AQUÍ)
+            if 'selector_seccion_titan' in st.session_state:
+                sel_actual = st.session_state.selector_seccion_titan
+                if sel_actual != engine.active_section_name:
+                    engine.update_chunks_by_section(sel_actual)
+            
             st.session_state.page = 'game'
             st.session_state.current_data = None
             st.rerun()
@@ -913,7 +920,7 @@ with st.sidebar:
         try: idx_sec = opciones.index(engine.active_section_name)
         except: idx_sec = 0
         
-        # KEY NECESARIA PARA LA SINCRONIZACIÓN DEL BOTÓN FINAL
+        # KEY NECESARIA PARA LA SINCRONIZACIÓN
         seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec, key="selector_seccion_titan")
         
         if seleccion != engine.active_section_name:
@@ -923,7 +930,6 @@ with st.sidebar:
 
     st.divider()
     
-    # 2. BLOQUE FINAL (DESINDENTADO CORRECTAMENTE Y CON SINCRONIZACIÓN)
     try: lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
     except: lvl_idx = 0
     engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=lvl_idx)
@@ -937,11 +943,9 @@ with st.sidebar:
     else: 
         engine.entity = ent_selection
             
-    # BOTÓN DE INICIO BLINDADO (FUERA DEL IF DEL MAPA)
+    # 2. BOTÓN INFERIOR BLINDADO
     if st.button("🔥 INICIAR SIMULACRO GLOBAL", key="btn_sim_final", disabled=not engine.chunks):
-        # LÓGICA DE SINCRONIZACIÓN:
-        # Si el usuario cambió el selector pero Streamlit no actualizó el motor aún,
-        # lo forzamos a actualizar leyendo directamente el estado del widget.
+        # LÓGICA DE SINCRONIZACIÓN
         if 'selector_seccion_titan' in st.session_state:
             sel_actual = st.session_state.selector_seccion_titan
             if sel_actual != engine.active_section_name:
