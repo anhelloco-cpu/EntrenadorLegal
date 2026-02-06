@@ -13,14 +13,14 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v99.7: SISTEMA JURÍDICO INTEGRAL (DETALLE MÁXIMO + FILTRO CORREGIDO)
+#  TITÁN v99.7: SISTEMA JURÍDICO INTEGRAL (DETALLE MÁXIMO + RED DE SEGURIDAD)
 #  ----------------------------------------------------------------------------
-#  ESTA VERSIÓN SOLUCIONA EL "BORRADO SILENCIOSO" DE SECCIONES CORTAS.
+#  ESTA VERSIÓN SOLUCIONA EL "BORRADO SILENCIOSO" Y EVITA BLOQUEOS.
 #  
-#  MEJORAS ESPECÍFICAS (v99.7):
-#  1. FILTRO DE LIMPIEZA: Se redujo la exigencia de 20 líneas a 1 línea.
-#     (Ahora guarda secciones pequeñas como 5.1.1 aunque sean breves).
-#  2. MANTIENE: Nivel 3 (5.1.1), Modo Huérfano (Fragmentos) y UI Controlada.
+#  MEJORAS APLICADAS EN SMART_SEGMENTATION:
+#  1. RED DE SEGURIDAD: Si no detecta títulos, corta el texto en bloques automáticos.
+#  2. DETECCIÓN DE MAYÚSCULAS: Reconoce "INTRODUCCIÓN" como título válido.
+#  3. FILTRO CORREGIDO: Mantiene el umbral de 1 línea para guardar todo.
 # ==============================================================================
 # ==============================================================================
 
@@ -204,7 +204,7 @@ class LegalEngineTITAN:
         # -- Variables de Control Pedagógico --
         self.study_phase = "Pre-Guía" 
         self.example_question = "" 
-        self.job_functions = ""    
+        self.job_functions = ""     
         self.thematic_axis = "General"
         self.structure_type = "Técnico / Normativo (Sin Caso)" 
         self.questions_per_case = 1 
@@ -212,10 +212,10 @@ class LegalEngineTITAN:
         # -- Mapa de la Ley (Jerarquía) --
         self.sections_map = {} 
         self.active_section_name = "Todo el Documento"
-        self.last_detected_chapter = 0 # NUEVO: Memoria de capítulo para evitar retrocesos
+        self.last_detected_chapter = 0 
         
         # -- Sistema Francotirador & Semáforo --
-        self.seen_articles = set()    
+        self.seen_articles = set()     
         self.failed_articles = set()   # Lista Roja (Pendientes)
         self.mastered_articles = set() # Lista Verde (Dominados)
         self.temporary_blacklist = set() # Lista Negra de Sesión
@@ -248,14 +248,11 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (MODO V99.7: DETALLE MÁXIMO + FILTRO CORREGIDO)
+    # SEGMENTACIÓN INTELIGENTE (REFORMADA: RED DE SEGURIDAD + MAYÚSCULAS)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto usando los patrones adecuados.
-        MEJORAS v99.7: 
-        1. UMBRAL DE GUARDADO: Se reduce de 20 líneas a 1 línea para capturar todo.
-        2. MANTIENE: Nivel 3, Modo Huérfano y Tabulación Relajada.
+        Divide el texto usando los patrones adecuados y aplica la Red de Seguridad.
         """
         lineas = full_text.split('\n')
         secciones = {"Todo el Documento": []} 
@@ -266,14 +263,14 @@ class LegalEngineTITAN:
         # Reiniciar memoria al procesar nuevo texto
         self.last_detected_chapter = 0
 
-        # --- A. PATRONES PARA NORMAS (LEYES) - INTACTO ---
+        # --- A. PATRONES PARA NORMAS (LEYES) ---
         p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
         p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
         p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
         
         # --- B. PATRONES PARA GUÍAS ---
         # 1. Títulos Nivel 1 (Ej: "2. Objetivo"). EXIGE PUNTO.
-        p_idx_1 = r'^\s*(\d+)\.\s+(.+)'       
+        p_idx_1 = r'^\s*(\d+)\.\s+(.+)'        
         
         # 2. Títulos Nivel 2+ (Ej: "1.1 Texto")
         p_idx_2 = r'^\s*(\d+(?:[\.\s]\d+)+)\.?\s+(.+)' 
@@ -314,10 +311,8 @@ class LegalEngineTITAN:
                         num_id = m.group(1).strip()
                         txt_titulo = m.group(2).strip()
                         
-                        # --- FILTRO DE PROFUNDIDAD ---
                         partes_numericas = re.findall(r'\d+', num_id)
                         
-                        # Aceptamos 2 y 3 niveles (5.1 y 5.1.1)
                         es_valido_n2 = False
                         if len(partes_numericas) in [2, 3]: 
                             padre_num = int(partes_numericas[0])
@@ -330,11 +325,8 @@ class LegalEngineTITAN:
                                 es_valido_n2 = True
                         
                         if es_valido_n2 and len(txt_titulo) > 2: 
-                            # Etiqueta limpia
                             current_label = f"{num_id} {txt_titulo[:80]}"
-                            
-                            # --- CASCADA: HERENCIA PADRE ---
-                            padre_num_str = partes_numericas[0] # "5"
+                            padre_num_str = partes_numericas[0]
                             padre_label = next((k for k in secciones.keys() if k.startswith(f"{padre_num_str}. ")), None)
                             
                             new_labels_this_line = [current_label]
@@ -343,18 +335,16 @@ class LegalEngineTITAN:
                             
                             active_labels = new_labels_this_line
                     
-                    # 5. LÓGICA NIVEL 1 (Títulos 5.) + SECUENCIAL + TABULACIÓN
+                    # 5. LÓGICA NIVEL 1 (Títulos 5.) + SECUENCIAL
                     elif re.match(p_idx_1, linea_limpia):
                         m = re.match(p_idx_1, linea_limpia)
                         num_cap = int(m.group(1))
                         txt_titulo = m.group(2).strip()
                         
-                        # --- FILTRO DE TABULACIÓN RELAJADO (5 espacios) ---
                         es_titulo_principal = False
                         if indentation < 5:
                             es_titulo_principal = True
                         
-                        # --- FILTRO SECUENCIAL ---
                         es_capitulo_valido = False
                         if es_titulo_principal:
                             if self.last_detected_chapter == 0:
@@ -365,11 +355,18 @@ class LegalEngineTITAN:
                                 es_capitulo_valido = True 
                         
                         if es_capitulo_valido and len(txt_titulo) > 2: 
-                            # Etiqueta limpia
                             current_label = f"{num_cap}. {txt_titulo[:80]}"
                             new_labels_this_line = [current_label]
                             active_labels = new_labels_this_line
-                            self.last_detected_chapter = num_cap # Actualizar memoria
+                            self.last_detected_chapter = num_cap
+
+                    # 6. NUEVO: DETECCIÓN DE TÍTULOS EN MAYÚSCULA (Sin Número)
+                    # Ej: "INTRODUCCIÓN", "MARCO TEÓRICO"
+                    elif linea_limpia.isupper() and len(linea_limpia) > 4 and len(linea_limpia) < 80 and not linea_limpia.endswith('.'):
+                         # Evitar falsos positivos si es parte de un texto
+                         current_label = f"SECCIÓN: {linea_limpia}"
+                         new_labels_this_line = [current_label]
+                         active_labels = new_labels_this_line
 
             # -------------------------------------------------------
             # CAMINO 2: SI ES UNA NORMA (LEY, DECRETO, CÓDIGO)
@@ -394,8 +391,18 @@ class LegalEngineTITAN:
                 if l in secciones:
                     secciones[l].append(linea)
 
-        # --- AQUÍ ESTABA EL ERROR: EL FILTRO > 20 ELIMINABA SECCIONES PEQUEÑAS ---
-        # AHORA: Guardamos todo lo que tenga más de 1 línea.
+        # --- RED DE SEGURIDAD (PLAN B - CORTE AUTOMÁTICO) ---
+        # Si después de leer todo, solo existe "Todo el Documento", activamos el corte artificial.
+        secciones_reales = {k:v for k,v in secciones.items() if k != "Todo el Documento" and len(v) > 0}
+        
+        if not secciones_reales:
+            tamano_bloque = 3000
+            for i in range(0, len(full_text), tamano_bloque):
+                nombre_bloque = f"BLOQUE DE ESTUDIO {i//tamano_bloque + 1}"
+                contenido_bloque = full_text[i : i + tamano_bloque]
+                secciones[nombre_bloque] = [contenido_bloque]
+
+        # Retornamos todo lo que tenga más de 1 línea
         return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 1}
 
     # --------------------------------------------------------------------------
