@@ -1,3 +1,4 @@
+# ### --- INICIO PARTE 1: CABECERA Y ESTÉTICA (CSS) ---
 import streamlit as st
 import google.generativeai as genai
 import json
@@ -235,7 +236,8 @@ class LegalEngineTITAN:
             "ICBF": "TU ROL: DEFENSOR DE FAMILIA. Enfócate en el restablecimiento de derechos de niños, niñas y adolescentes. Interés superior del menor.",
             "Genérico": "TU ROL: SERVIDOR PÚBLICO INTEGRAL. Enfócate en los principios de la función pública (Art. 209 Constitución): Igualdad, moralidad, eficacia, economía, celeridad, imparcialidad y publicidad."
         }
-
+# ### --- FIN PARTE 2 ---
+# ### --- INICIO PARTE 3: LÓGICA DE PROCESAMIENTO Y SEGMENTACIÓN ---
     # --------------------------------------------------------------------------
     # CONFIGURACIÓN DE API (LLAVE MAESTRA)
     # --------------------------------------------------------------------------
@@ -433,7 +435,8 @@ class LegalEngineTITAN:
         1. NO REPETIR TEXTO: El 'enunciado' NO debe repetir lo que ya dice la 'narrativa_caso'.
         2. NO CHIVATEAR: No digas "Según el Título X". Di "Según la norma/guía".
         """
-
+# ### --- FIN PARTE 3 ---
+# ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER) ---
     # --------------------------------------------------------------------------
     # GENERADOR DE CASOS (MODIFICADO: MANUAL + CEREBRO + TRAMPAS)
     # --------------------------------------------------------------------------
@@ -721,7 +724,8 @@ class LegalEngineTITAN:
                 time.sleep(1); attempts += 1
                 if attempts == max_retries: return {"error": f"Fallo Crítico: {str(e)}"}
         return {"error": "Saturado."}
-
+# ### --- FIN PARTE 4 ---
+# ### --- INICIO PARTE 5: BARRA LATERAL (SIDEBAR Y SETUP) ---
 # ==========================================
 # INTERFAZ DE USUARIO (SIDEBAR Y MAIN)
 # ==========================================
@@ -958,7 +962,8 @@ with tab1:
             "seen_arts": list(engine.seen_articles), "failed_arts": list(engine.failed_articles), "mastered_arts": list(engine.mastered_articles)
         }
         st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
-
+# ### --- FIN PARTE 5 ---
+# ### --- INICIO PARTE 6: CICLO PRINCIPAL DEL JUEGO (GAME LOOP) ---
 # ==========================================
 # CICLO PRINCIPAL DEL JUEGO
 # ==========================================
@@ -1067,3 +1072,4 @@ if st.session_state.page == 'game':
                 for r in errores_sel:
                     engine.feedback_history.append(reasons_map[r])
                 st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
+# ### --- FIN PARTE 6 ---
