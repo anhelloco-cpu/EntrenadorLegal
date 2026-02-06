@@ -261,162 +261,107 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (v99.7: RED DE SEGURIDAD + MAYÚSCULAS)
+    # SEGMENTACIÓN INTELIGENTE (MODIFICADA: HÍBRIDA POR PÁRRAFOS)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto usando los patrones adecuados y aplica la Red de Seguridad.
+        Divide el texto.
+        1. NORMAS: Jerarquía estricta (Artículos).
+        2. GUÍAS/OTROS: Párrafos Inteligentes (Corte por tamaño/fusión).
         """
-        lineas = full_text.split('\n')
-        secciones = {"Todo el Documento": []} 
+        secciones = {}
         
-        # Variable para saber dónde estamos (LISTA PARA HERENCIA)
-        active_labels = []
-        
-        # Reiniciar memoria al procesar nuevo texto
-        self.last_detected_chapter = 0
-
-        # --- A. PATRONES PARA NORMAS (LEYES) ---
-        p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
-        p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
-        p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
-        
-        # --- B. PATRONES PARA GUÍAS ---
-        # 1. Títulos Nivel 1 (Ej: "2. Objetivo"). EXIGE PUNTO.
-        p_idx_1 = r'^\s*(\d+)\.\s+(.+)'        
-        
-        # 2. Títulos Nivel 2+ (Ej: "1.1 Texto")
-        p_idx_2 = r'^\s*(\d+(?:[\.\s]\d+)+)\.?\s+(.+)' 
-        
-        # --- C. FILTROS ---
-        p_basura_indice = r'\.{3,}' # Detecta 3 o más puntos seguidos "..."
-
-        for linea in lineas:
-            # Medimos la indentación ANTES de limpiar
-            indentation = len(linea) - len(linea.lstrip())
-            linea_limpia = linea.strip()
-            if not linea_limpia: continue
+        # --- ESTRATEGIA 1: NORMAS (Jerarquía Legal Estricta) ---
+        if self.doc_type == "Norma (Leyes/Decretos)":
+            lineas = full_text.split('\n')
+            secciones = {"Todo el Documento": []} 
+            active_labels = []
             
-            # Etiquetas detectadas en esta línea específica
-            new_labels_this_line = []
+            p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM]+\b'
+            p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM]+\b' 
+            p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9]+\b'
+            p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*(\d+)'
 
-            # -------------------------------------------------------
-            # CAMINO 1: SI ES UNA GUÍA TÉCNICA O MANUAL
-            # -------------------------------------------------------
-            if self.doc_type == "Guía Técnica / Manual":
+            for linea in lineas:
+                linea_limpia = linea.strip()
+                if not linea_limpia: continue
                 
-                # 1. FILTRO ANTI-ÍNDICE
-                if re.search(p_basura_indice, linea_limpia): 
-                    pass
-                
-                # 2. FILTRO DE LONGITUD (Notas al pie)
-                elif len(linea_limpia) > 120:
-                    pass
-
-                # 3. LIMPIEZA PREVIA DE BASURA
-                elif re.search(r'^[^\w\d]+\s*\d', linea_limpia):
-                     linea_limpia = re.sub(r'^[^\w\d]+', '', linea_limpia).strip()
-
-                else:
-                    # 4. LÓGICA NIVEL 2 y 3 (Subtítulos 5.1 y 5.1.1)
-                    if re.match(p_idx_2, linea_limpia):
-                        m = re.match(p_idx_2, linea_limpia)
-                        num_id = m.group(1).strip()
-                        txt_titulo = m.group(2).strip()
-                        
-                        partes_numericas = re.findall(r'\d+', num_id)
-                        
-                        es_valido_n2 = False
-                        if len(partes_numericas) in [2, 3]: 
-                            padre_num = int(partes_numericas[0])
-                            
-                            # --- LÓGICA FRAGMENTOS ---
-                            if self.last_detected_chapter == 0:
-                                self.last_detected_chapter = padre_num
-                                es_valido_n2 = True
-                            elif padre_num == self.last_detected_chapter:
-                                es_valido_n2 = True
-                        
-                        if es_valido_n2 and len(txt_titulo) > 2: 
-                            current_label = f"{num_id} {txt_titulo[:80]}"
-                            padre_num_str = partes_numericas[0]
-                            padre_label = next((k for k in secciones.keys() if k.startswith(f"{padre_num_str}. ")), None)
-                            
-                            new_labels_this_line = [current_label]
-                            if padre_label:
-                                new_labels_this_line.append(padre_label) 
-                            
-                            active_labels = new_labels_this_line
-                    
-                    # 5. LÓGICA NIVEL 1 (Títulos 5.) + SECUENCIAL
-                    elif re.match(p_idx_1, linea_limpia):
-                        m = re.match(p_idx_1, linea_limpia)
-                        num_cap = int(m.group(1))
-                        txt_titulo = m.group(2).strip()
-                        
-                        es_titulo_principal = False
-                        if indentation < 5:
-                            es_titulo_principal = True
-                        
-                        es_capitulo_valido = False
-                        if es_titulo_principal:
-                            if self.last_detected_chapter == 0:
-                                es_capitulo_valido = True
-                            elif num_cap >= self.last_detected_chapter:
-                                es_capitulo_valido = True
-                            elif num_cap < 5 and self.last_detected_chapter > 20: 
-                                es_capitulo_valido = True 
-                        
-                        if es_capitulo_valido and len(txt_titulo) > 2: 
-                            current_label = f"{num_cap}. {txt_titulo[:80]}"
-                            new_labels_this_line = [current_label]
-                            active_labels = new_labels_this_line
-                            self.last_detected_chapter = num_cap
-
-                    # 6. NUEVO: DETECCIÓN DE TÍTULOS EN MAYÚSCULA (Sin Número)
-                    # Ej: "INTRODUCCIÓN", "MARCO TEÓRICO"
-                    elif linea_limpia.isupper() and len(linea_limpia) > 4 and len(linea_limpia) < 80 and not linea_limpia.endswith('.'):
-                         # Evitar falsos positivos si es parte de un texto
-                         current_label = f"SECCIÓN: {linea_limpia}"
-                         new_labels_this_line = [current_label]
-                         active_labels = new_labels_this_line
-
-            # -------------------------------------------------------
-            # CAMINO 2: SI ES UNA NORMA (LEY, DECRETO, CÓDIGO)
-            # -------------------------------------------------------
-            elif self.doc_type == "Norma (Leyes/Decretos)":
                 current_label = None
                 if re.match(p_libro, linea_limpia, re.I): current_label = linea_limpia[:100]
                 elif re.match(p_tit, linea_limpia, re.I): current_label = linea_limpia[:100]
                 elif re.match(p_cap, linea_limpia, re.I): current_label = linea_limpia[:100]
+                elif re.match(p_art, linea_limpia, re.I): current_label = linea_limpia[:50]
                 
-                if current_label:
-                    new_labels_this_line = [current_label]
-                    active_labels = new_labels_this_line
-
-            # Inicializar etiquetas si no existen
-            for l in new_labels_this_line:
-                if l not in secciones: secciones[l] = []
-
-            # GUARDADO FINAL (En Cascada)
-            secciones["Todo el Documento"].append(linea) 
-            for l in active_labels:
-                if l in secciones:
+                if current_label: active_labels = [current_label]
+                
+                for l in active_labels:
+                    if l not in secciones: secciones[l] = []
                     secciones[l].append(linea)
+                secciones["Todo el Documento"].append(linea)
+                
+            return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
 
-        # --- RED DE SEGURIDAD (PLAN B - CORTE AUTOMÁTICO) ---
-        # Si después de leer todo, solo existe "Todo el Documento", activamos el corte artificial.
-        secciones_reales = {k:v for k,v in secciones.items() if k != "Todo el Documento" and len(v) > 0}
-        
-        if not secciones_reales:
-            tamano_bloque = 3000
-            for i in range(0, len(full_text), tamano_bloque):
-                nombre_bloque = f"BLOQUE DE ESTUDIO {i//tamano_bloque + 1}"
-                contenido_bloque = full_text[i : i + tamano_bloque]
-                secciones[nombre_bloque] = [contenido_bloque]
+        # --- ESTRATEGIA 2: GUÍAS Y MANUALES (Párrafos Inteligentes) ---
+        else:
+            # 1. Unificar saltos de línea para detectar párrafos reales (doble salto)
+            text_clean = re.sub(r'\n\s*\n', '<PARAGRAPH_BREAK>', full_text)
+            raw_paragraphs = text_clean.split('<PARAGRAPH_BREAK>')
+            
+            final_blocks = {}
+            current_block_content = ""
+            block_count = 1
+            
+            # Tamaño máximo sugerido por bloque (aprox 1 página)
+            BLOCK_SIZE_LIMIT = 2500 
+            
+            for p in raw_paragraphs:
+                p = p.strip()
+                # Filtro: Ignorar líneas de índice (....... 7)
+                if not p or re.search(r'\.{4,}\s*\d+$', p): continue
+                
+                # Si el párrafo es GIGANTE (>3000 chars), lo partimos a la fuerza
+                if len(p) > 3000:
+                    sentences = p.split('. ')
+                    temp_chunk = ""
+                    for s in sentences:
+                        if len(temp_chunk) + len(s) < 3000:
+                            temp_chunk += s + ". "
+                        else:
+                            # Guardar chunk actual
+                            name = f"Bloque Temático {block_count}"
+                            final_blocks[name] = [temp_chunk]
+                            block_count += 1
+                            temp_chunk = s + ". "
+                    if temp_chunk: 
+                        p = temp_chunk 
+                    else:
+                        continue 
 
-        # Retornamos todo lo que tenga más de 1 línea
-        return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 1}
+                # Acumular texto en bloques lógicos
+                if len(current_block_content) + len(p) < BLOCK_SIZE_LIMIT:
+                    current_block_content += "\n\n" + p
+                else:
+                    # Cerrar bloque actual
+                    name = f"Bloque Temático {block_count}"
+                    
+                    # Intentar encontrar un título dentro del bloque para el nombre
+                    lines = current_block_content.strip().split('\n')
+                    first_line = lines[0].strip()[:60]
+                    if len(first_line) > 5 and (first_line.isupper() or re.match(r'^\d+\.', first_line)):
+                        name = f"Bloque {block_count}: {first_line}..."
+                    
+                    final_blocks[name] = [current_block_content]
+                    block_count += 1
+                    current_block_content = p # Iniciar nuevo bloque
+            
+            # Guardar el último remanente
+            if current_block_content:
+                final_blocks[f"Bloque Temático {block_count}"] = [current_block_content]
+                
+            # Agregar "Todo el Documento" por compatibilidad
+            final_blocks["Todo el Documento"] = [full_text]
+            
+            return {k: "\n".join(v) for k, v in final_blocks.items()}
 
     # --------------------------------------------------------------------------
     # PROCESAMIENTO DE TEXTO (CHUNKS)
