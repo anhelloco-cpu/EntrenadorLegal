@@ -551,6 +551,7 @@ class LegalEngineTITAN:
         2. Si el texto es una lista o un título sin desarrollo, NO preguntes "¿Qué dice el título?". INVENTA UN CASO HIPOTÉTICO donde se aplique ese concepto.
         3. EXTRAPOLACIÓN: Si el texto es una definición (ej: RAE), NO preguntes el significado. Pregunta CÓMO SE APLICA en un caso real de la entidad.
         4. OBLIGATORIO: Tip de Memoria y 4 Opciones (A,B,C,D).
+	5. FORMATO DE ENUNCIADO: El 'enunciado' NO debe ser una pregunta ni terminar con signos de interrogación. Debe ser una instrucción directa, afirmativa o imperativa (ej: 'Determine la acción correcta...', 'Identifique el concepto que se aplica...', 'Indique la consecuencia jurídica...').
         
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
