@@ -783,7 +783,7 @@ with st.sidebar:
         cant = st.number_input("Preguntas:", min_value=1, max_value=5, value=engine.questions_per_case)
         engine.questions_per_case = cant
 
-    # --- CAMBIO DE INTERFAZ: CARGADOR DE MANUAL DE FUNCIONES ---
+    # --- CAMBIO DE INTERFAZ: UNIFICACIÓN MANUAL + EJEMPLO (V104) ---
     with st.expander("Detalles / Manual de Funciones", expanded=True):
         # 1. SIEMPRE DISPONIBLE: MANUAL DE FUNCIONES
         engine.job_functions = st.text_area("Funciones / Rol (Resumen):", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...", help="Escribe un resumen o carga el PDF abajo.")
@@ -885,64 +885,72 @@ with st.sidebar:
                     st.error(f"Error al leer: {e}")
 
     # --- ELEMENTOS FINALES DENTRO DEL SIDEBAR ---
+    # 1. BOTÓN SIMPLE RESTAURADO (APARECE ANTES DEL MAPA)
     if engine.chunks:
         st.divider()
-        if engine.sections_map and len(engine.sections_map) > 1:
-            st.markdown("### 📍 MAPA DE LA LEY")
-            
-            # --- FILTRO DE EXCLUSIÓN PARA OCULTAR ARTÍCULOS ---
-            opciones_brutas = list(engine.sections_map.keys())
-            opciones = [
-                opt for opt in opciones_brutas 
-                if not any(x in opt.upper() for x in ["ARTÍCULO", "ARTICULO", "ART.", "ITEM"])
-            ]
-            
-            if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
-            
-            # --- AQUÍ ESTÁ EL CAMBIO CLAVE: USAMOS LA NUEVA LÓGICA DE ORDENAMIENTO ---
-            opciones.sort(key=natural_sort_key)
-            # ------------------------------------------------------------------------
-            
-            opciones.insert(0, "Todo el Documento")
-            
-            try: idx_sec = opciones.index(engine.active_section_name)
-            except: idx_sec = 0
-            
-            # AGREGO KEY PARA LEERLO EN EL BOTÓN
-            seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec, key="selector_seccion_titan")
-            
-            if seleccion != engine.active_section_name:
-                if engine.update_chunks_by_section(seleccion):
-                    st.session_state.current_data = None
-                    st.rerun()
-
-        st.divider()
-        
-        try: lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
-        except: lvl_idx = 0
-        engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=lvl_idx)
-        
-        try: ent_idx = ENTIDADES_CO.index(engine.entity)
-        except: ent_idx = 0
-        
-        ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
-        if "Otra" in ent_selection or "Agregar" in ent_selection: 
-            engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
-        else: 
-            engine.entity = ent_selection
-                
-        if st.button("🔥 INICIAR SIMULACRO", key="btn_sim_final", disabled=not engine.chunks):
-            # 1. FORZAR SINCRONIZACIÓN DE SECCIÓN (SOLUCIÓN AL ERROR DE 1RA PREGUNTA)
-            if 'selector_seccion_titan' in st.session_state:
-                sel_actual = st.session_state.selector_seccion_titan
-                if sel_actual != engine.active_section_name:
-                    engine.update_chunks_by_section(sel_actual)
-            
-            # 2. ARRANCAR
-            engine.simulacro_mode = True
-            st.session_state.current_data = None
+        if st.button("▶️ INICIAR SIMULACRO", type="primary"):
             st.session_state.page = 'game'
+            st.session_state.current_data = None
             st.rerun()
+
+    if engine.sections_map and len(engine.sections_map) > 1:
+        st.divider()
+        st.markdown("### 📍 MAPA DE LA LEY")
+        
+        # --- FILTRO DE EXCLUSIÓN PARA OCULTAR ARTÍCULOS ---
+        opciones_brutas = list(engine.sections_map.keys())
+        opciones = [
+            opt for opt in opciones_brutas 
+            if not any(x in opt.upper() for x in ["ARTÍCULO", "ARTICULO", "ART.", "ITEM"])
+        ]
+        
+        if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
+        
+        # --- ORDENAMIENTO ---
+        opciones.sort(key=natural_sort_key)
+        opciones.insert(0, "Todo el Documento")
+        
+        try: idx_sec = opciones.index(engine.active_section_name)
+        except: idx_sec = 0
+        
+        # KEY NECESARIA PARA LA SINCRONIZACIÓN DEL BOTÓN FINAL
+        seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec, key="selector_seccion_titan")
+        
+        if seleccion != engine.active_section_name:
+            if engine.update_chunks_by_section(seleccion):
+                st.session_state.current_data = None
+                st.rerun()
+
+    st.divider()
+    
+    # 2. BLOQUE FINAL (DESINDENTADO CORRECTAMENTE Y CON SINCRONIZACIÓN)
+    try: lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
+    except: lvl_idx = 0
+    engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=lvl_idx)
+    
+    try: ent_idx = ENTIDADES_CO.index(engine.entity)
+    except: ent_idx = 0
+    
+    ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
+    if "Otra" in ent_selection or "Agregar" in ent_selection: 
+        engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
+    else: 
+        engine.entity = ent_selection
+            
+    # BOTÓN DE INICIO BLINDADO (FUERA DEL IF DEL MAPA)
+    if st.button("🔥 INICIAR SIMULACRO GLOBAL", key="btn_sim_final", disabled=not engine.chunks):
+        # LÓGICA DE SINCRONIZACIÓN:
+        # Si el usuario cambió el selector pero Streamlit no actualizó el motor aún,
+        # lo forzamos a actualizar leyendo directamente el estado del widget.
+        if 'selector_seccion_titan' in st.session_state:
+            sel_actual = st.session_state.selector_seccion_titan
+            if sel_actual != engine.active_section_name:
+                engine.update_chunks_by_section(sel_actual)
+        
+        engine.simulacro_mode = True
+        st.session_state.current_data = None
+        st.session_state.page = 'game'
+        st.rerun()
     
     if engine.chunks:
         full_save_data = {
