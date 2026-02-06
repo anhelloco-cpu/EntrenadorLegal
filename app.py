@@ -14,7 +14,7 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v103: IMPERIUM
+#  TITÁN v104: The Sentinel
 #  ----------------------------------------------------------------------------
 #  ESTA VERSIÓN INCLUYE:
 #  1. CEREBRO INSTITUCIONAL: Personalidad de Auditor, Fiscal, etc.
@@ -48,7 +48,7 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v103 - IMPERIUM", 
+    page_title="TITÁN v104 - The Sentinel", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -743,7 +743,7 @@ def natural_sort_key(s):
     return key
 
 with st.sidebar:
-    st.title("🦅 TITÁN v104 IMPERIUM")
+    st.title("🦅 TITÁN v104 The Sentinel")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
