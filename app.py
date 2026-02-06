@@ -94,7 +94,7 @@ st.markdown("""
         border-radius: 4px; 
         font-size: 0.9em; 
         font-weight: bold; 
-        margin-right: 5px;
+        margin-right: 5px; 
         border: 1px solid #cc0000; 
         display: inline-block;
         margin-bottom: 5px;
@@ -108,7 +108,7 @@ st.markdown("""
         border-radius: 4px; 
         font-size: 0.9em; 
         font-weight: bold; 
-        margin-right: 5px;
+        margin-right: 5px; 
         border: 1px solid #006600; 
         display: inline-block;
         margin-bottom: 5px;
@@ -265,10 +265,10 @@ class LegalEngineTITAN:
     # --------------------------------------------------------------------------
     # SEGMENTACIÓN INTELIGENTE (CORRECCIÓN: JERARQUÍA CON HERENCIA REAL)
     # --------------------------------------------------------------------------
-    def smart_segmentation(self, full_text):
+ def smart_segmentation(self, full_text):
         """
         Divide el texto según el tipo de documento.
-        1. NORMAS: Jerarquía con HERENCIA (Título > Capítulo > Artículo).
+        1. NORMAS: Jerarquía con HERENCIA REAL (Título > Capítulo > Artículo).
         2. GUÍAS: Párrafos Inteligentes (Corte por tamaño/fusión).
         """
         secciones = {}
@@ -325,7 +325,6 @@ class LegalEngineTITAN:
 
         # --- ESTRATEGIA 2: GUÍAS Y MANUALES (Párrafos Inteligentes) ---
         else:
-            # Detectar párrafos reales por doble salto de línea
             text_clean = re.sub(r'\n\s*\n', '<PARAGRAPH_BREAK>', full_text)
             raw_paragraphs = text_clean.split('<PARAGRAPH_BREAK>')
             
@@ -333,14 +332,12 @@ class LegalEngineTITAN:
             current_block_content = ""
             block_count = 1
             BLOCK_SIZE_LIMIT = 2500 
-            
+
             for p in raw_paragraphs:
                 p = p.strip()
-                # Filtro Anti-Índice
                 if not p or re.search(r'\.{4,}\s*\d+$', p): 
                     continue
                 
-                # Control de tamaño para párrafos gigantes
                 if len(p) > 3000:
                     sentences = p.split('. ')
                     temp_chunk = ""
@@ -354,12 +351,10 @@ class LegalEngineTITAN:
                             temp_chunk = s + ". "
                     p = temp_chunk if temp_chunk else p
 
-                # Lógica de acumulación por bloques
                 if len(current_block_content) + len(p) < BLOCK_SIZE_LIMIT:
                     current_block_content += "\n\n" + p
                 else:
                     name = f"Bloque Temático {block_count}"
-                    # Intento de detección de título estético
                     lines = current_block_content.strip().split('\n')
                     first_line = lines[0].strip()[:60]
                     if len(first_line) > 5 and (first_line.isupper() or re.match(r'^\d+\.', first_line)):
@@ -374,7 +369,6 @@ class LegalEngineTITAN:
                 
             final_blocks["Todo el Documento"] = [full_text]
             return {k: "\n".join(v) for k, v in final_blocks.items()}
-
 
     # --------------------------------------------------------------------------
     # PROCESAMIENTO DE TEXTO (CHUNKS)
@@ -607,8 +601,8 @@ class LegalEngineTITAN:
         
         FORMATO JSON OBLIGATORIO:
         {{
-            "articulo_fuente": "ARTÍCULO X",
-            "narrativa_caso": "Texto de contexto...",
+            "articulo_fuente": "{self.current_article_label}",
+            "narrativa_caso": "Texto de contexto situacional...",
             "preguntas": [
                 {{
                     "enunciado": "Pregunta...", 
@@ -629,8 +623,7 @@ class LegalEngineTITAN:
                 }}
             ]
         }}
-        """
-        
+        """        
         max_retries = 3
         attempts = 0
         while attempts < max_retries:
@@ -694,7 +687,7 @@ class LegalEngineTITAN:
                     for k, v in opciones_raw:
                         items_barajados.append({
                             "texto": v,
-                            "explicacion": explicaciones_raw.get(k, "Sin detalle."),
+                            "explicacion": opciones_raw.get(k, "Sin detalle."),
                             "es_correcta": (v == respuesta_correcta_texto)
                         })
                     
@@ -810,12 +803,12 @@ with st.sidebar:
     
     tab1, tab2 = st.tabs(["📝 NUEVO DOCUMENTO", "📂 CARGAR BACKUP"])
     
-    with tab1:
+with tab1:
         st.markdown("### 📂 TIPO DE DOCUMENTO")
         doc_type_input = st.radio(
             "¿Qué vas a estudiar?", 
             ["Norma (Leyes/Decretos)", "Guía Técnica / Manual"],
-            help="Define cómo TITÁN leerá el archivo. Norma busca Artículos jerarquizados. Guía busca Párrafos."
+            help="Norma busca Artículos jerarquizados. Guía busca Párrafos."
         )
         st.divider()
         
@@ -823,6 +816,8 @@ with st.sidebar:
         
         # --- CARGA PERSISTENTE (EVITA LENTITUD) ---
         upl_pdf = st.file_uploader("Subir PDF de Estudio:", type=['pdf'])
+        
+        # Solo extraemos si hay un archivo nuevo y la memoria está vacía
         if upl_pdf and not st.session_state.raw_text_study:
             with st.spinner("📄 Extrayendo texto una sola vez..."):
                 try:
@@ -831,7 +826,7 @@ with st.sidebar:
                     for page in reader.pages:
                         txt_pdf += page.extract_text() + "\n"
                     st.session_state.raw_text_study = txt_pdf
-                    st.success("¡PDF Extraído y guardado en memoria!")
+                    st.success("¡PDF guardado en memoria!")
                 except Exception as e:
                     st.error(f"Error leyendo PDF: {e}")
 
@@ -842,12 +837,40 @@ with st.sidebar:
         
         # --- BOTÓN DE PROCESO (USANDO MEMORIA) ---
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
+            # Prioriza el PDF guardado en sesión sobre el texto manual
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
             
             if engine.process_law(contenido_final, axis_input, doc_type_input): 
                 st.session_state.current_data = None
-                st.success(f"¡Documento Procesado! {len(engine.sections_map)} secciones detectadas. Selecciona una en el menú y presiona 'INICIAR SIMULACRO'.")
+                st.success(f"¡Documento Procesado! {len(engine.sections_map)} secciones detectadas.")
                 time.sleep(0.5)
+                st.rerun()
+
+    # --- BOTÓN RESTAURADO PARA INICIAR SIMULACRO ---
+    # Este botón aparecerá apenas el documento tenga 'chunks' (ya esté procesado)
+    if engine.chunks:
+        st.divider()
+        if st.button("▶️ INICIAR SIMULACRO", type="primary"):
+            st.session_state.page = 'game'
+            st.session_state.current_data = None
+            st.rerun()
+
+    if engine.sections_map and len(engine.sections_map) > 1:
+        st.divider()
+        st.markdown("### 📍 MAPA DE LA LEY")
+        
+        opciones = list(engine.sections_map.keys())
+        if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
+        
+        # Ordenamiento natural para que los Títulos salgan en orden lógico
+        opciones.sort(key=lambda s: [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)])
+        opciones.insert(0, "Todo el Documento")
+        
+        seleccion = st.selectbox("Estudiar Específicamente:", opciones)
+        
+        if seleccion != engine.active_section_name:
+            if engine.update_chunks_by_section(seleccion):
+                st.session_state.current_data = None
                 st.rerun()
 
     with tab2:
@@ -987,7 +1010,7 @@ if st.session_state.page == 'game':
             with col_skip:
                 skipped = st.form_submit_button("⏭️ SALTAR (BLOQUEAR)")
             
-            if skipped:
+            if skipped: 
                 engine.temporary_blacklist.add(engine.current_article_label.split(" - ITEM")[0].strip())
                 st.session_state.current_data = None; st.rerun()
 
@@ -1026,6 +1049,11 @@ if st.session_state.page == 'game':
                 if st.button("Nuevo Caso"): st.session_state.current_data = None; st.rerun()
         
         st.divider()
+        if st.button("⬅️ VOLVER AL MENÚ"):
+            st.session_state.page = 'setup'
+            st.rerun()
+
+        # --- CALIBRACIÓN MANUAL ---
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
             reasons_map = {
                 "Muy Fácil": "pregunta_facil",
