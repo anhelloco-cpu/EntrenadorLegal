@@ -795,7 +795,7 @@ with st.sidebar:
     
     tab1, tab2 = st.tabs(["📝 NUEVO DOCUMENTO", "📂 CARGAR BACKUP"])
     
-with tab1:
+    with tab1:
         st.markdown("### 📂 TIPO DE DOCUMENTO")
         doc_type_input = st.radio(
             "¿Qué vas a estudiar?", 
@@ -806,10 +806,8 @@ with tab1:
         
         st.markdown("### 📄 Cargar Documento")
         
-        # --- CARGA PERSISTENTE (EVITA LENTITUD) ---
         upl_pdf = st.file_uploader("Subir PDF de Estudio:", type=['pdf'])
         
-        # Solo extraemos si hay un archivo nuevo y la memoria está vacía
         if upl_pdf and not st.session_state.raw_text_study:
             with st.spinner("📄 Extrayendo texto una sola vez..."):
                 try:
@@ -824,45 +822,14 @@ with tab1:
 
         st.caption("O pega aquí el texto manualmente:")
         axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
-        
         txt_manual = st.text_area("Texto de la Norma:", height=150)
         
-        # --- BOTÓN DE PROCESO (USANDO MEMORIA) ---
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
-            # Prioriza el PDF guardado en sesión sobre el texto manual
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
-            
             if engine.process_law(contenido_final, axis_input, doc_type_input): 
                 st.session_state.current_data = None
-                st.success(f"¡Documento Procesado! {len(engine.sections_map)} secciones detectadas.")
+                st.success(f"¡Documento Procesado!")
                 time.sleep(0.5)
-                st.rerun()
-
-    # --- BOTÓN RESTAURADO PARA INICIAR SIMULACRO ---
-    # Este botón aparecerá apenas el documento tenga 'chunks' (ya esté procesado)
-    if engine.chunks:
-        st.divider()
-        if st.button("▶️ INICIAR SIMULACRO", type="primary"):
-            st.session_state.page = 'game'
-            st.session_state.current_data = None
-            st.rerun()
-
-    if engine.sections_map and len(engine.sections_map) > 1:
-        st.divider()
-        st.markdown("### 📍 MAPA DE LA LEY")
-        
-        opciones = list(engine.sections_map.keys())
-        if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
-        
-        # Ordenamiento natural para que los Títulos salgan en orden lógico
-        opciones.sort(key=lambda s: [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)])
-        opciones.insert(0, "Todo el Documento")
-        
-        seleccion = st.selectbox("Estudiar Específicamente:", opciones)
-        
-        if seleccion != engine.active_section_name:
-            if engine.update_chunks_by_section(seleccion):
-                st.session_state.current_data = None
                 st.rerun()
 
     with tab2:
@@ -886,59 +853,64 @@ with tab1:
                     engine.job_functions = d.get('job', "")
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
-                    
                     engine.seen_articles = set(d.get('seen_arts', []))
                     engine.failed_articles = set(d.get('failed_arts', []))
                     engine.mastered_articles = set(d.get('mastered_arts', []))
 
                     if DL_AVAILABLE:
-                         with st.spinner("🧠 Recuperando memoria neuronal..."): engine.chunk_embeddings = dl_model.encode(engine.chunks)
+                         with st.spinner("🧠 Recuperando memoria neuronal..."): 
+                             engine.chunk_embeddings = dl_model.encode(engine.chunks)
 
                     st.session_state.last_loaded = upl.name
                     st.success("¡Backup Cargado!")
                     time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
-                except Exception as e: st.error(f"Error al leer: {e}")
+                except Exception as e: 
+                    st.error(f"Error al leer: {e}")
+
+    # --- ELEMENTOS FINALES DENTRO DEL SIDEBAR ---
+    if engine.chunks:
+        st.divider()
+        if st.button("▶️ INICIAR SIMULACRO", type="primary"):
+            st.session_state.page = 'game'
+            st.session_state.current_data = None
+            st.rerun()
 
     if engine.sections_map and len(engine.sections_map) > 1:
         st.divider()
         st.markdown("### 📍 MAPA DE LA LEY")
-        
         opciones = list(engine.sections_map.keys())
         if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
-        
-        # Función para ordenar jerárquicamente
-        def natural_sort_key(s):
-            return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
-        
-        opciones.sort(key=natural_sort_key)
+        opciones.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('([0-9]+)', s)])
         opciones.insert(0, "Todo el Documento")
         
         try: idx_sec = opciones.index(engine.active_section_name)
         except: idx_sec = 0
-            
         seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec)
         
         if seleccion != engine.active_section_name:
             if engine.update_chunks_by_section(seleccion):
                 st.session_state.current_data = None
-                st.toast(f"Cambiado a: {seleccion}", icon="✅")
-                time.sleep(0.5); st.rerun()
+                st.rerun()
 
     st.divider()
-    
     try: lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
     except: lvl_idx = 0
     engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=lvl_idx)
     
     try: ent_idx = ENTIDADES_CO.index(engine.entity)
     except: ent_idx = 0
-    
     ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
-    if "Otra" in ent_selection or "Agregar" in ent_selection: engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
-    else: engine.entity = ent_selection
+    
+    if "Otra" in ent_selection or "Agregar" in ent_selection: 
+        engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
+    else: 
+        engine.entity = ent_selection
             
-    if st.button("🔥 INICIAR SIMULACRO", disabled=not engine.chunks):
-        engine.simulacro_mode = True; st.session_state.current_data = None; st.session_state.page = 'game'; st.rerun()
+    if st.button("🔥 INICIAR SIMULACRO", key="btn_sim_final", disabled=not engine.chunks):
+        engine.simulacro_mode = True
+        st.session_state.current_data = None
+        st.session_state.page = 'game'
+        st.rerun()
     
     if engine.chunks:
         full_save_data = {
