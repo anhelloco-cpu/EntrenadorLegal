@@ -312,10 +312,8 @@ class LegalEngineTITAN:
                     """Extrae el nombre descriptivo de la jerarquía."""
                     base_label = line_match.strip().upper()
                     parts = re.split(pattern, line_match, flags=re.I)
-                    # Caso 1: El nombre está en la misma línea
                     if len(parts) > 1 and len(parts[-1].strip()) > 3:
                         return f"{base_label}: {parts[-1].strip().upper()}"
-                    # Caso 2: El nombre está en la línea siguiente
                     if idx + 1 < len(lineas):
                         next_line = lineas[idx + 1].strip()
                         if next_line and not any(re.match(p, next_line, re.I) for p in [p_libro, p_tit, p_cap, p_sec, p_art]):
@@ -337,11 +335,8 @@ class LegalEngineTITAN:
                     c_seccion = get_full_name_v106(i, linea_limpia, p_sec)
 
                 # --- LÓGICA DE HERENCIA (CASCADA) ---
-                # Cada línea se guarda en su contenedor y en todos sus contenedores padres
                 niveles_activos = ["TODO EL DOCUMENTO"]
-                
-                if c_libro: 
-                    niveles_activos.append(c_libro)
+                if c_libro: niveles_activos.append(c_libro)
                 if c_titulo:
                     nom_tit = f"{c_libro} > {c_titulo}" if c_libro else c_titulo
                     niveles_activos.append(nom_tit)
@@ -360,9 +355,7 @@ class LegalEngineTITAN:
                     secciones[nivel].append(linea_raw)
                 
             return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
-
         else:
-            # Estrategia para Guías Técnicas (Bloques fijos)
             text_clean = re.sub(r'\n\s*\n', '<PARAGRAPH_BREAK>', full_text)
             raw_paragraphs = text_clean.split('<PARAGRAPH_BREAK>')
             final_blocks = {}; current_block_content = ""; block_count = 1
@@ -380,7 +373,7 @@ class LegalEngineTITAN:
             return {k: "\n".join(v) for k, v in final_blocks.items()}
 
     # --------------------------------------------------------------------------
-    # PROCESAMIENTO Y ACTUALIZACIÓN (INTACTO)
+    # PROCESAMIENTO Y ACTUALIZACIÓN (OPTIMIZADO PARA SEMÁFORO)
     # --------------------------------------------------------------------------
     def process_law(self, text, axis_name, doc_type_input):
         text = text.replace('\r', '')
@@ -388,8 +381,10 @@ class LegalEngineTITAN:
         self.thematic_axis = axis_name 
         self.doc_type = doc_type_input 
         self.sections_map = self.smart_segmentation(text)
+        self.active_section_name = "TODO EL DOCUMENTO"
         self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
-        self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
+        # El mastery_tracker ahora es persistente y no depende solo de índices
+        if not self.mastery_tracker: self.mastery_tracker = {}
         if dl_model: 
             with st.spinner("🧠 Generando mapa neuronal..."): 
                 self.chunk_embeddings = dl_model.encode(self.chunks)
@@ -399,7 +394,6 @@ class LegalEngineTITAN:
         if section_name in self.sections_map:
             texto_seccion = self.sections_map[section_name]
             self.chunks = [texto_seccion[i:i+50000] for i in range(0, len(texto_seccion), 50000)]
-            self.mastery_tracker = {i: 0 for i in range(len(self.chunks))}
             self.active_section_name = section_name
             if dl_model: self.chunk_embeddings = dl_model.encode(self.chunks)
             self.seen_articles.clear(); self.temporary_blacklist.clear()
@@ -407,10 +401,34 @@ class LegalEngineTITAN:
         return False
 
     def get_stats(self):
+        """
+        CÁLCULO DE PRECISIÓN ABSOLUTA: Censo de artículos vs Maestría (0-1-2)
+        """
         if not self.chunks: return 0, 0, 0
-        total = len(self.chunks)
-        score = sum([min(v, 50) for v in self.mastery_tracker.values()])
-        perc = int((score / (total * 50)) * 100) if total > 0 else 0
+        
+        # 1. Determinar texto de la sección activa para el censo
+        texto_estudio = self.sections_map.get(self.active_section_name, "\n".join(self.chunks))
+        
+        # 2. CENSO REAL DE ARTÍCULOS (Sincronizado con Sniper)
+        if self.doc_type == "Norma (Leyes/Decretos)":
+            p_censo = r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*(?:\d+[º°\.o]?|[IVXLCDM]+)\b'
+        else:
+            p_censo = r'^\s*\d+(?:\.\d+)+\b' # Para manuales técnicos
+            
+        items_detectados = re.findall(p_censo, texto_estudio, re.I | re.M)
+        items_unicos = set([i.strip().upper() for i in items_detectados])
+        
+        # 3. LÓGICA DE CÁLCULO
+        if items_unicos:
+            total = len(items_unicos)
+            # Sumamos maestría buscando por IDENTIDAD (nombre del artículo)
+            score = sum([min(self.mastery_tracker.get(art, 0), 2) for art in items_unicos])
+        else:
+            # Fallback a bloques si no se detectan artículos (texto plano)
+            total = len(self.chunks)
+            score = sum([min(v, 2) for k, v in self.mastery_tracker.items() if isinstance(k, int)])
+            
+        perc = int((score / (total * 2)) * 100) if total > 0 else 0
         return min(perc, 100), len(self.failed_indices), total
 
     def get_strict_rules(self):
