@@ -265,6 +265,43 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
+    # NUEVO: EXTRACTOR DE ADN (LAVADO DE MANUALES)
+    # --------------------------------------------------------------------------
+    def _clean_manual_text(self, raw_text):
+        """
+        FILTRO DE LIMPIEZA EXTREMA:
+        Elimina 'basura administrativa' (Fechas 2025, Salarios, Códigos).
+        Deja solo el 'ADN Técnico' (Funciones y Propósito).
+        """
+        prompt = f"""
+        ACTÚA COMO UN FILTRO DE RRHH. TU OBJETIVO ES EXTRAER EL "PERFIL TÉCNICO" Y ELIMINAR LA "BASURA ADMINISTRATIVA".
+        
+        TEXTO ORIGINAL (SUCIO):
+        '''{raw_text[:25000]}'''
+        
+        INSTRUCCIONES DE LIMPIEZA ESTRICTA:
+        1. ELIMINA TOTALMENTE: Cualquier mención a "Convocatoria No 232-25", fechas (2025, 2024), Salarios ($9.015.765), Vacantes, Códigos de empleo, Sedes o Ubicaciones.
+        2. CONSERVA ÚNICAMENTE: El "Propósito Principal" y las "Funciones Esenciales" (Verbos rectores como Auditar, Evaluar, Sustanciar).
+        3. SALIDA: Devuelve SOLO el texto limpio de las funciones. NADA MÁS.
+        """
+        try:
+            if self.provider == "OpenAI":
+                headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+                data = {"model": "gpt-4o", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}
+                resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+                return resp.json()['choices'][0]['message']['content']
+            elif self.provider == "Google":
+                return self.model.generate_content(prompt).text
+            elif self.provider == "Groq":
+                 headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+                 data = {"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}
+                 resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
+                 return resp.json()['choices'][0]['message']['content']
+        except:
+            return raw_text # Fallback si falla la API
+        return raw_text
+
+    # --------------------------------------------------------------------------
     # SEGMENTACIÓN INTELIGENTE (TITÁN V106: ARQUITECTURA HÍBRIDA + HERENCIA)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
@@ -374,11 +411,25 @@ class LegalEngineTITAN:
             return {k: "\n".join(v) for k, v in final_blocks.items()}
 
     # --------------------------------------------------------------------------
-    # PROCESAMIENTO Y ACTUALIZACIÓN (OPTIMIZADO PARA SEMÁFORO)
+    # PROCESAMIENTO Y ACTUALIZACIÓN (OPTIMIZADO: LIMPIEZA AUTOMÁTICA)
     # --------------------------------------------------------------------------
     def process_law(self, text, axis_name, doc_type_input):
         text = text.replace('\r', '')
         if len(text) < 100: return 0
+        
+        # --- NUEVO: FILTRO DE PURIFICACIÓN PARA MANUALES ---
+        # Si el usuario carga un Manual, lo limpiamos ANTES de guardarlo.
+        if doc_type_input == "Guía Técnica / Manual":
+            with st.spinner("🧹 Purificando Manual (Extrayendo ADN del cargo y eliminando 'basura' administrativa)..."):
+                clean_text = self._clean_manual_text(text)
+                self.manual_text = clean_text # Guardamos la versión LIMPIA para la Parte 4
+                text = clean_text # Sobrescribimos para que la segmentación también sea limpia
+        else:
+            # Si carga una Norma, nos aseguramos de no tener residuos de manuales anteriores
+            if not hasattr(self, 'manual_text') or not self.manual_text: 
+                self.manual_text = "" 
+        # ---------------------------------------------------
+        
         self.thematic_axis = axis_name 
         self.doc_type = doc_type_input 
         self.sections_map = self.smart_segmentation(text)
