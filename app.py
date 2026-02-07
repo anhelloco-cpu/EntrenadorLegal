@@ -445,13 +445,17 @@ class LegalEngineTITAN:
     def get_calibration_instructions(self):
         return "INSTRUCCIONES: NO REPETIR TEXTO, NO 'CHIVATEAR' NIVELES."
 # ### --- FIN PARTE 3 ---
-# ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER) ---
+# ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER + 6 CAPITANES) ---
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICADO: ANTI-PEREZA + ROL PRIORITARIO + MODO PESADILLA)
+    # GENERADOR DE CASOS (MODIFICADO: ANTI-PEREZA + ROL PRIORITARIO + MODO PESADILLA + 6 CAPITANES)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
-        Genera la pregunta. Usa el TIPO DE DOCUMENTO para saber qué buscar.
+        Genera la pregunta. Integra:
+        1. Sniper V106 (Precisión).
+        2. Semáforo (Amarillo -> Pesadilla) por IDENTIDAD.
+        3. Los 6 Capitanes (Reglas de Hierro en Prompt).
+        4. Filtro Anti-Inexequible.
         """
         if not self.api_key: return {"error": "Falta Llave"}
         if not self.chunks: return {"error": "Falta Norma"}
@@ -460,7 +464,9 @@ class LegalEngineTITAN:
         # Lógica de repaso de errores (Embeddings)
         if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
-            candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 3]
+            # Buscamos candidatos que no estén en Verde (Nivel 2)
+            # Nota: Aquí seguimos usando índices para embeddings, pero la maestría la revisaremos por nombre luego
+            candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 2]
             candidatos.sort(key=lambda x: x[1], reverse=True)
             if candidatos: idx = candidatos[0][0]
         
@@ -469,17 +475,21 @@ class LegalEngineTITAN:
         
         texto_base = self.chunks[idx]
         
-        # --- FRANCOTIRADOR SELECTIVO (CORREGIDO: SNIPER V106) ---
+        # --- FILTRO 1 (CAPITÁN JUSTICIA): ESCUDO ANTI-INEXEQUIBLE (Pre-Sniper) ---
+        # Si el bloque completo está muerto, lo saltamos
+        if "INEXEQUIBLE" in texto_base.upper() or "DEROGADO" in texto_base.upper():
+            idx = random.choice(range(len(self.chunks)))
+            texto_base = self.chunks[idx]
+            self.current_chunk_idx = idx
+
+        # --- FRANCOTIRADOR SELECTIVO (SNIPER V106) ---
         matches = []
         
         if self.doc_type == "Norma (Leyes/Decretos)":
-            # SNIPER V106: Detecta 'ARTÍCULO 1º', 'ARTÍCULO 1o.', 'ARTÍCULO I' y 'ART. 1.'
             p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[º°\.o]?|[IVXLCDM]+)\b'
             matches = list(re.finditer(p_art, texto_base, re.IGNORECASE | re.MULTILINE))
             
         elif self.doc_type == "Guía Técnica / Manual":
-            # Si es Guía, buscamos "1." o "1.1" con regex flexible (.+)
-            # También aceptamos el punto opcional aquí para ser consistentes
             p_idx = r'^\s*(\d+(?:[\.\s]\d+)*)\.?\s+(.+)'
             matches = list(re.finditer(p_idx, texto_base, re.MULTILINE))
 
@@ -487,64 +497,72 @@ class LegalEngineTITAN:
         self.current_article_label = "General / Sin Estructura Detectada"
         
         if matches:
-            # Filtro Francotirador
-            candidatos = [m for m in matches if m.group(0).strip() not in self.seen_articles and m.group(0).strip() not in self.temporary_blacklist]
-            
-            if not candidatos:
-                candidatos = [m for m in matches if m.group(0).strip() not in self.temporary_blacklist]
-                if not candidatos:
-                    candidatos = matches
-                    self.temporary_blacklist.clear()
+            # Filtro Francotirador + Anti-Inexequible Fino
+            candidatos_validos = []
+            for m in matches:
+                tag = m.group(0).strip()
+                # Miramos 200 chars adelante para ver si dice Inexequible
+                contexto = texto_base[m.end():m.end()+200].upper()
+                if "INEXEQUIBLE" in contexto or "DEROGADO" in contexto: continue
+                if tag in self.seen_articles or tag in self.temporary_blacklist: continue
+                candidatos_validos.append(m)
+
+            if not candidatos_validos:
+                candidatos_validos = [m for m in matches if m.group(0).strip() not in self.temporary_blacklist]
+                if not candidatos_validos:
+                    candidatos_validos = matches
+                    self.temporary_blacklist.clear() # Reset suave
                 self.seen_articles.clear()
             
-            seleccion = random.choice(candidatos)
-            start_pos = seleccion.start()
-            current_match_index = matches.index(seleccion)
-            
-            # Cortar hasta el siguiente
-            if current_match_index + 1 < len(matches):
-                end_pos = matches[current_match_index + 1].start()
-            else:
-                end_pos = min(len(texto_base), start_pos + 4000)
-
-            texto_final_ia = texto_base[start_pos:end_pos] 
-            self.current_article_label = seleccion.group(0).strip()[:60] # Acortar etiqueta
-
-            # --- MICRO-SEGMENTACIÓN (Universal) ---
-            # Busca literales a), b) dentro del bloque seleccionado
-            patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
-            sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
-            
-            if len(sub_matches) > 1:
-                sel_sub = random.choice(sub_matches)
-                start_sub = sel_sub.start()
-                idx_sub = sub_matches.index(sel_sub)
-                end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
+            if candidatos_validos:
+                seleccion = random.choice(candidatos_validos)
+                start_pos = seleccion.start()
+                current_match_index = matches.index(seleccion)
                 
-                texto_fragmento = texto_final_ia[start_sub:end_sub]
-                id_sub = sel_sub.group(0).strip()
-                if len(id_sub) > 20: id_sub = id_sub[:20] + "..."
-                
-                encabezado = texto_final_ia[:150].split('\n')[0] 
-                
-                texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
-                self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
+                if current_match_index + 1 < len(matches):
+                    end_pos = matches[current_match_index + 1].start()
+                else:
+                    end_pos = min(len(texto_base), start_pos + 4000)
 
+                texto_final_ia = texto_base[start_pos:end_pos] 
+                self.current_article_label = seleccion.group(0).strip()[:60]
+
+                # --- MICRO-SEGMENTACIÓN ---
+                patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
+                sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
+                
+                if len(sub_matches) > 1:
+                    sel_sub = random.choice(sub_matches)
+                    start_sub = sel_sub.start()
+                    idx_sub = sub_matches.index(sel_sub)
+                    end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
+                    
+                    texto_fragmento = texto_final_ia[start_sub:end_sub]
+                    id_sub = sel_sub.group(0).strip()
+                    if len(id_sub) > 20: id_sub = id_sub[:20] + "..."
+                    
+                    encabezado = texto_final_ia[:150].split('\n')[0] 
+                    texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
+                    self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
         else:
             self.current_article_label = "General"
             texto_final_ia = texto_base[:4000]
 
-        # --- CONSTRUCCIÓN DEL CEREBRO ---
-        # NUEVO: LÓGICA DE DIFICULTAD SEGÚN SEMÁFORO (ESTADO AMARILLO -> PESADILLA)
-        maestria_actual = self.mastery_tracker.get(self.current_chunk_idx, 0)
+        # --- CEREBRO: MODO PESADILLA (SEMÁFORO SINCRONIZADO) ---
+        # Buscamos la maestría por Nombre (Identidad) para que coincida con Parte 3 y 6
+        key_maestria = self.current_article_label.split(" - ITEM")[0].strip().upper()
+        if "ARTÍCULO" not in key_maestria and "ITEM" not in key_maestria: key_maestria = self.current_chunk_idx
+        
+        maestria_actual = self.mastery_tracker.get(key_maestria, 0)
         instruccion_pesadilla = ""
+        
         if maestria_actual >= 1:
             instruccion_pesadilla = """
-            🔥 ALERTA MODO PESADILLA ACTIVADO: El usuario ya domina la base técnica de este fragmento. 
-            PROHIBIDO hacer preguntas directas o literales. 
-            TU MISIÓN: Busca el parágrafo más oscuro, la excepción a la regla o un caso de frontera donde colisionen dos conceptos. 
-            Las opciones incorrectas deben ser 'Gemelos Legales' (altamente plausibles pero incorrectas en este caso).
-            Dificultad requerida: 10/10.
+            🔥 ALERTA MODO PESADILLA ACTIVADO (CAPITÁN PESADILLA):
+            El usuario ya domina la base. PROHIBIDO hacer preguntas directas o literales.
+            TU MISIÓN: Busca el parágrafo más oscuro, la excepción a la regla o un caso de frontera.
+            OPCIONES: Las incorrectas deben ser 'Gemelos Legales' (conceptos que parecen correctos pero no aplican aquí).
+            DIFICULTAD: 10/10.
             """
 
         dificultad_prompt = f"NIVEL: {self.level.upper()}."
@@ -553,46 +571,35 @@ class LegalEngineTITAN:
         # 1. TRAMPAS Y DIFICULTAD
         instruccion_trampas = ""
         if self.level in ["Profesional", "Asesor"]:
-            instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES, basadas en errores comunes de la práctica o interpretaciones ligeras. Castiga el pensamiento automático."
+            instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES."
 
-        # 2. LÓGICA DE ROL (CORREGIDA: Prioridad Manual)
+        # 2. LÓGICA DE ROL (PRIORIDAD MANUAL)
         texto_funciones_real = self.manual_text if self.manual_text else self.job_functions
-        
-        # 
-
         contexto_funcional = ""
-        mision_entidad = "" # Variable base vacía
+        mision_entidad = "" 
 
         if texto_funciones_real:
-            # SI HAY MANUAL: SE BORRA EL ROL POR DEFECTO Y SE USA SOLO EL MANUAL
             funciones_safe = texto_funciones_real[:15000]
-            contexto_funcional = f"CONTEXTO OBLIGATORIO (MANUAL DE FUNCIONES): El usuario aspira a un cargo con estas funciones ESPECÍFICAS: '{funciones_safe}'. TU OBLIGACIÓN ES AMBIENTAR LA PREGUNTA EN LA EJECUCIÓN PRÁCTICA DE ESTAS FUNCIONES. IGNORA CUALQUIER OTRO ROL GENÉRICO."
-            mision_entidad = "" # Se anula para evitar conflictos
+            contexto_funcional = f"CONTEXTO OBLIGATORIO (MANUAL DE FUNCIONES): El usuario aspira a un cargo con estas funciones ESPECÍFICAS: '{funciones_safe}'. AMBIENTA LA PREGUNTA AQUÍ."
+            mision_entidad = "" 
         else:
-            # SI NO HAY MANUAL: SE USA EL CEREBRO POR DEFECTO
             mision_entidad = self.mission_profiles.get(self.entity, self.mission_profiles["Genérico"])
 
-        # 4. FEEDBACK
+        # 4. FEEDBACK (LOS CAPITANES REACTIVOS)
         feedback_instr = ""
         if self.feedback_history:
             last_feeds = self.feedback_history[-5:] 
             instrucciones_correccion = []
-            
-            if "pregunta_facil" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Muy Fácil'. AUMENTAR DRASTICAMENTE LA DIFICULTAD Y COMPLEJIDAD.")
-            if "respuesta_obvia" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Respuesta Obvia'. USAR OPCIONES TRAMPA OBLIGATORIAS. PROHIBIDO RESPUESTAS EVIDENTES.")
-            if "spoiler" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Spoiler'. EL ENUNCIADO NO PUEDE CONTENER PISTAS DE LA RESPUESTA.")
-            if "desconexion" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Desconexión'. LA PREGUNTA DEBE ESTAR 100% VINCULADA AL CASO Y TEXTO.")
-            if "sesgo_longitud" in last_feeds: 
-                instrucciones_correccion.append("ALERTA: El usuario reportó 'Opciones Desiguales'. LA RESPUESTA CORRECTA NO PUEDE SER LA MÁS LARGA. EQUILIBRAR LONGITUD DE TODAS LAS OPCIONES.")
+            if "pregunta_facil" in last_feeds: instrucciones_correccion.append("ALERTA: AUMENTAR DRASTICAMENTE LA DIFICULTAD.")
+            if "respuesta_obvia" in last_feeds: instrucciones_correccion.append("ALERTA: USAR OPCIONES TRAMPA OBLIGATORIAS.")
+            if "spoiler" in last_feeds: instrucciones_correccion.append("ALERTA: ELIMINAR PISTAS DEL ENUNCIADO.")
+            if "desconexion" in last_feeds: instrucciones_correccion.append("ALERTA: VINCULAR 100% AL TEXTO.")
+            if "sesgo_longitud" in last_feeds: instrucciones_correccion.append("ALERTA: EQUILIBRAR LONGITUD DE OPCIONES.")
             
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
 
-        # PROMPT FINAL
+        # PROMPT FINAL (CON LOS 6 CAPITANES BLINDADOS)
         prompt = f"""
         ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -609,20 +616,21 @@ class LegalEngineTITAN:
         
         Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
         
-        REGLAS DE ORO (ANTI-META):
-        1. PROHIBIDO preguntar sobre la estructura del documento (títulos, índices, números de página, bibliografía).
-        2. Si el texto es una lista o un título sin desarrollo, NO preguntes "¿Qué dice el título?". INVENTA UN CASO HIPOTÉTICO donde se aplique ese concepto.
-        3. EXTRAPOLACIÓN: Si el texto es una definición (ej: RAE), NO preguntes el significado. Pregunta CÓMO SE APLICA en un caso real de la entidad.
-        4. OBLIGATORIO: Tip de Memoria y 4 Opciones (A,B,C,D).
-        5. FORMATO DE ENUNCIADO: El 'enunciado' NO debe ser una pregunta ni terminar con signos de interrogación. Debe ser una instrucción directa, afirmativa o imperativa (ej: 'Determine la acción correcta...', 'Identifique el concepto que se aplica...', 'Indique la consecuencia jurídica...').
-        6. ANTI-PEREZA (CRÍTICO): PROHIBIDO TERMINANTEMENTE preguntar sobre fórmulas de cierre, vigencias, firmas o la frase "Publíquese y ejecútese". Si el fragmento contiene eso, IGNÓRALO y busca contenido técnico en el resto del texto.
-        7. FIDELIDAD: NO te salgas del tema del fragmento proporcionado.
-        8. ECUALIZADOR (CRÍTICO): Las opciones A, B, C y D deben tener una longitud visual similar (mismo número de palabras aprox.). Evita que la correcta sea siempre la más detallada.
+        REGLAS DE ORO (LOS 6 CAPITANES - BLINDAJE DE ÉLITE):
+        1. 🚫 CAPITÁN ANTI-LORO: PROHIBIDO iniciar la respuesta con "Según el artículo...", "De acuerdo a la ley..." o similar. La respuesta debe ser una CONSECUENCIA JURÍDICA o TÉCNICA autónoma (Ej: "Se declara la nulidad...", "Opera el silencio administrativo...").
+        2. 👯 CAPITÁN GEMELOS: Las opciones incorrectas NO pueden ser absurdas. Deben ser "Gemelos Legales": conceptos reales (como plazos de otras leyes, figuras parecidas) que sean plausibles para un novato pero incorrectos en este caso específico.
+        3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas. Nadie debe adivinar por el tamaño del texto.
+        4. 🧠 CAPITÁN ANTI-OBVIEDAD (Descarte Imposible): PROHIBIDO usar "Todas las anteriores", "Ninguna de las anteriores" o respuestas de sentido común moral. Aplica la PRUEBA DEL 50/50: La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un plazo, una competencia, una excepción).
+        5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente. No preguntes sobre leyes muertas.
+        6. 🔗 CAPITÁN CONTEXTO: La pregunta debe depender del CASO HIPOTÉTICO.
         
+        OTRAS REGLAS:
+        - FORMATO DE ENUNCIADO: El 'enunciado' NO debe ser una pregunta ni terminar con signos de interrogación. Debe ser una instrucción directa (ej: 'Determine la acción correcta...').
+        - ANTI-PEREZA: PROHIBIDO preguntar sobre firmas, vigencias o frases de cajón.
+
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
         Dame un OBJETO JSON llamado "explicaciones" donde cada letra (A, B, C, D) tenga su propia explicación individual.
-        Ejemplo: "A": "Es incorrecta porque...", "B": "Es correcta ya que..."
         
         EJEMPLO A IMITAR (ESTILO Y FORMATO):
         '''{self.example_question}'''
@@ -638,7 +646,7 @@ class LegalEngineTITAN:
             "narrativa_caso": "Texto de contexto situacional...",
             "preguntas": [
                 {{
-                    "enunciado": "Pregunta...", 
+                    "enunciado": "Instrucción directa...", 
                     "opciones": {{
                         "A": "...", 
                         "B": "...", 
@@ -703,7 +711,6 @@ class LegalEngineTITAN:
                 
                 # --- AUTO-FUENTE ---
                 if "articulo_fuente" in final_json:
-                    # Si hicimos micro-segmentación, intentamos mantener la etiqueta precisa
                     if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
                          pass
                     elif "articulo_fuente" in final_json:
@@ -720,7 +727,7 @@ class LegalEngineTITAN:
                     for k, v in opciones_raw:
                         items_barajados.append({
                             "texto": v,
-                            "explicacion": explicaciones_raw.get(k, "Sin detalle."), # <--- CORREGIDO AQUÍ
+                            "explicacion": explicaciones_raw.get(k, "Sin detalle."), 
                             "es_correcta": (v == respuesta_correcta_texto)
                         })
                     
