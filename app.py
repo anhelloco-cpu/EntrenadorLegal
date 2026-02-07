@@ -274,12 +274,13 @@ class LegalEngineTITAN:
         """
         secciones = {"TODO EL DOCUMENTO": []}
         
-        # LISTA NEGRA DE RUIDO (Estandarización Multifuente)
+        # LISTA NEGRA DE RUIDO (Estandarización Multifuente + VIGENCIAS)
         RUIDO_PDF = [
             "DEPARTAMENTO ADMINISTRATIVO", "FUNCIÓN PÚBLICA", "EVA - GESTOR NORMATIVO", 
             "PÁGINA", "DIARIO OFICIAL", "FECHA Y HORA DE CREACIÓN", "Leyes desde 1992", 
             "Última actualización", "ISSN", "secretariasenado.gov.co", 
-            "Jurisprudencia Vigencia", "Notas de vigencia", "Legislación anterior"
+            "Jurisprudencia Vigencia", "Notas de vigencia", "Legislación anterior",
+            "PUBLÍQUESE Y CÚMPLASE", "Dada en Bogotá", "REPÚBLICA DE COLOMBIA"
         ]
 
         if self.doc_type == "Norma (Leyes/Decretos)":
@@ -383,7 +384,6 @@ class LegalEngineTITAN:
         self.sections_map = self.smart_segmentation(text)
         self.active_section_name = "TODO EL DOCUMENTO"
         self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
-        # El mastery_tracker ahora es persistente y no depende solo de índices
         if not self.mastery_tracker: self.mastery_tracker = {}
         if dl_model: 
             with st.spinner("🧠 Generando mapa neuronal..."): 
@@ -402,29 +402,37 @@ class LegalEngineTITAN:
 
     def get_stats(self):
         """
-        CÁLCULO DE PRECISIÓN ABSOLUTA: Censo de artículos vs Maestría (0-1-2)
+        CÁLCULO DE PRECISIÓN ABSOLUTA + FILTRO DE INEXEQUIBILIDAD
         """
         if not self.chunks: return 0, 0, 0
         
-        # 1. Determinar texto de la sección activa para el censo
         texto_estudio = self.sections_map.get(self.active_section_name, "\n".join(self.chunks))
         
-        # 2. CENSO REAL DE ARTÍCULOS (Sincronizado con Sniper)
+        # 1. DEFINIR PATRÓN DE BÚSQUEDA
         if self.doc_type == "Norma (Leyes/Decretos)":
             p_censo = r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*(?:\d+[º°\.o]?|[IVXLCDM]+)\b'
         else:
-            p_censo = r'^\s*\d+(?:\.\d+)+\b' # Para manuales técnicos
+            p_censo = r'^\s*\d+(?:\.\d+)+\b' 
             
-        items_detectados = re.findall(p_censo, texto_estudio, re.I | re.M)
-        items_unicos = set([i.strip().upper() for i in items_detectados])
+        # 2. CENSO FILTRADO (Detectar y Descartar Inexequibles)
+        items_validos = []
+        for match in re.finditer(p_censo, texto_estudio, re.I | re.M):
+            # Miramos 200 caracteres adelante del artículo encontrado
+            ventana_contexto = texto_estudio[match.end():match.end()+200].upper()
+            
+            # Si dice INEXEQUIBLE, DEROGADO o NULO cerca, NO LO CONTAMOS
+            if "INEXEQUIBLE" in ventana_contexto or "DEROGADO" in ventana_contexto or "NULO" in ventana_contexto:
+                continue
+                
+            items_validos.append(match.group(0).strip().upper())
+
+        items_unicos = set(items_validos)
         
-        # 3. LÓGICA DE CÁLCULO
+        # 3. CÁLCULO FINAL (0-1-2)
         if items_unicos:
             total = len(items_unicos)
-            # Sumamos maestría buscando por IDENTIDAD (nombre del artículo)
             score = sum([min(self.mastery_tracker.get(art, 0), 2) for art in items_unicos])
         else:
-            # Fallback a bloques si no se detectan artículos (texto plano)
             total = len(self.chunks)
             score = sum([min(v, 2) for k, v in self.mastery_tracker.items() if isinstance(k, int)])
             
@@ -1074,7 +1082,9 @@ if st.session_state.page == 'game':
                 skipped = st.form_submit_button("⏭️ SALTAR (BLOQUEAR)")
             
             if skipped: 
-                engine.temporary_blacklist.add(engine.current_article_label.split(" - ITEM")[0].strip())
+                # Bloqueo inteligente: Usa el nombre real para la lista negra
+                key_bloqueo = engine.current_article_label.split(" - ITEM")[0].strip()
+                engine.temporary_blacklist.add(key_bloqueo)
                 st.session_state.current_data = None; st.rerun()
 
             if submitted:
@@ -1084,31 +1094,45 @@ if st.session_state.page == 'game':
                     letra_sel = sel.split(")")[0]
                     full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
                     
+                    # --- DEFINICIÓN DE CLAVE DE MAESTRÍA (SOLDADURA FINAL) ---
+                    # Usamos el nombre del artículo para que coincida con el Censo de Parte 3
+                    key_maestria = engine.current_article_label.strip().upper()
+                    if " - ITEM" in key_maestria: # Si es un sub-item, sumamos al padre
+                        key_maestria = key_maestria.split(" - ITEM")[0].strip()
+                    
+                    # Si por alguna razón es "General", usamos el índice como fallback
+                    if "ARTÍCULO" not in key_maestria and "BLOQUE" not in key_maestria and "ITEM" not in key_maestria:
+                         key_maestria = engine.current_chunk_idx
+
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
                         
-                        # --- LÓGICA DE SEMÁFORO (SISTEMA DE MAESTRÍA 0->1->2) ---
-                        maestria_previa = engine.mastery_tracker.get(engine.current_chunk_idx, 0)
+                        # --- LÓGICA DE SEMÁFORO (0->1->2) CON CLAVE DE IDENTIDAD ---
+                        maestria_previa = engine.mastery_tracker.get(key_maestria, 0)
                         
                         if maestria_previa < 1:
                             # Primer acierto: Pasa a AMARILLO
-                            engine.mastery_tracker[engine.current_chunk_idx] = 1
-                            st.toast("🟡 ARTÍCULO EN AMARILLO. Siguiente reto: MODO PESADILLA.", icon="🟡")
+                            engine.mastery_tracker[key_maestria] = 1
+                            st.toast("🟡 ARTÍCULO EN AMARILLO. Siguiente: MODO PESADILLA.", icon="🟡")
                         else:
-                            # Segundo acierto o más: Pasa a VERDE (Dominado)
-                            engine.mastery_tracker[engine.current_chunk_idx] = 2
-                            st.toast("🟢 ¡MODO PESADILLA DOMINADO! Artículo en Verde.", icon="🟢")
+                            # Segundo acierto: Pasa a VERDE (Dominado)
+                            engine.mastery_tracker[key_maestria] = 2
+                            st.toast("🟢 ¡DOMINADO! Artículo en Verde.", icon="🟢")
 
                         if engine.current_article_label != "General":
                             if full_tag in engine.failed_articles: engine.failed_articles.remove(full_tag)
-                            # Solo se muestra como "Dominado" en el Sidebar si es nivel 2 (Verde)
-                            if engine.mastery_tracker[engine.current_chunk_idx] == 2:
+                            # Sidebar solo muestra si es Verde (Nivel 2)
+                            if engine.mastery_tracker.get(key_maestria, 0) == 2:
                                 engine.mastered_articles.add(full_tag)
                     else: 
                         st.error(f"Incorrecto. Era {q['respuesta']}")
+                        
+                        # Penalización: Guardamos el fallo en el índice para Embeddings
                         engine.failed_indices.add(engine.current_chunk_idx)
                         if engine.chunk_embeddings is not None:
                             engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
+                        
+                        # Penalización Visual: Etiqueta Roja
                         if engine.current_article_label != "General":
                             if full_tag in engine.mastered_articles: engine.mastered_articles.remove(full_tag)
                             engine.failed_articles.add(full_tag)
