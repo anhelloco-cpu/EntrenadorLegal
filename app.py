@@ -524,7 +524,6 @@ class LegalEngineTITAN:
         if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
             # Buscamos candidatos que no estén en Verde (Nivel 2)
-            # Nota: Aquí seguimos usando índices para embeddings, pero la maestría la revisaremos por nombre luego
             candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 2]
             candidatos.sort(key=lambda x: x[1], reverse=True)
             if candidatos: idx = candidatos[0][0]
@@ -535,7 +534,6 @@ class LegalEngineTITAN:
         texto_base = self.chunks[idx]
         
         # --- FILTRO 1 (CAPITÁN JUSTICIA): ESCUDO ANTI-INEXEQUIBLE (Pre-Sniper) ---
-        # Si el bloque completo está muerto, lo saltamos
         if "INEXEQUIBLE" in texto_base.upper() or "DEROGADO" in texto_base.upper():
             idx = random.choice(range(len(self.chunks)))
             texto_base = self.chunks[idx]
@@ -556,11 +554,9 @@ class LegalEngineTITAN:
         self.current_article_label = "General / Sin Estructura Detectada"
         
         if matches:
-            # Filtro Francotirador + Anti-Inexequible Fino
             candidatos_validos = []
             for m in matches:
                 tag = m.group(0).strip()
-                # Miramos 200 chars adelante para ver si dice Inexequible
                 contexto = texto_base[m.end():m.end()+200].upper()
                 if "INEXEQUIBLE" in contexto or "DEROGADO" in contexto: continue
                 if tag in self.seen_articles or tag in self.temporary_blacklist: continue
@@ -608,7 +604,6 @@ class LegalEngineTITAN:
             texto_final_ia = texto_base[:4000]
 
         # --- CEREBRO: MODO PESADILLA (SEMÁFORO SINCRONIZADO) ---
-        # Buscamos la maestría por Nombre (Identidad) para que coincida con Parte 3 y 6
         key_maestria = self.current_article_label.split(" - ITEM")[0].strip().upper()
         if "ARTÍCULO" not in key_maestria and "ITEM" not in key_maestria: key_maestria = self.current_chunk_idx
         
@@ -627,7 +622,6 @@ class LegalEngineTITAN:
         dificultad_prompt = f"NIVEL: {self.level.upper()}."
         
         # --- LÓGICA CONDICIONAL DE ESTRUCTURA (TOGGLE: SIN CASO vs CON CASO) ---
-        # AQUÍ ES DONDE EL CÓDIGO DECIDE SI FUSIONA (CGR) O SEPARA (CNSC)
         if "Sin Caso" in self.structure_type:
             # MODO BLOQUE ÚNICO (FUSIÓN TOTAL - ESTILO CGR)
             instruccion_estilo = "ESTILO: TÉCNICO (BLOQUE ÚNICO DE ANÁLISIS)."
@@ -638,7 +632,7 @@ class LegalEngineTITAN:
                 "narrativa_caso": "", 
                 "preguntas": [
                     {{
-                        "enunciado": "UN SOLO PÁRRAFO denso y sofisticado (Marco -> Restricción -> Nudo) sin anclas semánticas. NO separes el caso de la pregunta. Fusión total.", 
+                        "enunciado": "UN SOLO PÁRRAFO denso y sofisticado (Marco -> Restricción -> Nudo) sin anclas semánticas. NO separes el caso de la pregunta. Fusión total. Imita el ritmo del ejemplo proporcionado.", 
                         "opciones": {{
                             "A": "Opción Correcta (Condicionada al hecho del caso)...", 
                             "B": "Gemelo Contiguo (Mismo artículo, hipótesis distinta)...", 
@@ -692,30 +686,27 @@ class LegalEngineTITAN:
         if self.level in ["Profesional", "Asesor"]:
             instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES."
 
-        # 2. LÓGICA DE ROL (JERARQUÍA ESTRICTA: ADN TÉCNICO > ROL PREDEFINIDO)
-        # Se inyecta el ADN purificado en la Parte 3
+        # 2. LÓGICA DE ROL
         texto_funciones_real = self.manual_text if self.manual_text else self.job_functions
         contexto_funcional = ""
         mision_entidad = "" 
 
         if texto_funciones_real:
-            # CASO A: HAY MANUAL/ADN (Se usa como Lente de Enfoque y Muro de Estanqueidad)
             funciones_safe = texto_funciones_real[:15000]
             contexto_funcional = f"""
             CONTEXTO DE ROL (ADN TÉCNICO - LENTE EVALUATIVO):
             El usuario aspira a un cargo con este perfil técnico extraído: '{funciones_safe}'.
             INSTRUCCIÓN DE SEGURIDAD (MURO DE ESTANQUEIDAD):
-            1. Usa este perfil ÚNICAMENTE para ambientar la 'narrativa_caso' (el personaje) y decidir qué artículos de la ley son relevantes.
-            2. PROHIBIDO terminantemente usar fechas (2024, 2025), salarios, códigos de convocatoria (ej: 232-25) o requisitos de experiencia del manual en la pregunta o respuestas.
-            3. La pregunta debe evaluar el conocimiento de la NORMA (fuente técnica) aplicada a este rol.
+            1. Usa este perfil ÚNICAMENTE para ambientar la situación y decidir qué artículos de la ley son relevantes.
+            2. PROHIBIDO terminantemente usar fechas, salarios o requisitos de experiencia del manual en la pregunta o respuestas.
+            3. La pregunta debe evaluar el conocimiento de la NORMA técnica aplicada a este rol.
             """
             mision_entidad = "" 
         else:
-            # CASO B: NO HAY MANUAL -> USA ROL PREDEFINIDO (PARTE 2)
             perfil_mision = self.mission_profiles.get(self.entity, self.mission_profiles.get("Genérico", "Experto Legal"))
             mision_entidad = f"ROL INSTITUCIONAL (AUTOMÁTICO): {perfil_mision}"
 
-        # 3. REGLA MAESTRA DE MIMESIS (SOLO PARA POST-GUÍA)
+        # 3. REGLA MAESTRA DE MIMESIS
         instruccion_mimesis = ""
         if self.study_phase == "Post-Guía" and self.example_question:
             instruccion_mimesis = f"""
@@ -723,7 +714,7 @@ class LegalEngineTITAN:
             Tu estructura de enunciado debe ser IDÉNTICA en tono, profundidad y lógica al siguiente ejemplo:
             '{self.example_question}'
             
-            Analiza el ejemplo: usa una introducción conceptual, luego cita un marco restrictivo (ej. régimen normativo de la CGR) y termina en un nudo técnico de procedibilidad o competencia.
+            Analiza el ejemplo: usa una introducción conceptual, luego cita un marco restrictivo y termina en un nudo técnico de procedibilidad o competencia.
             Aplica esta MISMA sofisticación a la NORMA técnica que tienes como fuente.
             """
 
@@ -762,16 +753,16 @@ class LegalEngineTITAN:
         REGLAS DE ORO (LOS 9 CAPITANES - BLINDAJE EXTREMO):
         1. 🚫 CAPITÁN ANTI-LORO: PROHIBIDO iniciar la respuesta con "Según el artículo...", "De acuerdo a la ley..." o similar. La respuesta debe ser una CONSECUENCIA JURÍDICA o TÉCNICA autónoma (Ej: "Se declara la nulidad...", "Opera el silencio administrativo...").
         2. 👯 CAPITÁN GEMELOS (MODO HOSTIL EXTREMO): Las opciones incorrectas DEBEN ser "Gemelos Legales": fragmentos literales de la norma que regulen situaciones parecidas. OBLIGATORIO: Deben provenir del MISMO ARTÍCULO o de artículos contiguos para eliminar el descarte por tema.
-        3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas. Nadie debe adivinar por el tamaño del texto.
+        3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas.
         4. 🧠 CAPITÁN ANTI-OBVIEDAD (Prueba del 50/50): PROHIBIDO usar "Todas las anteriores" o respuestas de sentido común moral. La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un "podrá" vs "deberá", un plazo, una competencia).
-        5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente. No preguntes sobre leyes muertas.
-        6. 🔗 CAPITÁN CONTEXTO (DEPENDENCIA LÓGICA TOTAL): La pregunta debe ser TÉCNICAMENTE IRRESOLUBLE sin los datos del caso narrado. El enunciado debe plantear un problema de procedibilidad o competencia donde la respuesta correcta sea una excepción o un requisito específico.
+        5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente.
+        6. 🔗 CAPITÁN CONTEXTO (DEPENDENCIA LÓGICA TOTAL): La pregunta debe ser TÉCNICAMENTE IRRESOLUBLE sin los datos del enunciado. El enunciado debe plantear un problema donde la respuesta correcta sea una excepción o un requisito específico.
         7. 🧨 CAPITÁN ANTI-ANCLA (PROHIBICIÓN SEMÁNTICA): PROHIBIDO nombrar explícitamente el concepto central evaluado en el enunciado o las opciones (ej: no digas "control fiscal", describe la "vigilancia de los recursos"). El concepto debe inferirse por sus efectos.
-        8. 🔀 CAPITÁN CONDICIONALIDAD: La opción correcta debe serlo SOLO si se identifica una condición fáctica implícita en el caso narrado (paradoja de corrección condicionada).
+        8. 🔀 CAPITÁN CONDICIONALIDAD: La opción correcta debe serlo SOLO si se identifica una condición fáctica implícita en el enunciado (paradoja de corrección condicionada).
         9. 💥 CAPITÁN COLISIÓN: Obliga al usuario a decidir entre dos principios constitucionales en tensión (ej. Eficacia vs Legalidad) o normas que parecen chocar.
 
         REGLA DE ESTANQUEIDAD Y MIMESIS (CRÍTICA):
-        - El Manual de funciones pone las fichas en el tablero (el caso) y la NORMA técnica pone las reglas. La respuesta debe ser la consecuencia jurídica de aplicar la norma a los hechos.
+        - El Manual de funciones pone las fichas en el tablero (el caso) y la NORMA técnica pone las reglas.
         - PROHIBIDO preguntar sobre el sueldo, la fecha de la convocatoria o requisitos de experiencia del manual.
         - Si el texto es una definición teórica, TRANSFÓRMALA en un procedimiento técnico práctico basado en el ADN del cargo.
         - SI ESTÁS EN 'POST-GUÍA': Replica la estructura del ejemplo abajo (Concepto -> Restricción -> Nudo Técnico).
