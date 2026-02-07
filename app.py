@@ -421,7 +421,7 @@ class LegalEngineTITAN:
 # ### --- FIN PARTE 3 ---
 # ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER) ---
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICADO: ANTI-PEREZA + ROL PRIORITARIO)
+    # GENERADOR DE CASOS (MODIFICADO: ANTI-PEREZA + ROL PRIORITARIO + MODO PESADILLA)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
@@ -509,6 +509,18 @@ class LegalEngineTITAN:
             texto_final_ia = texto_base[:4000]
 
         # --- CONSTRUCCIÓN DEL CEREBRO ---
+        # NUEVO: LÓGICA DE DIFICULTAD SEGÚN SEMÁFORO (ESTADO AMARILLO -> PESADILLA)
+        maestria_actual = self.mastery_tracker.get(self.current_chunk_idx, 0)
+        instruccion_pesadilla = ""
+        if maestria_actual >= 1:
+            instruccion_pesadilla = """
+            🔥 ALERTA MODO PESADILLA ACTIVADO: El usuario ya domina la base técnica de este fragmento. 
+            PROHIBIDO hacer preguntas directas o literales. 
+            TU MISIÓN: Busca el parágrafo más oscuro, la excepción a la regla o un caso de frontera donde colisionen dos conceptos. 
+            Las opciones incorrectas deben ser 'Gemelos Legales' (altamente plausibles pero incorrectas en este caso).
+            Dificultad requerida: 10/10.
+            """
+
         dificultad_prompt = f"NIVEL: {self.level.upper()}."
         instruccion_estilo = "ESTILO: TÉCNICO." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO."
         
@@ -562,6 +574,7 @@ class LegalEngineTITAN:
         
         {mision_entidad}
         {contexto_funcional}
+        {instruccion_pesadilla}
         
         {dificultad_prompt}
         {instruccion_estilo}
@@ -578,6 +591,7 @@ class LegalEngineTITAN:
         5. FORMATO DE ENUNCIADO: El 'enunciado' NO debe ser una pregunta ni terminar con signos de interrogación. Debe ser una instrucción directa, afirmativa o imperativa (ej: 'Determine la acción correcta...', 'Identifique el concepto que se aplica...', 'Indique la consecuencia jurídica...').
         6. ANTI-PEREZA (CRÍTICO): PROHIBIDO TERMINANTEMENTE preguntar sobre fórmulas de cierre, vigencias, firmas o la frase "Publíquese y ejecútese". Si el fragmento contiene eso, IGNÓRALO y busca contenido técnico en el resto del texto.
         7. FIDELIDAD: NO te salgas del tema del fragmento proporcionado.
+        8. ECUALIZADOR (CRÍTICO): Las opciones A, B, C y D deben tener una longitud visual similar (mismo número de palabras aprox.). Evita que la correcta sea siempre la más detallada.
         
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
@@ -1054,10 +1068,24 @@ if st.session_state.page == 'game':
                     
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
-                        engine.mastery_tracker[engine.current_chunk_idx] += 1
+                        
+                        # --- LÓGICA DE SEMÁFORO (SISTEMA DE MAESTRÍA 0->1->2) ---
+                        maestria_previa = engine.mastery_tracker.get(engine.current_chunk_idx, 0)
+                        
+                        if maestria_previa < 1:
+                            # Primer acierto: Pasa a AMARILLO
+                            engine.mastery_tracker[engine.current_chunk_idx] = 1
+                            st.toast("🟡 ARTÍCULO EN AMARILLO. Siguiente reto: MODO PESADILLA.", icon="🟡")
+                        else:
+                            # Segundo acierto o más: Pasa a VERDE (Dominado)
+                            engine.mastery_tracker[engine.current_chunk_idx] = 2
+                            st.toast("🟢 ¡MODO PESADILLA DOMINADO! Artículo en Verde.", icon="🟢")
+
                         if engine.current_article_label != "General":
                             if full_tag in engine.failed_articles: engine.failed_articles.remove(full_tag)
-                            engine.mastered_articles.add(full_tag)
+                            # Solo se muestra como "Dominado" en el Sidebar si es nivel 2 (Verde)
+                            if engine.mastery_tracker[engine.current_chunk_idx] == 2:
+                                engine.mastered_articles.add(full_tag)
                     else: 
                         st.error(f"Incorrecto. Era {q['respuesta']}")
                         engine.failed_indices.add(engine.current_chunk_idx)
