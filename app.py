@@ -747,11 +747,8 @@ class LegalEngineTITAN:
                         "B": "Explicación de por qué esta parte del artículo no aplica aquí...",
                         "C": "Explicación de por qué este principio cede ante el otro...",
                         "D": "Explicación de por qué este requisito no se cumple..."
-                    }}
+             }}
                 }}
-            ]
-        }}
-        """
             ]
         }}
         """
