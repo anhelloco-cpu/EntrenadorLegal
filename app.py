@@ -680,9 +680,9 @@ class LegalEngineTITAN:
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
 
-        # PROMPT FINAL (CON LOS 6 CAPITANES BLINDADOS)
+# PROMPT FINAL (CON LOS 6 CAPITANES BLINDADOS + ESTRUCTURA JSON HOSTIL)
         prompt = f"""
-        ACTÚA COMO EXPERTO EN CONCURSOS (NIVEL {self.level.upper()}).
+        ACTÚA COMO UN EVALUADOR JEFE DE LA CONTRALORÍA GENERAL (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
         TIPO DE DOCUMENTO: {self.doc_type.upper()}.
         
@@ -700,16 +700,17 @@ class LegalEngineTITAN:
         
         REGLAS DE ORO (LOS 6 CAPITANES - BLINDAJE DE ÉLITE):
         1. 🚫 CAPITÁN ANTI-LORO: PROHIBIDO iniciar la respuesta con "Según el artículo...", "De acuerdo a la ley..." o similar. La respuesta debe ser una CONSECUENCIA JURÍDICA o TÉCNICA autónoma (Ej: "Se declara la nulidad...", "Opera el silencio administrativo...").
-        2. 👯 CAPITÁN GEMELOS: Las opciones incorrectas NO pueden ser absurdas. Deben ser "Gemelos Legales": conceptos reales (como plazos de otras leyes, figuras parecidas) que sean plausibles para un novato pero incorrectos en este caso específico.
-        3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas. Nadie debe adivinar por el tamaño del texto.
-        4. 🧠 CAPITÁN ANTI-OBVIEDAD (Descarte Imposible): PROHIBIDO usar "Todas las anteriores", "Ninguna de las anteriores" o respuestas de sentido común moral. Aplica la PRUEBA DEL 50/50: La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un plazo, una competencia, una excepción).
-        5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente. No preguntes sobre leyes muertas.
-        6. 🔗 CAPITÁN CONTEXTO (DEPENDENCIA LÓGICA): OBLIGATORIO. La pregunta debe ser TÉCNICAMENTE IRRESOLUBLE sin los datos del caso narrado. El enunciado debe plantear un problema de procedibilidad o competencia donde la respuesta correcta sea una excepción o un requisito específico de la norma.
+        2. 👯 CAPITÁN GEMELOS (MODO HOSTIL): Las opciones incorrectas DEBEN ser "Gemelos Legales": fragmentos literales de la norma que regulen situaciones parecidas pero que NO apliquen a este caso (plazos, competencias o excepciones vecinas).
+        3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas.
+        4. 🧠 CAPITÁN ANTI-OBVIEDAD (Descarte Imposible): PROHIBIDO usar "Todas las anteriores" o respuestas de sentido común moral. Aplica la PRUEBA DEL 50/50: La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un "podrá" vs "deberá", un plazo, una competencia).
+        5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente.
+        6. 🔗 CAPITÁN CONTEXTO (DEPENDENCIA LÓGICA TOTAL): La pregunta debe ser TÉCNICAMENTE IRRESOLUBLE sin los datos del caso narrado. El enunciado debe plantear un problema de procedibilidad o competencia donde la respuesta correcta sea una excepción o un requisito específico.
         
-        REGLA DE ESTANQUEIDAD (CRÍTICA):
+        REGLA DE ESTANQUEIDAD Y MIMESIS (CRÍTICA):
         - El Manual de funciones pone las fichas en el tablero (el caso) y la NORMA técnica pone las reglas. La respuesta debe ser la consecuencia jurídica de aplicar la norma a los hechos.
         - PROHIBIDO preguntar sobre el sueldo, la fecha de la convocatoria o requisitos de experiencia del manual.
         - Si el texto es una definición teórica, TRANSFÓRMALA en un procedimiento técnico práctico basado en el ADN del cargo.
+        - SI ESTÁS EN 'POST-GUÍA': Replica la estructura del ejemplo abajo (Concepto -> Restricción -> Nudo Técnico).
 
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
@@ -723,31 +724,31 @@ class LegalEngineTITAN:
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
         
-        FORMATO JSON OBLIGATORIO:
+        FORMATO JSON OBLIGATORIO (SIGUE ESTAS INSTRUCCIONES INTERNAS):
         {{
             "articulo_fuente": "{self.current_article_label}",
-            "narrativa_caso": "Texto de contexto situacional donde se introduce una variable (sujeto, tiempo, hallazgo) que activa la norma...",
+            "narrativa_caso": "Situación real basada en el ADN del cargo donde introduces una variable CLAVE (sujeto, tiempo, hallazgo) que activa la norma...",
             "preguntas": [
                 {{
-                    "enunciado": "Párrafo de análisis legal que sigue la Trilogía (Concepto -> Restricción -> Nudo Técnico)...", 
+                    "enunciado": "Párrafo de análisis legal sofisticado que sigue la Trilogía (Concepto -> Restricción -> Nudo Técnico de Procedibilidad)...", 
                     "opciones": {{
-                        "A": "...", 
-                        "B": "...", 
-                        "C": "...", 
-                        "D": "..."
+                        "A": "Opción Correcta (Consecuencia Jurídica)...", 
+                        "B": "Gemelo Legal 1 (Norma real que no aplica aquí)...", 
+                        "C": "Gemelo Legal 2 (Excepción de otro artículo)...", 
+                        "D": "Gemelo Legal 3 (Requisito incompleto o plazo errado)..."
                     }}, 
                     "respuesta": "A", 
-                    "tip_memoria": "Frase mnemotécnica...",
+                    "tip_memoria": "Mnemotecnia para recordar el matiz técnico...",
                     "explicaciones": {{
-                        "A": "Texto justificando A...",
-                        "B": "Texto justificando B...",
-                        "C": "Texto justificando C...",
-                        "D": "Texto justificando D..."
+                        "A": "Justificación legal exacta de por qué aplica esta norma al caso...",
+                        "B": "Explicación técnica de por qué este artículo/plazo NO aplica en este supuesto...",
+                        "C": "Explicación de por qué esta excepción corresponde a otra situación...",
+                        "D": "Explicación de por qué este requisito es insuficiente..."
                     }}
                 }}
             ]
         }}
-        """        
+        """
         max_retries = 3
         attempts = 0
         while attempts < max_retries:
