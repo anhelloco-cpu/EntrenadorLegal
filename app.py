@@ -265,49 +265,48 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (VERSIÓN V105 "EL CENTINELA" - ADAPTADA DECRETO 267)
+    # SEGMENTACIÓN INTELIGENTE (TITÁN V106: MAPEO JERÁRQUICO TOTAL)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto con filtros de limpieza para 'EVA - Gestor Normativo'
-        y soporte para ordinales (1º, Primero).
+        Divide el texto asegurando que los Títulos contengan a sus Capítulos y Secciones.
+        Limpia ruido de 'Función Pública' y reconoce 'PRIMERO', '1º', Romanos, etc.
         """
-        secciones = {}
-        # Frases de ruido del PDF de Función Pública para ignorar
-        RUIDO_PDF = ["DEPARTAMENTO ADMINISTRATIVO", "FUNCIÓN PÚBLICA", "EVA - GESTOR NORMATIVO", "PÁGINA", "DIARIO OFICIAL"]
+        secciones = {"TODO EL DOCUMENTO": []}
+        # Limpieza de metadatos del PDF de la Función Pública
+        RUIDO_PDF = ["DEPARTAMENTO ADMINISTRATIVO", "FUNCIÓN PÚBLICA", "EVA - GESTOR NORMATIVO", "PÁGINA", "DIARIO OFICIAL", "FECHA Y HORA DE CREACIÓN"]
 
         if self.doc_type == "Norma (Leyes/Decretos)":
             lineas = full_text.split('\n')
-            secciones = {"TODO EL DOCUMENTO": []} 
             
+            # Variables de rastreo de jerarquía
             c_libro = ""; c_titulo = ""; c_capitulo = ""; c_seccion = ""
-            current_container = "TODO EL DOCUMENTO"
             
-            # PATRONES BLINDADOS (Soporte ordinales 1º, Primero, Segundo)
-            p_libro = r'^\s*(LIBRO)\s+([IVXLCDM\s]+|PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO)\b'
-            p_tit = r'^\s*(TÍTULO|TITULO)\s+([IVXLCDM\s]+|PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO)\b' 
-            p_cap = r'^\s*(CAPÍTULO|CAPITULO)\s+([IVXLCDM0-9\s]+|PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO)\b'
-            p_sec = r'^\s*(SECCIÓN|SECCION)\s+([IVXLCDM0-9\s]+|PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO)\b'
-            # Soporta ARTICULO 1, ARTICULO 1º, ARTICULO 1.
+            # PATRONES BLINDADOS (Soporta Romanos, Arábigos, Palabras y Símbolos como 1º)
+            p_word_num = r'(?:PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO|SEXTO|SÉPTIMO|OCTAVO|NOVENO|DÉCIMO|[IVXLCDM\d]+[º°\.]?)'
+            p_libro = rf'^\s*(LIBRO)\s+{p_word_num}\b'
+            p_tit = rf'^\s*(TÍTULO|TITULO)\s+{p_word_num}\b' 
+            p_cap = rf'^\s*(CAPÍTULO|CAPITULO)\s+{p_word_num}\b'
+            p_sec = rf'^\s*(SECCIÓN|SECCION)\s+{p_word_num}\b'
             p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[º°\.]?|[IVXLCDM]+)\b'
 
             for i in range(len(lineas)):
                 linea_raw = lineas[i]
+                # Normalización de Romanos (une 'I I' en 'II')
                 linea_limpia = re.sub(r'(?<=[IVXLCDM])\s+(?=[IVXLCDM])', '', linea_raw, flags=re.I).strip()
                 
-                # FILTRO CENTINELA: Ignorar basura del PDF
+                # Omitir líneas vacías o basura del Gestor Normativo
                 if not linea_limpia or any(ruido in linea_limpia.upper() for ruido in RUIDO_PDF): 
                     continue
 
-                def get_full_name_v2(idx, line_match, pattern):
-                    """Detecta si el nombre está en la misma línea o abajo."""
+                def get_full_name_v3(idx, line_match, pattern):
+                    """Extrae el nombre del nivel buscando en la misma línea o la siguiente."""
                     base_label = line_match.strip().upper()
-                    # 1. Intentar ver si hay texto después del identificador en la misma línea
                     parts = re.split(pattern, line_match, flags=re.I)
+                    # Si hay texto tras el número en la misma línea, es el nombre
                     if len(parts) > 1 and len(parts[-1].strip()) > 3:
                         return f"{base_label}: {parts[-1].strip().upper()}"
-                    
-                    # 2. Si no, mirar la línea de abajo (si no es otro artículo/capítulo)
+                    # Si no, miramos la línea de abajo
                     if idx + 1 < len(lineas):
                         next_line = lineas[idx + 1].strip()
                         if next_line and not any(re.match(p, next_line, re.I) for p in [p_libro, p_tit, p_cap, p_sec, p_art]):
@@ -315,42 +314,46 @@ class LegalEngineTITAN:
                                 return f"{base_label}: {next_line.upper()}"
                     return base_label
 
-                # Detección de contenedores
+                # DETECCIÓN DE JERARQUÍA: Al encontrar un nivel superior, se resetean los inferiores
                 if re.match(p_libro, linea_limpia, re.I): 
-                    c_libro = get_full_name_v2(i, linea_limpia, p_libro)
+                    c_libro = get_full_name_v3(i, linea_limpia, p_libro)
                     c_titulo = ""; c_capitulo = ""; c_seccion = ""
-                    current_container = c_libro
-                
                 elif re.match(p_tit, linea_limpia, re.I): 
-                    c_titulo = get_full_name_v2(i, linea_limpia, p_tit)
+                    c_titulo = get_full_name_v3(i, linea_limpia, p_tit)
                     c_capitulo = ""; c_seccion = ""
-                    current_container = f"{c_libro} > {c_titulo}" if c_libro else c_titulo
-                
                 elif re.match(p_cap, linea_limpia, re.I): 
-                    c_capitulo = get_full_name_v2(i, linea_limpia, p_cap)
+                    c_capitulo = get_full_name_v3(i, linea_limpia, p_cap)
                     c_seccion = ""
+                elif re.match(p_sec, linea_limpia, re.I):
+                    c_seccion = get_full_name_v3(i, linea_limpia, p_sec)
+
+                # --- LÓGICA DE ACUMULACIÓN MULTI-NIVEL (Padres contienen a Hijos) ---
+                niveles_activos = ["TODO EL DOCUMENTO"]
+                
+                if c_libro: 
+                    niveles_activos.append(c_libro)
+                if c_titulo:
+                    nom_tit = f"{c_libro} > {c_titulo}" if c_libro else c_titulo
+                    niveles_activos.append(nom_tit)
+                if c_capitulo:
                     prefix = f"{c_libro} > " if c_libro else ""
                     prefix += f"{c_titulo} > " if c_titulo else ""
-                    current_container = prefix + c_capitulo
-                
-                elif re.match(p_sec, linea_limpia, re.I):
-                    c_seccion = get_full_name_v2(i, linea_limpia, p_sec)
+                    niveles_activos.append(prefix + c_capitulo)
+                if c_seccion:
                     prefix = f"{c_libro} > " if c_libro else ""
                     prefix += f"{c_titulo} > " if c_titulo else ""
                     prefix += f"{c_capitulo} > " if c_capitulo else ""
-                    current_container = prefix + c_seccion
+                    niveles_activos.append(prefix + c_seccion)
 
-                # Acumulación
-                if current_container not in secciones:
-                    secciones[current_container] = []
-                
-                secciones[current_container].append(linea_raw)
-                secciones["TODO EL DOCUMENTO"].append(linea_raw)
+                # Inyectamos la línea en cada contenedor de la jerarquía activa
+                for nivel in niveles_activos:
+                    if nivel not in secciones: secciones[nivel] = []
+                    secciones[nivel].append(linea_raw)
                 
             return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
 
         else:
-            # Estrategia 2: Guías Técnicas (Permanece igual)
+            # Estrategia 2: Guías Técnicas / Bloques de texto plano
             text_clean = re.sub(r'\n\s*\n', '<PARAGRAPH_BREAK>', full_text)
             raw_paragraphs = text_clean.split('<PARAGRAPH_BREAK>')
             final_blocks = {}; current_block_content = ""; block_count = 1
@@ -368,7 +371,7 @@ class LegalEngineTITAN:
             return {k: "\n".join(v) for k, v in final_blocks.items()}
 
     # --------------------------------------------------------------------------
-    # PROCESAMIENTO Y ACTUALIZACIÓN (INTACTO)
+    # PROCESAMIENTO Y ACTUALIZACIÓN (OPTIMIZADO)
     # --------------------------------------------------------------------------
     def process_law(self, text, axis_name, doc_type_input):
         text = text.replace('\r', '')
