@@ -196,7 +196,7 @@ class LegalEngineTITAN:
         self.provider = "Unknown" 
         self.api_key = ""
         self.model = None 
-        self.current_temperature = 0.3 
+        self.current_temperature = 0.4
         self.last_failed_embedding = None
         self.doc_type = "Norma" 
         
@@ -1345,4 +1345,5 @@ if st.session_state.page == 'game':
                 for r in errores_sel:
                     engine.feedback_history.append(reasons_map[r])
                 st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
+
 # ### --- FIN PARTE 6 ---
