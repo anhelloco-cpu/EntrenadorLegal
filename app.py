@@ -846,6 +846,9 @@ if 'page' not in st.session_state: st.session_state.page = 'setup'
 if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
 if 'answered' not in st.session_state: st.session_state.answered = False
 
+# NUEVO: ANCLA DE MEMORIA PARA EL MANUAL (EVITA BUCLE DE PURIFICACIÓN)
+if 'manual_hash' not in st.session_state: st.session_state.manual_hash = None
+
 # NUEVO: PERSISTENCIA DEL TEXTO EXTRAÍDO PARA VELOCIDAD (OBLIGATORIO)
 if 'raw_text_study' not in st.session_state: st.session_state.raw_text_study = ""
 
@@ -942,7 +945,9 @@ with st.sidebar:
         )
         
         upl_manual = st.file_uploader("📂 Cargar Manual de Funciones (PDF):", type=['pdf'])
-        if upl_manual:
+        
+        # LÓGICA DE CONTROL: Solo purifica si el archivo es nuevo o diferente al guardado en el ancla
+        if upl_manual and upl_manual.name != st.session_state.manual_hash:
             if PDF_AVAILABLE:
                 try:
                     if not engine.api_key:
@@ -957,8 +962,10 @@ with st.sidebar:
                             # LLAMADA AL EXTRACTOR DE PARTE 3 (LIMPIEZA INMEDIATA)
                             adn_limpio = engine._clean_manual_text(manual_text)
                             
+                            # GUARDAR EN MOTOR Y EN ANCLA DE MEMORIA
                             engine.manual_text = adn_limpio
                             engine.job_functions = adn_limpio # Actualiza la visualización
+                            st.session_state.manual_hash = upl_manual.name # SELLA EL PROCESO
                             
                             st.success("✅ Perfil Profesional Extraído.")
                             time.sleep(1)
