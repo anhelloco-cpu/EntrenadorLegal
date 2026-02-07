@@ -274,15 +274,20 @@ class LegalEngineTITAN:
         Deja solo el 'ADN Técnico' (Funciones y Propósito).
         """
         prompt = f"""
-        ACTÚA COMO UN FILTRO DE RRHH. TU OBJETIVO ES EXTRAER EL "PERFIL TÉCNICO" Y ELIMINAR LA "BASURA ADMINISTRATIVA".
+        ACTÚA COMO UN ANALISTA TÉCNICO DE TALENTO HUMANO EXPERTO EN CONCURSOS PÚBLICOS DE ALTO NIVEL.
+        TU MISIÓN: Extraer el "ADN PROFESIONAL" del cargo y eliminar todo el "RUIDO ADMINISTRATIVO".
         
-        TEXTO ORIGINAL (SUCIO):
+        TEXTO DEL MANUAL (FUENTE):
         '''{raw_text[:25000]}'''
         
         INSTRUCCIONES DE LIMPIEZA ESTRICTA:
-        1. ELIMINA TOTALMENTE: Cualquier mención a "Convocatoria No 232-25", fechas (2025, 2024), Salarios ($9.015.765), Vacantes, Códigos de empleo, Sedes o Ubicaciones.
-        2. CONSERVA ÚNICAMENTE: El "Propósito Principal" y las "Funciones Esenciales" (Verbos rectores como Auditar, Evaluar, Sustanciar).
-        3. SALIDA: Devuelve SOLO el texto limpio de las funciones. NADA MÁS.
+        1. IDENTIFICA EL ROL: Extrae el Nombre del Empleo (ej: Profesional 03, Inspector IV, Procurador Judicial) y su Propósito Principal.
+        2. EXTRAE EL ADN TÉCNICO: Lista solo las funciones esenciales usando VERBOS RECTORES (ej: Sustanciar, Auditar, Intervenir, Proyectar, Evaluar).
+        3. VETO ABSOLUTO (ELIMINA): Prohibido incluir fechas (2024, 2025), salarios, códigos de convocatoria (ej: 232-25), número de vacantes, sedes o requisitos de experiencia/educación.
+        4. SALIDA OBLIGATORIA (FORMATO PROFESIONAL): 
+           CARGO: [Nombre del empleo]
+           PROPÓSITO: [Resumen técnico del impacto del cargo]
+           ADN TÉCNICO (FUNCIONES): [Lista corta de verbos rectores y su objeto jurídico]
         """
         try:
             if self.provider == "OpenAI":
@@ -415,15 +420,16 @@ class LegalEngineTITAN:
     # --------------------------------------------------------------------------
     def process_law(self, text, axis_name, doc_type_input):
         text = text.replace('\r', '')
-        if len(text) < 100: return 0
+        if len(text) < 100: return 0, ""
         
+        adn_summary = ""
         # --- NUEVO: FILTRO DE PURIFICACIÓN PARA MANUALES ---
         # Si el usuario carga un Manual, lo limpiamos ANTES de guardarlo.
         if doc_type_input == "Guía Técnica / Manual":
             with st.spinner("🧹 Purificando Manual (Extrayendo ADN del cargo y eliminando 'basura' administrativa)..."):
-                clean_text = self._clean_manual_text(text)
-                self.manual_text = clean_text # Guardamos la versión LIMPIA para la Parte 4
-                text = clean_text # Sobrescribimos para que la segmentación también sea limpia
+                adn_summary = self._clean_manual_text(text)
+                self.manual_text = adn_summary # Guardamos la versión LIMPIA para la Parte 4
+                text = adn_summary # Sobrescribimos para que la segmentación también sea limpia
         else:
             # Si carga una Norma, nos aseguramos de no tener residuos de manuales anteriores
             if not hasattr(self, 'manual_text') or not self.manual_text: 
@@ -439,7 +445,8 @@ class LegalEngineTITAN:
         if dl_model: 
             with st.spinner("🧠 Generando mapa neuronal..."): 
                 self.chunk_embeddings = dl_model.encode(self.chunks)
-        return len(self.chunks)
+        
+        return len(self.chunks), adn_summary
 
     def update_chunks_by_section(self, section_name):
         if section_name in self.sections_map:
@@ -624,26 +631,26 @@ class LegalEngineTITAN:
         if self.level in ["Profesional", "Asesor"]:
             instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES."
 
-        # 2. LÓGICA DE ROL (JERARQUÍA ESTRICTA: MANUAL > ROL PREDEFINIDO)
+        # 2. LÓGICA DE ROL (JERARQUÍA ESTRICTA: ADN TÉCNICO > ROL PREDEFINIDO)
+        # Se inyecta el ADN purificado en la Parte 3
         texto_funciones_real = self.manual_text if self.manual_text else self.job_functions
         contexto_funcional = ""
         mision_entidad = "" 
 
         if texto_funciones_real:
-            # CASO A: HAY MANUAL (Se usa como Lente de Enfoque, NO como fuente de verdad)
+            # CASO A: HAY MANUAL/ADN (Se usa como Lente de Enfoque y Muro de Estanqueidad)
             funciones_safe = texto_funciones_real[:15000]
             contexto_funcional = f"""
-            CONTEXTO DE ROL (LENTE EVALUATIVO):
-            El usuario aspira a un cargo con estas funciones: '{funciones_safe}'.
-            INSTRUCCIONES DE SEGURIDAD (AISLAMIENTO DE DOMINIOS):
-            1. Usa estas funciones SOLO para la 'narrativa_caso' (el personaje) y para decidir QUÉ preguntar (Relevancia).
-            2. PROHIBIDO usar fechas, códigos de convocatoria o datos administrativos del manual en las OPCIONES TÉCNICAS.
-            3. La pregunta debe salir 100% de la NORMA proporcionada abajo.
+            CONTEXTO DE ROL (ADN TÉCNICO - LENTE EVALUATIVO):
+            El usuario aspira a un cargo con este perfil técnico extraído: '{funciones_safe}'.
+            INSTRUCCIÓN DE SEGURIDAD (MURO DE ESTANQUEIDAD):
+            1. Usa este perfil ÚNICAMENTE para ambientar la 'narrativa_caso' (el personaje) y decidir qué artículos de la ley son relevantes.
+            2. PROHIBIDO terminantemente usar fechas (2024, 2025), salarios, códigos de convocatoria (ej: 232-25) o requisitos de experiencia del manual en la pregunta o respuestas.
+            3. La pregunta debe evaluar el conocimiento de la NORMA (fuente técnica) aplicada a este rol.
             """
-            mision_entidad = "" # El manual anula al rol genérico
+            mision_entidad = "" 
         else:
             # CASO B: NO HAY MANUAL -> USA ROL PREDEFINIDO (PARTE 2)
-            # Se asume que self.mission_profiles ya tiene cargados los roles de Auditor, Juez, etc.
             perfil_mision = self.mission_profiles.get(self.entity, self.mission_profiles.get("Genérico", "Experto Legal"))
             mision_entidad = f"ROL INSTITUCIONAL (AUTOMÁTICO): {perfil_mision}"
 
@@ -676,7 +683,7 @@ class LegalEngineTITAN:
         {instruccion_trampas}
         {feedback_instr}
         
-        Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en la NORMA proporcionada abajo.
+        Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
         
         REGLAS DE ORO (LOS 6 CAPITANES - BLINDAJE DE ÉLITE):
         1. 🚫 CAPITÁN ANTI-LORO: PROHIBIDO iniciar la respuesta con "Según el artículo...", "De acuerdo a la ley..." o similar. La respuesta debe ser una CONSECUENCIA JURÍDICA o TÉCNICA autónoma (Ej: "Se declara la nulidad...", "Opera el silencio administrativo...").
@@ -684,11 +691,12 @@ class LegalEngineTITAN:
         3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas. Nadie debe adivinar por el tamaño del texto.
         4. 🧠 CAPITÁN ANTI-OBVIEDAD (Descarte Imposible): PROHIBIDO usar "Todas las anteriores", "Ninguna de las anteriores" o respuestas de sentido común moral. Aplica la PRUEBA DEL 50/50: La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un plazo, una competencia, una excepción).
         5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente. No preguntes sobre leyes muertas.
-        6. 🔗 CAPITÁN CONTEXTO: La pregunta debe depender del CASO HIPOTÉTICO.
+        6. 🔗 CAPITÁN CONTEXTO: La pregunta debe depender del CASO HIPOTÉTICO diseñado según el ADN técnico del cargo.
         
         REGLA DE ESTANQUEIDAD (CRÍTICA):
-        - Si el texto cargado es una NORMA, ignora cualquier fecha, código o dato administrativo que provenga del Manual de Funciones.
-        - Si el texto es una definición teórica (RAE), TRANSFÓRMALA en un Procedimiento de Auditoría o Falta Disciplinaria. NO preguntes definiciones de memoria.
+        - La NORMA legal abajo es la ÚNICA fuente técnica para las respuestas.
+        - El MANUAL de funciones es solo un escenario narrativo. PROHIBIDO usar datos administrativos (sueldos, fechas de convocatoria) en el examen.
+        - Si el texto es una definición teórica, TRANSFÓRMALA en un procedimiento técnico práctico. No preguntes memoria.
         
         OTRAS REGLAS:
         - FORMATO DE ENUNCIADO: El 'enunciado' NO debe ser una pregunta ni terminar con signos de interrogación. Debe ser una instrucción directa (ej: 'Determine la acción correcta...').
@@ -701,7 +709,7 @@ class LegalEngineTITAN:
         EJEMPLO A IMITAR (ESTILO Y FORMATO):
         '''{self.example_question}'''
         
-        NORMA (FUENTE DE VERDAD): "{texto_final_ia}"
+        NORMA (FUENTE TÉCNICA): "{texto_final_ia}"
         
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
@@ -709,7 +717,7 @@ class LegalEngineTITAN:
         FORMATO JSON OBLIGATORIO:
         {{
             "articulo_fuente": "{self.current_article_label}",
-            "narrativa_caso": "Texto de contexto situacional...",
+            "narrativa_caso": "Texto de contexto situacional del rol...",
             "preguntas": [
                 {{
                     "enunciado": "Instrucción directa...", 
@@ -921,18 +929,40 @@ with st.sidebar:
     # --- CAMBIO DE INTERFAZ: UNIFICACIÓN MANUAL + EJEMPLO (V104) ---
     with st.expander("Detalles / Manual de Funciones", expanded=True):
         # 1. SIEMPRE DISPONIBLE: MANUAL DE FUNCIONES
-        engine.job_functions = st.text_area("Funciones / Rol (Resumen):", value=engine.job_functions, height=70, placeholder="Ej: Profesional Universitario...", help="Escribe un resumen o carga el PDF abajo.")
+        # LÓGICA DE BLOQUEO: Si hay ADN extraído, se bloquea la edición manual para asegurar la integridad
+        is_locked = True if (engine.manual_text and len(engine.manual_text) > 50) else False
+        
+        engine.job_functions = st.text_area(
+            "Funciones / Rol (Resumen ADN):", 
+            value=engine.job_functions, 
+            height=150, 
+            placeholder="Carga el PDF del Manual para extraer el ADN automáticamente...", 
+            help="Este campo muestra el Perfil Técnico limpio (sin fechas ni salarios) que usará la IA.",
+            disabled=is_locked
+        )
         
         upl_manual = st.file_uploader("📂 Cargar Manual de Funciones (PDF):", type=['pdf'])
         if upl_manual:
             if PDF_AVAILABLE:
                 try:
-                    reader = pypdf.PdfReader(upl_manual)
-                    manual_text = ""
-                    for page in reader.pages:
-                        manual_text += page.extract_text() + "\n"
-                    engine.manual_text = manual_text 
-                    st.caption(f"✅ Manual cargado.")
+                    if not engine.api_key:
+                        st.warning("⚠️ Configura la LLAVE MAESTRA arriba para extraer el ADN.")
+                    else:
+                        with st.spinner("🧬 Purificando ADN del Cargo (Eliminando basura administrativa)..."):
+                            reader = pypdf.PdfReader(upl_manual)
+                            manual_text = ""
+                            for page in reader.pages:
+                                manual_text += page.extract_text() + "\n"
+                            
+                            # LLAMADA AL EXTRACTOR DE PARTE 3 (LIMPIEZA INMEDIATA)
+                            adn_limpio = engine._clean_manual_text(manual_text)
+                            
+                            engine.manual_text = adn_limpio
+                            engine.job_functions = adn_limpio # Actualiza la visualización
+                            
+                            st.success("✅ Perfil Profesional Extraído.")
+                            time.sleep(1)
+                            st.rerun() # Recarga para bloquear el campo y mostrar el ADN
                 except Exception as e:
                     st.error(f"Error leyendo manual: {e}")
             else:
@@ -978,7 +1008,14 @@ with st.sidebar:
         
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
-            if engine.process_law(contenido_final, axis_input, doc_type_input): 
+            # AHORA CAPTURAMOS EL RETORNO DUAL (Bloques, ADN si aplica)
+            num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
+            
+            if num_bloques > 0:
+                # Si procesamos un manual como documento base, actualizamos el ADN también
+                if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
+                    engine.job_functions = adn_resumen
+                
                 st.session_state.current_data = None
                 st.success(f"¡Documento Procesado!")
                 time.sleep(0.5)
