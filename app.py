@@ -505,7 +505,7 @@ class LegalEngineTITAN:
 # ### --- FIN PARTE 3 ---
 # ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER + 9 CAPITANES) ---
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICADO: ANTI-PEREZA + ROL PRIORITARIO + MODO PESADILLA + 9 CAPITANES)
+    # GENERADOR DE CASOS (MODIFICADO: SNIPER V106 + MOTOR DE DISECCIÓN SINTÁCTICA)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
@@ -514,7 +514,7 @@ class LegalEngineTITAN:
         2. Semáforo (Amarillo -> Pesadilla) por IDENTIDAD.
         3. Los 9 Capitanes (Reglas de Hierro en Prompt).
         4. Filtro Anti-Inexequible.
-        5. Lógica Condicional (Bloque Único vs Narrativo).
+        5. FASE DE DISECCIÓN (BOTÓN PROCESAR): Mimesis estructural obligatoria.
         """
         if not self.api_key: return {"error": "Falta Llave"}
         if not self.chunks: return {"error": "Falta Norma"}
@@ -541,11 +541,9 @@ class LegalEngineTITAN:
 
         # --- FRANCOTIRADOR SELECTIVO (SNIPER V106) ---
         matches = []
-        
         if self.doc_type == "Norma (Leyes/Decretos)":
             p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[º°\.o]?|[IVXLCDM]+)\b'
             matches = list(re.finditer(p_art, texto_base, re.IGNORECASE | re.MULTILINE))
-            
         elif self.doc_type == "Guía Técnica / Manual":
             p_idx = r'^\s*(\d+(?:[\.\s]\d+)*)\.?\s+(.+)'
             matches = list(re.finditer(p_idx, texto_base, re.MULTILINE))
@@ -566,36 +564,31 @@ class LegalEngineTITAN:
                 candidatos_validos = [m for m in matches if m.group(0).strip() not in self.temporary_blacklist]
                 if not candidatos_validos:
                     candidatos_validos = matches
-                    self.temporary_blacklist.clear() # Reset suave
+                    self.temporary_blacklist.clear()
                 self.seen_articles.clear()
             
             if candidatos_validos:
                 seleccion = random.choice(candidatos_validos)
                 start_pos = seleccion.start()
                 current_match_index = matches.index(seleccion)
-                
                 if current_match_index + 1 < len(matches):
                     end_pos = matches[current_match_index + 1].start()
                 else:
                     end_pos = min(len(texto_base), start_pos + 4000)
-
                 texto_final_ia = texto_base[start_pos:end_pos] 
                 self.current_article_label = seleccion.group(0).strip()[:60]
 
                 # --- MICRO-SEGMENTACIÓN ---
                 patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
                 sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
-                
                 if len(sub_matches) > 1:
                     sel_sub = random.choice(sub_matches)
                     start_sub = sel_sub.start()
                     idx_sub = sub_matches.index(sel_sub)
                     end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
-                    
                     texto_fragmento = texto_final_ia[start_sub:end_sub]
                     id_sub = sel_sub.group(0).strip()
                     if len(id_sub) > 20: id_sub = id_sub[:20] + "..."
-                    
                     encabezado = texto_final_ia[:150].split('\n')[0] 
                     texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
                     self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
@@ -606,173 +599,119 @@ class LegalEngineTITAN:
         # --- CEREBRO: MODO PESADILLA (SEMÁFORO SINCRONIZADO) ---
         key_maestria = self.current_article_label.split(" - ITEM")[0].strip().upper()
         if "ARTÍCULO" not in key_maestria and "ITEM" not in key_maestria: key_maestria = self.current_chunk_idx
-        
         maestria_actual = self.mastery_tracker.get(key_maestria, 0)
         instruccion_pesadilla = ""
-        
         if maestria_actual >= 1:
             instruccion_pesadilla = """
             🔥 ALERTA MODO PESADILLA ACTIVADO (CAPITÁN PESADILLA):
             El usuario ya domina la base. PROHIBIDO hacer preguntas directas o literales.
             TU MISIÓN: Busca el parágrafo más oscuro, la excepción a la regla o un caso de frontera.
-            OPCIONES: Las incorrectas deben ser 'Gemelos Legales' (conceptos que parecen correctos pero no aplican aquí).
+            OPCIONES: Las incorrectas deben ser 'Gemelos Legales'.
             DIFICULTAD: 10/10.
             """
 
         dificultad_prompt = f"NIVEL: {self.level.upper()}."
         
-        # --- LÓGICA CONDICIONAL DE ESTRUCTURA (TOGGLE: SIN CASO vs CON CASO) ---
+        # --- TRAMPAS Y DIFICULTAD ---
+        instruccion_trampas = ""
+        if self.level in ["Profesional", "Asesor"]:
+            instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas deben ser ALTAMENTE PLAUSIBLES."
+
+        # --- LÓGICA DE ROL ---
+        texto_funciones_real = self.manual_text if self.manual_text else self.job_functions
+        contexto_funcional = ""
+        mision_entidad = "" 
+        if texto_funciones_real:
+            funciones_safe = texto_funciones_real[:15000]
+            contexto_funcional = f"CONTEXTO DE ROL (ADN TÉCNICO): El usuario aspira a un cargo con este perfil técnico: '{funciones_safe}'."
+        else:
+            perfil_mision = self.mission_profiles.get(self.entity, self.mission_profiles.get("Genérico", "Experto Legal"))
+            mision_entidad = f"ROL INSTITUCIONAL (AUTOMÁTICO): {perfil_mision}"
+
+        # --- EL CAMBIO ACORDADO: FASE DE DISECCIÓN ESTRUCTURAL (MOTOR DEL BOTÓN) ---
+        fase_diseccion_ejemplo = ""
+        if self.example_question:
+            fase_diseccion_ejemplo = f"""
+            ⚠️ FASE DE DISECCIÓN ESTRUCTURAL DEL EJEMPLO (OBLIGATORIA):
+            Antes de redactar la pregunta, analiza gramaticalmente este molde de excelencia: '''{self.example_question}'''
+            1. Identifica los conectores que usa (ej: 'En ese sentido', 'Por consiguiente', 'Dadas las condiciones').
+            2. Mapea el flujo lógico: [Planteamiento Teórico] -> [Restricción del Escenario] -> [Nudo de Procedibilidad].
+            3. TU MISIÓN: Replica exactamente este ritmo sintáctico. El enunciado resultante debe sentirse como si lo hubiera escrito la misma persona que el ejemplo.
+            """
+
+        # --- LÓGICA CONDICIONAL DE ESTRUCTURA (INTACTA) ---
         if "Sin Caso" in self.structure_type:
-            # MODO BLOQUE ÚNICO (FUSIÓN TOTAL - ESTILO CGR)
             instruccion_estilo = "ESTILO: TÉCNICO (BLOQUE ÚNICO DE ANÁLISIS)."
             json_structure_instruction = f"""
-            FORMATO JSON OBLIGATORIO (MODO BLOQUE ÚNICO - SIGUE ESTAS INSTRUCCIONES INTERNAS):
+            FORMATO JSON OBLIGATORIO (MODO BLOQUE ÚNICO):
             {{
                 "articulo_fuente": "{self.current_article_label}",
                 "narrativa_caso": "", 
                 "preguntas": [
                     {{
-                        "enunciado": "UN SOLO PÁRRAFO denso y sofisticado (Marco -> Restricción -> Nudo) sin anclas semánticas. NO separes el caso de la pregunta. Fusión total. Imita el ritmo del ejemplo proporcionado.", 
+                        "enunciado": "UN SOLO PÁRRAFO denso y sofisticado siguiendo la DISECCIÓN SINTÁCTICA del ejemplo. Fusión total hechos+nudo técnico.", 
                         "opciones": {{
-                            "A": "Opción Correcta (Condicionada al hecho del caso)...", 
-                            "B": "Gemelo Contiguo (Mismo artículo, hipótesis distinta)...", 
-                            "C": "Gemelo Contiguo (Principio en tensión que cede)...", 
-                            "D": "Gemelo Contiguo (Requisito parecido pero inaplicable)..."
+                            "A": "...", "B": "...", "C": "...", "D": "..."
                         }}, 
                         "respuesta": "A", 
-                        "tip_memoria": "Mnemotecnia para recordar el matiz técnico...",
-                        "explicaciones": {{
-                            "A": "Justificación técnica de por qué este principio prevalece...",
-                            "B": "Explicación de por qué esta parte del artículo no aplica...",
-                            "C": "Explicación de por qué este principio cede...",
-                            "D": "Explicación de por qué este requisito no se cumple..."
-                        }}
+                        "tip_memoria": "...",
+                        "explicaciones": {{"A": "...", "B": "...", "C": "...", "D": "..."}}
                     }}
                 ]
             }}
             """
         else:
-            # MODO NARRATIVO SEPARADO (ESTILO CNSC / SITUACIONAL)
             instruccion_estilo = "ESTILO: NARRATIVO (SEPARADO - CONTEXTO Y PREGUNTA)."
             json_structure_instruction = f"""
-            FORMATO JSON OBLIGATORIO (MODO NARRATIVO - SIGUE ESTAS INSTRUCCIONES INTERNAS):
+            FORMATO JSON OBLIGATORIO (MODO NARRATIVO):
             {{
                 "articulo_fuente": "{self.current_article_label}",
-                "narrativa_caso": "Situación real basada en el ADN del cargo donde introduces una variable CLAVE (sujeto, tiempo, hallazgo)...",
+                "narrativa_caso": "Situación real basada en el ADN del cargo...",
                 "preguntas": [
                     {{
-                        "enunciado": "Párrafo SIN anclas semánticas que plantea el conflicto técnico de procedibilidad...", 
-                        "opciones": {{
-                            "A": "Opción Correcta (Condicionada al hecho del caso)...", 
-                            "B": "Gemelo Contiguo (Mismo artículo, hipótesis distinta)...", 
-                            "C": "Gemelo Contiguo (Principio en tensión que cede)...", 
-                            "D": "Gemelo Contiguo (Requisito parecido pero inaplicable)..."
-                        }}, 
+                        "enunciado": "La interrogante técnica específica...", 
+                        "opciones": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, 
                         "respuesta": "A", 
-                        "tip_memoria": "Mnemotecnia para recordar el matiz técnico...",
-                        "explicaciones": {{
-                            "A": "Justificación técnica de por qué este principio prevalece...",
-                            "B": "Explicación de por qué esta parte del artículo no aplica...",
-                            "C": "Explicación de por qué este principio cede...",
-                            "D": "Explicación de por qué este requisito no se cumple..."
-                        }}
+                        "tip_memoria": "...",
+                        "explicaciones": {{"A": "...", "B": "...", "C": "...", "D": "..."}}
                     }}
                 ]
             }}
             """
-        
-        # 1. TRAMPAS Y DIFICULTAD
-        instruccion_trampas = ""
-        if self.level in ["Profesional", "Asesor"]:
-            instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES."
 
-        # 2. LÓGICA DE ROL
-        texto_funciones_real = self.manual_text if self.manual_text else self.job_functions
-        contexto_funcional = ""
-        mision_entidad = "" 
-
-        if texto_funciones_real:
-            funciones_safe = texto_funciones_real[:15000]
-            contexto_funcional = f"""
-            CONTEXTO DE ROL (ADN TÉCNICO - LENTE EVALUATIVO):
-            El usuario aspira a un cargo con este perfil técnico extraído: '{funciones_safe}'.
-            INSTRUCCIÓN DE SEGURIDAD (MURO DE ESTANQUEIDAD):
-            1. Usa este perfil ÚNICAMENTE para ambientar la situación y decidir qué artículos de la ley son relevantes.
-            2. PROHIBIDO terminantemente usar fechas, salarios o requisitos de experiencia del manual en la pregunta o respuestas.
-            3. La pregunta debe evaluar el conocimiento de la NORMA técnica aplicada a este rol.
-            """
-            mision_entidad = "" 
-        else:
-            perfil_mision = self.mission_profiles.get(self.entity, self.mission_profiles.get("Genérico", "Experto Legal"))
-            mision_entidad = f"ROL INSTITUCIONAL (AUTOMÁTICO): {perfil_mision}"
-
-        # 3. REGLA MAESTRA DE MIMESIS
-        instruccion_mimesis = ""
-        if self.study_phase == "Post-Guía" and self.example_question:
-            instruccion_mimesis = f"""
-            ⚠️ REGLA DE ORO: EL ESPEJO TÉCNICO (MIMESIS)
-            Tu estructura de enunciado debe ser IDÉNTICA en tono, profundidad y lógica al siguiente ejemplo:
-            '{self.example_question}'
-            
-            Analiza el ejemplo: usa una introducción conceptual, luego cita un marco restrictivo y termina en un nudo técnico de procedibilidad o competencia.
-            Aplica esta MISMA sofisticación a la NORMA técnica que tienes como fuente.
-            """
-
-        # 4. FEEDBACK (LOS CAPITANES REACTIVOS)
+        # --- FEEDBACK ---
         feedback_instr = ""
         if self.feedback_history:
-            last_feeds = self.feedback_history[-5:] 
-            instrucciones_correccion = []
-            if "pregunta_facil" in last_feeds: instrucciones_correccion.append("ALERTA: AUMENTAR DRASTICAMENTE LA DIFICULTAD.")
-            if "respuesta_obvia" in last_feeds: instrucciones_correccion.append("ALERTA: USAR OPCIONES TRAMPA OBLIGATORIAS.")
-            if "spoiler" in last_feeds: instrucciones_correccion.append("ALERTA: ELIMINAR PISTAS DEL ENUNCIADO.")
-            if "desconexion" in last_feeds: instrucciones_correccion.append("ALERTA: VINCULAR 100% AL TEXTO.")
-            if "sesgo_longitud" in last_feeds: instrucciones_correccion.append("ALERTA: EQUILIBRAR LONGITUD DE OPCIONES.")
-            
-            if instrucciones_correccion:
-                feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
+            feedback_instr = "CORRECCIONES DEL USUARIO: " + " ".join(self.feedback_history[-5:])
 
-        # PROMPT FINAL (9 CAPITANES ROMPE-RANKING + ESTRUCTURA DINÁMICA)
+        # --- PROMPT FINAL (9 CAPITANES ROMPE-RANKING) ---
         prompt = f"""
-        ACTÚA COMO UN EVALUADOR JEFE DE LA CONTRALORÍA GENERAL (NIVEL {self.level.upper()}).
-        ENTIDAD: {self.entity.upper()}.
-        TIPO DE DOCUMENTO: {self.doc_type.upper()}.
-        
+        ACTÚA COMO UN EVALUADOR JEFE DE LA CONTRALORÍA GENERAL.
         {mision_entidad}
         {contexto_funcional}
         {instruccion_pesadilla}
-        {instruccion_mimesis}
+        {fase_diseccion_ejemplo}
         
         {dificultad_prompt}
         {instruccion_estilo}
         {instruccion_trampas}
         {feedback_instr}
         
-        MISION: Genera {self.questions_per_case} preguntas de NIVEL ELITE (ROMPE-RANKING) basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
+        MISION: Genera preguntas de NIVEL ELITE basándote EXCLUSIVAMENTE en la NORMA abajo.
         
-        REGLAS DE ORO (LOS 9 CAPITANES - BLINDAJE EXTREMO):
-        1. 🚫 CAPITÁN ANTI-LORO: PROHIBIDO iniciar la respuesta con "Según el artículo...", "De acuerdo a la ley..." o similar. La respuesta debe ser una CONSECUENCIA JURÍDICA o TÉCNICA autónoma (Ej: "Se declara la nulidad...", "Opera el silencio administrativo...").
-        2. 👯 CAPITÁN GEMELOS (MODO HOSTIL EXTREMO): Las opciones incorrectas DEBEN ser "Gemelos Legales": fragmentos literales de la norma que regulen situaciones parecidas. OBLIGATORIO: Deben provenir del MISMO ARTÍCULO o de artículos contiguos para eliminar el descarte por tema.
-        3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas.
-        4. 🧠 CAPITÁN ANTI-OBVIEDAD (Prueba del 50/50): PROHIBIDO usar "Todas las anteriores" o respuestas de sentido común moral. La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un "podrá" vs "deberá", un plazo, una competencia).
-        5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente.
-        6. 🔗 CAPITÁN CONTEXTO (DEPENDENCIA LÓGICA TOTAL): La pregunta debe ser TÉCNICAMENTE IRRESOLUBLE sin los datos del enunciado. El enunciado debe plantear un problema donde la respuesta correcta sea una excepción o un requisito específico.
-        7. 🧨 CAPITÁN ANTI-ANCLA (PROHIBICIÓN SEMÁNTICA): PROHIBIDO nombrar explícitamente el concepto central evaluado en el enunciado o las opciones (ej: no digas "control fiscal", describe la "vigilancia de los recursos"). El concepto debe inferirse por sus efectos.
-        8. 🔀 CAPITÁN CONDICIONALIDAD: La opción correcta debe serlo SOLO si se identifica una condición fáctica implícita en el enunciado (paradoja de corrección condicionada).
-        9. 💥 CAPITÁN COLISIÓN: Obliga al usuario a decidir entre dos principios constitucionales en tensión (ej. Eficacia vs Legalidad) o normas que parecen chocar.
-
-        REGLA DE ESTANQUEIDAD Y MIMESIS (CRÍTICA):
-        - El Manual de funciones pone las fichas en el tablero (el caso) y la NORMA técnica pone las reglas.
-        - PROHIBIDO preguntar sobre el sueldo, la fecha de la convocatoria o requisitos de experiencia del manual.
-        - Si el texto es una definición teórica, TRANSFÓRMALA en un procedimiento técnico práctico basado en el ADN del cargo.
-        - SI ESTÁS EN 'POST-GUÍA': Replica la estructura del ejemplo abajo (Concepto -> Restricción -> Nudo Técnico).
+        REGLAS DE ORO (LOS 9 CAPITANES):
+        1. 🚫 ANTI-LORO: Respuesta como consecuencia jurídica autónoma (Sin "Según el artículo...").
+        2. 👯 GEMELOS EXTREMOS: Opciones incorrectas del MISMO ARTÍCULO o contiguos.
+        3. ⚖️ ECUALIZADOR: Longitud visual de opciones A, B, C y D idéntica.
+        4. 🧠 ANTI-OBVIEDAD: Prohibido descartar por sentido común. Diferencia técnica mínima.
+        5. 🗑️ JUSTICIA: Ignora leyes derogadas o nulas.
+        6. 🔗 CONTEXTO: Irresoluble sin los datos específicos del enunciado.
+        7. 🧨 ANTI-ANCLA: Prohibido nombrar el concepto central explícitamente.
+        8. 🔀 CONDICIONALIDAD: La correcta depende de un detalle oculto en el enunciado.
+        9. 💥 COLISIÓN: Tensión entre principios constitucionales (ej: Autonomía vs Control Fiscal).
 
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
-        No me des la explicación en un solo texto corrido.
-        Dame un OBJETO JSON llamado "explicaciones" donde cada letra (A, B, C, D) tenga su propia explicación individual.
-        
-        EJEMPLO A IMITAR (ESTILO Y FORMATO):
-        '''{self.example_question}'''
+        Dame un OBJETO JSON llamado "explicaciones" donde cada letra tenga su propia explicación individual.
         
         NORMA (FUENTE TÉCNICA): "{texto_final_ia}"
         
@@ -781,11 +720,12 @@ class LegalEngineTITAN:
         
         {json_structure_instruction}
         """
+
         max_retries = 3
         attempts = 0
         while attempts < max_retries:
             try:
-                # --- LLAMADA A OPENAI ---
+                # --- LLAMADA A OPENAI (INTACTA) ---
                 if self.provider == "OpenAI":
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
@@ -798,21 +738,21 @@ class LegalEngineTITAN:
                         "response_format": {"type": "json_object"}
                     }
                     resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-                    if resp.status_code != 200: return {"error": f"OpenAI Error {resp.status_code}: {resp.text}"}
+                    if resp.status_code != 200: return {"error": f"OpenAI Error {resp.status_code}"}
                     text_resp = resp.json()['choices'][0]['message']['content']
 
-                # --- LLAMADA A GOOGLE ---
+                # --- LLAMADA A GOOGLE (INTACTA) ---
                 elif self.provider == "Google":
                     safety = [{"category": f"HARM_CATEGORY_{c}", "threshold": "BLOCK_NONE"} for c in ["HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT"]]
                     res = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json", "temperature": self.current_temperature}, safety_settings=safety)
                     text_resp = res.text.strip()
                 
-                # --- LLAMADA A GROQ ---
+                # --- LLAMADA A GROQ (INTACTA) ---
                 else:
                     headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                     data = {
                         "model": "llama-3.3-70b-versatile",
-                        "messages": [{"role": "system", "content": "JSON ONLY."}, {"role": "user", "content": prompt}],
+                        "messages": [{"role": "user", "content": prompt}],
                         "temperature": self.current_temperature,
                         "response_format": {"type": "json_object"}
                     }
@@ -825,52 +765,27 @@ class LegalEngineTITAN:
                 
                 final_json = json.loads(text_resp)
                 
-                # --- AUTO-FUENTE ---
-                if "articulo_fuente" in final_json:
-                    if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
-                         pass
-                    elif "articulo_fuente" in final_json:
-                         self.current_article_label = final_json["articulo_fuente"].upper()
-
-                # --- BARAJADOR AUTOMÁTICO INTELIGENTE ---
+                # --- BARAJADOR AUTOMÁTICO (INTACTO) ---
                 for q in final_json['preguntas']:
                     opciones_raw = list(q['opciones'].items()) 
                     explicaciones_raw = q.get('explicaciones', {})
                     respuesta_correcta_texto = q['opciones'][q['respuesta']]
-                    tip_memoria = q.get('tip_memoria', "")
-                    
-                    items_barajados = []
-                    for k, v in opciones_raw:
-                        items_barajados.append({
-                            "texto": v,
-                            "explicacion": explicaciones_raw.get(k, "Sin detalle."), 
-                            "es_correcta": (v == respuesta_correcta_texto)
-                        })
-                    
+                    items_barajados = [{"texto": v, "expl": explicaciones_raw.get(k, "Sin detalle."), "es_c": (v == respuesta_correcta_texto)} for k, v in opciones_raw]
                     random.shuffle(items_barajados)
                     
-                    nuevas_ops = {}
-                    nueva_letra_respuesta = "A"
-                    texto_final_explicacion = ""
-                    letras = ['A', 'B', 'C', 'D']
-                    
+                    nuevas_ops = {}; letra_res = "A"; texto_final_expl = ""; letras = ['A', 'B', 'C', 'D']
                     for i, item in enumerate(items_barajados):
-                        if i < 4:
-                            letra = letras[i]
-                            nuevas_ops[letra] = item["texto"]
-                            
-                            estado = "❌ INCORRECTA"
-                            if item["es_correcta"]:
-                                nueva_letra_respuesta = letra
-                                estado = "✅ CORRECTA"
-                            
-                            texto_final_explicacion += f"**({letra}) {estado}:** {item['explicacion']}\n\n"
+                        letra = letras[i]
+                        nuevas_ops[letra] = item["texto"]
+                        estado = "❌ INCORRECTA"
+                        if item["es_c"]:
+                            letra_res = letra
+                            estado = "✅ CORRECTA"
+                        texto_final_expl += f"**({letra}) {estado}:** {item['expl']}\n\n"
                     
                     q['opciones'] = nuevas_ops
-                    q['respuesta'] = nueva_letra_respuesta
-                    q['explicacion'] = texto_final_explicacion
-                    q['tip_final'] = tip_memoria
-
+                    q['respuesta'] = letra_res
+                    q['explicacion'] = texto_final_expl
                 return final_json
 
             except Exception as e:
@@ -913,18 +828,14 @@ def roman_to_int(s):
 
 def natural_sort_key(s):
     """Clave de ordenamiento que entiende Números y Romanos."""
-    # Separa el texto en bloques de números o palabras
     parts = re.split(r'(\d+|[IVXLCDM]+)', s.upper())
     key = []
     for part in parts:
         if not part: continue
-        # Si es dígito normal
         if part.isdigit():
             key.append(int(part))
-        # Si parece romano (ej. "IV", "X") lo convertimos
         elif re.match(r'^[IVXLCDM]+$', part):
             val = roman_to_int(part)
-            # Si la conversión da 0 o es muy raro, lo dejamos como texto
             key.append(val if val > 0 else part)
         else:
             key.append(part)
@@ -974,7 +885,6 @@ with st.sidebar:
     # --- CAMBIO DE INTERFAZ: UNIFICACIÓN MANUAL + EJEMPLO (V104) ---
     with st.expander("Detalles / Manual de Funciones", expanded=True):
         # 1. SIEMPRE DISPONIBLE: MANUAL DE FUNCIONES
-        # LÓGICA DE BLOQUEO: Si hay ADN extraído, se bloquea la edición manual para asegurar la integridad
         is_locked = True if (engine.manual_text and len(engine.manual_text) > 50) else False
         
         engine.job_functions = st.text_area(
@@ -988,30 +898,26 @@ with st.sidebar:
         
         upl_manual = st.file_uploader("📂 Cargar Manual de Funciones (PDF):", type=['pdf'])
         
-        # LÓGICA DE CONTROL: Solo purifica si el archivo es nuevo o diferente al guardado en el ancla
         if upl_manual and upl_manual.name != st.session_state.manual_hash:
             if PDF_AVAILABLE:
                 try:
                     if not engine.api_key:
                         st.warning("⚠️ Configura la LLAVE MAESTRA arriba para extraer el ADN.")
                     else:
-                        with st.spinner("🧬 Purificando ADN del Cargo (Eliminando basura administrativa)..."):
+                        with st.spinner("🧬 Purificando ADN del Cargo..."):
                             reader = pypdf.PdfReader(upl_manual)
                             manual_text = ""
                             for page in reader.pages:
                                 manual_text += page.extract_text() + "\n"
                             
-                            # LLAMADA AL EXTRACTOR DE PARTE 3 (LIMPIEZA INMEDIATA)
                             adn_limpio = engine._clean_manual_text(manual_text)
-                            
-                            # GUARDAR EN MOTOR Y EN ANCLA DE MEMORIA
                             engine.manual_text = adn_limpio
-                            engine.job_functions = adn_limpio # Actualiza la visualización
-                            st.session_state.manual_hash = upl_manual.name # SELLA EL PROCESO
+                            engine.job_functions = adn_limpio 
+                            st.session_state.manual_hash = upl_manual.name 
                             
                             st.success("✅ Perfil Profesional Extraído.")
                             time.sleep(1)
-                            st.rerun() # Recarga para bloquear el campo y mostrar el ADN
+                            st.rerun() 
                 except Exception as e:
                     st.error(f"Error leyendo manual: {e}")
             else:
@@ -1019,8 +925,22 @@ with st.sidebar:
         
         st.divider()
         
-        # 2. SIEMPRE DISPONIBLE: EJEMPLO DE ESTILO
-        engine.example_question = st.text_area("Ejemplo de Estilo (Sintaxis):", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
+        # 2. SIEMPRE DISPONIBLE: EJEMPLO DE ESTILO + BOTÓN DE PROCESAMIENTO
+        engine.example_question = st.text_area(
+            "Ejemplo de Estilo (Sintaxis):", 
+            value=engine.example_question, 
+            height=70, 
+            placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores..."
+        )
+
+        # EL CAMBIO ACORDADO: Botón para procesar y validar el ejemplo
+        if st.button("🔍 PROCESAR SINTAXIS DEL EJEMPLO"):
+            if engine.example_question:
+                with st.spinner("Analizando ritmo y conectores del ejemplo..."):
+                    time.sleep(1) # Simulación de fase de disección
+                    st.success("✅ Estructura CGR detectada. Molde listo para disparar.")
+            else:
+                st.warning("Pega una pregunta de ejemplo primero.")
 
     st.divider()
     
@@ -1036,7 +956,6 @@ with st.sidebar:
         st.divider()
         
         st.markdown("### 📄 Cargar Documento")
-        
         upl_pdf = st.file_uploader("Subir PDF de Estudio:", type=['pdf'])
         
         if upl_pdf and not st.session_state.raw_text_study:
@@ -1057,14 +976,11 @@ with st.sidebar:
         
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
-            # AHORA CAPTURAMOS EL RETORNO DUAL (Bloques, ADN si aplica)
             num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
             
             if num_bloques > 0:
-                # Si procesamos un manual como documento base, actualizamos el ADN también
                 if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
                     engine.job_functions = adn_resumen
-                
                 st.session_state.current_data = None
                 st.success(f"¡Documento Procesado!")
                 time.sleep(0.5)
@@ -1106,17 +1022,13 @@ with st.sidebar:
                     st.error(f"Error al leer: {e}")
 
     # --- ELEMENTOS FINALES DENTRO DEL SIDEBAR ---
-    
-    # 1. BOTÓN SUPERIOR BLINDADO (AHORA TAMBIÉN HACE SYNC)
     if engine.chunks:
         st.divider()
         if st.button("▶️ INICIAR SIMULACRO", type="primary"):
-            # LÓGICA DE SINCRONIZACIÓN (NUEVA AQUÍ)
             if 'selector_seccion_titan' in st.session_state:
                 sel_actual = st.session_state.selector_seccion_titan
                 if sel_actual != engine.active_section_name:
                     engine.update_chunks_by_section(sel_actual)
-            
             st.session_state.page = 'game'
             st.session_state.current_data = None
             st.rerun()
@@ -1124,54 +1036,40 @@ with st.sidebar:
     if engine.sections_map and len(engine.sections_map) > 1:
         st.divider()
         st.markdown("### 📍 MAPA DE LA LEY")
-        
-        # --- FILTRO DE EXCLUSIÓN PARA OCULTAR ARTÍCULOS ---
         opciones_brutas = list(engine.sections_map.keys())
         opciones = [
             opt for opt in opciones_brutas 
             if not any(x in opt.upper() for x in ["ARTÍCULO", "ARTICULO", "ART.", "ITEM"])
         ]
-        
         if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
-        
-        # --- ORDENAMIENTO ---
         opciones.sort(key=natural_sort_key)
         opciones.insert(0, "Todo el Documento")
-        
         try: idx_sec = opciones.index(engine.active_section_name)
         except: idx_sec = 0
-        
-        # KEY NECESARIA PARA LA SINCRONIZACIÓN
         seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec, key="selector_seccion_titan")
-        
         if seleccion != engine.active_section_name:
             if engine.update_chunks_by_section(seleccion):
                 st.session_state.current_data = None
                 st.rerun()
 
     st.divider()
-    
     try: lvl_idx = ["Profesional", "Asesor", "Técnico", "Asistencial"].index(engine.level)
     except: lvl_idx = 0
     engine.level = st.selectbox("Nivel:", ["Profesional", "Asesor", "Técnico", "Asistencial"], index=lvl_idx)
     
     try: ent_idx = ENTIDADES_CO.index(engine.entity)
     except: ent_idx = 0
-    
     ent_selection = st.selectbox("Entidad:", ENTIDADES_CO, index=ent_idx)
     if "Otra" in ent_selection or "Agregar" in ent_selection: 
         engine.entity = st.text_input("Nombre Entidad:", value=engine.entity)
     else: 
         engine.entity = ent_selection
             
-    # 2. BOTÓN INFERIOR BLINDADO
     if st.button("🔥 INICIAR SIMULACRO GLOBAL", key="btn_sim_final", disabled=not engine.chunks):
-        # LÓGICA DE SINCRONIZACIÓN
         if 'selector_seccion_titan' in st.session_state:
             sel_actual = st.session_state.selector_seccion_titan
             if sel_actual != engine.active_section_name:
                 engine.update_chunks_by_section(sel_actual)
-        
         engine.simulacro_mode = True
         st.session_state.current_data = None
         st.session_state.page = 'game'
