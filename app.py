@@ -680,7 +680,7 @@ class LegalEngineTITAN:
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
 
-# PROMPT FINAL (CON LOS 6 CAPITANES BLINDADOS + ESTRUCTURA JSON HOSTIL)
+# PROMPT FINAL (9 CAPITANES ROMPE-RANKING + ESTANQUEIDAD COMPLETA)
         prompt = f"""
         ACTÚA COMO UN EVALUADOR JEFE DE LA CONTRALORÍA GENERAL (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -696,16 +696,19 @@ class LegalEngineTITAN:
         {instruccion_trampas}
         {feedback_instr}
         
-        Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
+        MISION: Genera {self.questions_per_case} preguntas de NIVEL ELITE (ROMPE-RANKING) basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
         
-        REGLAS DE ORO (LOS 6 CAPITANES - BLINDAJE DE ÉLITE):
+        REGLAS DE ORO (LOS 9 CAPITANES - BLINDAJE EXTREMO):
         1. 🚫 CAPITÁN ANTI-LORO: PROHIBIDO iniciar la respuesta con "Según el artículo...", "De acuerdo a la ley..." o similar. La respuesta debe ser una CONSECUENCIA JURÍDICA o TÉCNICA autónoma (Ej: "Se declara la nulidad...", "Opera el silencio administrativo...").
-        2. 👯 CAPITÁN GEMELOS (MODO HOSTIL): Las opciones incorrectas DEBEN ser "Gemelos Legales": fragmentos literales de la norma que regulen situaciones parecidas pero que NO apliquen a este caso (plazos, competencias o excepciones vecinas).
-        3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas.
-        4. 🧠 CAPITÁN ANTI-OBVIEDAD (Descarte Imposible): PROHIBIDO usar "Todas las anteriores" o respuestas de sentido común moral. Aplica la PRUEBA DEL 50/50: La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un "podrá" vs "deberá", un plazo, una competencia).
-        5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente.
+        2. 👯 CAPITÁN GEMELOS (MODO HOSTIL EXTREMO): Las opciones incorrectas DEBEN ser "Gemelos Legales": fragmentos literales de la norma que regulen situaciones parecidas. OBLIGATORIO: Deben provenir del MISMO ARTÍCULO o de artículos contiguos para eliminar el descarte por tema.
+        3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas. Nadie debe adivinar por el tamaño del texto.
+        4. 🧠 CAPITÁN ANTI-OBVIEDAD (Prueba del 50/50): PROHIBIDO usar "Todas las anteriores" o respuestas de sentido común moral. La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un "podrá" vs "deberá", un plazo, una competencia).
+        5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente. No preguntes sobre leyes muertas.
         6. 🔗 CAPITÁN CONTEXTO (DEPENDENCIA LÓGICA TOTAL): La pregunta debe ser TÉCNICAMENTE IRRESOLUBLE sin los datos del caso narrado. El enunciado debe plantear un problema de procedibilidad o competencia donde la respuesta correcta sea una excepción o un requisito específico.
-        
+        7. 🧨 CAPITÁN ANTI-ANCLA (PROHIBICIÓN SEMÁNTICA): PROHIBIDO nombrar explícitamente el concepto central evaluado en el enunciado o las opciones (ej: no digas "control fiscal", describe la "vigilancia de los recursos"). El concepto debe inferirse por sus efectos.
+        8. 🔀 CAPITÁN CONDICIONALIDAD: La opción correcta debe serlo SOLO si se identifica una condición fáctica implícita en el caso narrado (paradoja de corrección condicionada).
+        9. 💥 CAPITÁN COLISIÓN: Obliga al usuario a decidir entre dos principios constitucionales en tensión (ej. Eficacia vs Legalidad) o normas que parecen chocar.
+
         REGLA DE ESTANQUEIDAD Y MIMESIS (CRÍTICA):
         - El Manual de funciones pone las fichas en el tablero (el caso) y la NORMA técnica pone las reglas. La respuesta debe ser la consecuencia jurídica de aplicar la norma a los hechos.
         - PROHIBIDO preguntar sobre el sueldo, la fecha de la convocatoria o requisitos de experiencia del manual.
@@ -724,28 +727,31 @@ class LegalEngineTITAN:
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
         
-        FORMATO JSON OBLIGATORIO (SIGUE ESTAS INSTRUCCIONES INTERNAS):
+        FORMATO JSON OBLIGATORIO (CON INSTRUCCIONES HOSTILES INTERNAS):
         {{
             "articulo_fuente": "{self.current_article_label}",
-            "narrativa_caso": "Situación real basada en el ADN del cargo donde introduces una variable CLAVE (sujeto, tiempo, hallazgo) que activa la norma...",
+            "narrativa_caso": "Situación real basada en el ADN del cargo con variables ocultas y tensión de principios...",
             "preguntas": [
                 {{
-                    "enunciado": "Párrafo de análisis legal sofisticado que sigue la Trilogía (Concepto -> Restricción -> Nudo Técnico de Procedibilidad)...", 
+                    "enunciado": "Párrafo SIN anclas semánticas que plantea un conflicto técnico de procedibilidad (Concepto -> Restricción -> Nudo)...", 
                     "opciones": {{
-                        "A": "Opción Correcta (Consecuencia Jurídica)...", 
-                        "B": "Gemelo Legal 1 (Norma real que no aplica aquí)...", 
-                        "C": "Gemelo Legal 2 (Excepción de otro artículo)...", 
-                        "D": "Gemelo Legal 3 (Requisito incompleto o plazo errado)..."
+                        "A": "Opción Correcta (Condicionada al hecho del caso)...", 
+                        "B": "Gemelo Contiguo (Mismo artículo, hipótesis distinta)...", 
+                        "C": "Gemelo Contiguo (Principio en tensión que cede)...", 
+                        "D": "Gemelo Contiguo (Requisito parecido pero inaplicable)..."
                     }}, 
                     "respuesta": "A", 
                     "tip_memoria": "Mnemotecnia para recordar el matiz técnico...",
                     "explicaciones": {{
-                        "A": "Justificación legal exacta de por qué aplica esta norma al caso...",
-                        "B": "Explicación técnica de por qué este artículo/plazo NO aplica en este supuesto...",
-                        "C": "Explicación de por qué esta excepción corresponde a otra situación...",
-                        "D": "Explicación de por qué este requisito es insuficiente..."
+                        "A": "Justificación técnica de por qué este principio prevalece en este caso específico...",
+                        "B": "Explicación de por qué esta parte del artículo no aplica aquí...",
+                        "C": "Explicación de por qué este principio cede ante el otro...",
+                        "D": "Explicación de por qué este requisito no se cumple..."
                     }}
                 }}
+            ]
+        }}
+        """
             ]
         }}
         """
