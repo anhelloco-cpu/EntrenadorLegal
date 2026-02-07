@@ -905,7 +905,7 @@ if 'raw_text_study' not in st.session_state: st.session_state.raw_text_study = "
 
 engine = st.session_state.engine
 
-# --- FUNCIONES DE ORDENAMIENTO (NUEVO: SOPORTE NÚMEROS ROMANOS) ---
+# --- FUNCIONES DE ORDENAMIENTO (CORREGIDO: ACENTOS Y ROMANOS) ---
 def roman_to_int(s):
     """Convierte números romanos a enteros para ordenar correctamente."""
     romanos = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
@@ -921,9 +921,11 @@ def roman_to_int(s):
         return 0
 
 def natural_sort_key(s):
-    """Clave de ordenamiento que entiende Números y Romanos."""
-    # Separa el texto en bloques de números o palabras
-    parts = re.split(r'(\d+|[IVXLCDM]+)', s.upper())
+    """Clave de ordenamiento que entiende Números, Romanos y Acentos."""
+    # MODIFICACIÓN: Normalizar acentos para que TÍTULO y TITULO se ordenen igual
+    s_clean = s.upper().replace('Á', 'A').replace('É', 'E').replace('Í', 'I').replace('Ó', 'O').replace('Ú', 'U')
+    
+    parts = re.split(r'(\d+|[IVXLCDM]+)', s_clean)
     key = []
     for part in parts:
         if not part: continue
@@ -1027,23 +1029,8 @@ with st.sidebar:
         
         st.divider()
         
-        # 2. SIEMPRE DISPONIBLE: EJEMPLO DE ESTILO + BOTÓN DE PROCESAMIENTO (MODIFICADO)
-        engine.example_question = st.text_area(
-            "Ejemplo de Estilo (Sintaxis):", 
-            value=engine.example_question, 
-            height=70, 
-            placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores..."
-        )
-
-        # NUEVO BOTÓN: Asegura la disección estructural antes de iniciar
-        if st.button("🔍 PROCESAR SINTAXIS DEL EJEMPLO"):
-            if engine.example_question:
-                with st.spinner("Analizando ritmo y conectores del ejemplo..."):
-                    # El éxito confirma que el Sniper ya tiene el molde cargado en memoria
-                    time.sleep(1)
-                    st.success("✅ Estructura CGR detectada. Molde listo para disparar.")
-            else:
-                st.warning("Pega una pregunta de ejemplo primero.")
+        # 2. SIEMPRE DISPONIBLE: EJEMPLO DE ESTILO
+        engine.example_question = st.text_area("Ejemplo de Estilo (Sintaxis):", value=engine.example_question, height=70, placeholder="Pega el ejemplo para copiar los 'dos puntos' y conectores...")
 
     st.divider()
     
@@ -1074,15 +1061,17 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error leyendo PDF: {e}")
 
-        st.caption("Or pega aquí el texto manualmente:")
+        st.caption("O pega aquí el texto manualmente:")
         axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
         txt_manual = st.text_area("Texto de la Norma:", height=150)
         
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
+            # AHORA CAPTURAMOS EL RETORNO DUAL (Bloques, ADN si aplica)
             num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
             
             if num_bloques > 0:
+                # Si procesamos un manual como documento base, actualizamos el ADN también
                 if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
                     engine.job_functions = adn_resumen
                 
@@ -1127,9 +1116,12 @@ with st.sidebar:
                     st.error(f"Error al leer: {e}")
 
     # --- ELEMENTOS FINALES DENTRO DEL SIDEBAR ---
+    
+    # 1. BOTÓN SUPERIOR BLINDADO (AHORA TAMBIÉN HACE SYNC)
     if engine.chunks:
         st.divider()
         if st.button("▶️ INICIAR SIMULACRO", type="primary"):
+            # LÓGICA DE SINCRONIZACIÓN (NUEVA AQUÍ)
             if 'selector_seccion_titan' in st.session_state:
                 sel_actual = st.session_state.selector_seccion_titan
                 if sel_actual != engine.active_section_name:
@@ -1142,20 +1134,33 @@ with st.sidebar:
     if engine.sections_map and len(engine.sections_map) > 1:
         st.divider()
         st.markdown("### 📍 MAPA DE LA LEY")
+        
+        # --- FILTRO DE EXCLUSIÓN Y DEDUPLICACIÓN ---
+        # 1. Obtenemos claves brutas
         opciones_brutas = list(engine.sections_map.keys())
-        opciones = [
-            opt for opt in opciones_brutas 
-            if not any(x in opt.upper() for x in ["ARTÍCULO", "ARTICULO", "ART.", "ITEM"])
-        ]
         
-        if "Todo el Documento" in opciones: opciones.remove("Todo el Documento")
-        opciones.sort(key=natural_sort_key)
-        opciones.insert(0, "Todo el Documento")
+        # 2. Filtramos artículos y duplicados de "Todo el Documento"
+        opciones_validas = []
+        for opt in opciones_brutas:
+            # Si es artículo/item, lo saltamos
+            if any(x in opt.upper() for x in ["ARTÍCULO", "ARTICULO", "ART.", "ITEM"]):
+                continue
+            # Si es una variante de "Todo el Documento", lo saltamos (lo añadiremos manual al inicio)
+            if "TODO EL DOCUMENTO" in opt.upper():
+                continue
+            opciones_validas.append(opt)
         
-        try: idx_sec = opciones.index(engine.active_section_name)
+        # 3. Ordenamos con la nueva lógica que ignora acentos
+        opciones_validas.sort(key=natural_sort_key)
+        
+        # 4. Insertamos la opción maestra limpia al principio
+        opciones_validas.insert(0, "Todo el Documento")
+        
+        try: idx_sec = opciones_validas.index(engine.active_section_name)
         except: idx_sec = 0
         
-        seleccion = st.selectbox("Estudiar Específicamente:", opciones, index=idx_sec, key="selector_seccion_titan")
+        # KEY NECESARIA PARA LA SINCRONIZACIÓN
+        seleccion = st.selectbox("Estudiar Específicamente:", opciones_validas, index=idx_sec, key="selector_seccion_titan")
         
         if seleccion != engine.active_section_name:
             if engine.update_chunks_by_section(seleccion):
@@ -1177,7 +1182,9 @@ with st.sidebar:
     else: 
         engine.entity = ent_selection
             
+    # 2. BOTÓN INFERIOR BLINDADO
     if st.button("🔥 INICIAR SIMULACRO GLOBAL", key="btn_sim_final", disabled=not engine.chunks):
+        # LÓGICA DE SINCRONIZACIÓN
         if 'selector_seccion_titan' in st.session_state:
             sel_actual = st.session_state.selector_seccion_titan
             if sel_actual != engine.active_section_name:
