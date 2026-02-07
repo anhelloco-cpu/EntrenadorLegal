@@ -265,16 +265,17 @@ class LegalEngineTITAN:
                 return False, f"Error con la llave: {str(e)}"
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (CORRECCIÓN: SOLDADURA DE ROMANOS Y LIMPIEZA)
+    # SEGMENTACIÓN INTELIGENTE (VERSIÓN V105 "EL CENTINELA" - ADAPTADA DECRETO 267)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
-        Divide el texto según el tipo de documento.
-        1. NORMAS: Acumula Artículos en Títulos/Capítulos/Secciones.
-           REPARA: Une números romanos rotos (I I -> II) y limpia espacios.
+        Divide el texto con filtros de limpieza para 'EVA - Gestor Normativo'
+        y soporte para ordinales (1º, Primero).
         """
         secciones = {}
-        
+        # Frases de ruido del PDF de Función Pública para ignorar
+        RUIDO_PDF = ["DEPARTAMENTO ADMINISTRATIVO", "FUNCIÓN PÚBLICA", "EVA - GESTOR NORMATIVO", "PÁGINA", "DIARIO OFICIAL"]
+
         if self.doc_type == "Norma (Leyes/Decretos)":
             lineas = full_text.split('\n')
             secciones = {"TODO EL DOCUMENTO": []} 
@@ -282,57 +283,64 @@ class LegalEngineTITAN:
             c_libro = ""; c_titulo = ""; c_capitulo = ""; c_seccion = ""
             current_container = "TODO EL DOCUMENTO"
             
-            # Patrones mejorados para detectar jerarquías incluso con ruido
-            p_libro = r'^\s*(LIBRO)\.?\s+[IVXLCDM\s]+\b'
-            p_tit = r'^\s*(TÍTULO|TITULO)\.?\s+[IVXLCDM\s]+\b' 
-            p_cap = r'^\s*(CAPÍTULO|CAPITULO)\.?\s+[IVXLCDM0-9\s]+\b'
-            p_sec = r'^\s*(SECCIÓN|SECCION)\.?\s+[IVXLCDM0-9\s]+\b'
-            p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*(\d+)'
+            # PATRONES BLINDADOS (Soporte ordinales 1º, Primero, Segundo)
+            p_libro = r'^\s*(LIBRO)\s+([IVXLCDM\s]+|PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO)\b'
+            p_tit = r'^\s*(TÍTULO|TITULO)\s+([IVXLCDM\s]+|PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO)\b' 
+            p_cap = r'^\s*(CAPÍTULO|CAPITULO)\s+([IVXLCDM0-9\s]+|PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO)\b'
+            p_sec = r'^\s*(SECCIÓN|SECCION)\s+([IVXLCDM0-9\s]+|PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO)\b'
+            # Soporta ARTICULO 1, ARTICULO 1º, ARTICULO 1.
+            p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[º°\.]?|[IVXLCDM]+)\b'
 
             for i in range(len(lineas)):
-                # LIMPIEZA INICIAL: Soldar romanos rotos (ej: I I -> II)
                 linea_raw = lineas[i]
                 linea_limpia = re.sub(r'(?<=[IVXLCDM])\s+(?=[IVXLCDM])', '', linea_raw, flags=re.I).strip()
                 
-                if not linea_limpia: continue
+                # FILTRO CENTINELA: Ignorar basura del PDF
+                if not linea_limpia or any(ruido in linea_limpia.upper() for ruido in RUIDO_PDF): 
+                    continue
 
-                def get_full_name(idx, base_name):
-                    # Normalización extrema de la etiqueta
-                    base_name = re.sub(r'\s+', ' ', base_name).strip().upper()
-                    full_name = base_name
+                def get_full_name_v2(idx, line_match, pattern):
+                    """Detecta si el nombre está en la misma línea o abajo."""
+                    base_label = line_match.strip().upper()
+                    # 1. Intentar ver si hay texto después del identificador en la misma línea
+                    parts = re.split(pattern, line_match, flags=re.I)
+                    if len(parts) > 1 and len(parts[-1].strip()) > 3:
+                        return f"{base_label}: {parts[-1].strip().upper()}"
+                    
+                    # 2. Si no, mirar la línea de abajo (si no es otro artículo/capítulo)
                     if idx + 1 < len(lineas):
-                        # Revisar si la línea de abajo es el nombre descriptivo
                         next_line = lineas[idx + 1].strip()
                         if next_line and not any(re.match(p, next_line, re.I) for p in [p_libro, p_tit, p_cap, p_sec, p_art]):
-                            full_name = f"{base_name}: {next_line.upper()}"
-                    return full_name[:120].strip()
+                            if not any(ruido in next_line.upper() for ruido in RUIDO_PDF):
+                                return f"{base_label}: {next_line.upper()}"
+                    return base_label
 
-                # Detección y actualización de contenedores
+                # Detección de contenedores
                 if re.match(p_libro, linea_limpia, re.I): 
-                    c_libro = get_full_name(i, linea_limpia)
+                    c_libro = get_full_name_v2(i, linea_limpia, p_libro)
                     c_titulo = ""; c_capitulo = ""; c_seccion = ""
                     current_container = c_libro
                 
                 elif re.match(p_tit, linea_limpia, re.I): 
-                    c_titulo = get_full_name(i, linea_limpia)
+                    c_titulo = get_full_name_v2(i, linea_limpia, p_tit)
                     c_capitulo = ""; c_seccion = ""
                     current_container = f"{c_libro} > {c_titulo}" if c_libro else c_titulo
                 
                 elif re.match(p_cap, linea_limpia, re.I): 
-                    c_capitulo = get_full_name(i, linea_limpia)
+                    c_capitulo = get_full_name_v2(i, linea_limpia, p_cap)
                     c_seccion = ""
                     prefix = f"{c_libro} > " if c_libro else ""
                     prefix += f"{c_titulo} > " if c_titulo else ""
                     current_container = prefix + c_capitulo
                 
                 elif re.match(p_sec, linea_limpia, re.I):
-                    c_seccion = get_full_name(i, linea_limpia)
+                    c_seccion = get_full_name_v2(i, linea_limpia, p_sec)
                     prefix = f"{c_libro} > " if c_libro else ""
                     prefix += f"{c_titulo} > " if c_titulo else ""
                     prefix += f"{c_capitulo} > " if c_capitulo else ""
                     current_container = prefix + c_seccion
 
-                # Acumulación de texto en el contenedor activo
+                # Acumulación
                 if current_container not in secciones:
                     secciones[current_container] = []
                 
