@@ -573,14 +573,15 @@ class LegalEngineTITAN:
         if self.level in ["Profesional", "Asesor"]:
             instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES."
 
-        # 2. LÓGICA DE ROL (PRIORIDAD MANUAL)
+        # 2. LÓGICA DE ROL (CORREGIDA: AISLAMIENTO DE DOMINIOS)
         texto_funciones_real = self.manual_text if self.manual_text else self.job_functions
         contexto_funcional = ""
         mision_entidad = "" 
 
         if texto_funciones_real:
             funciones_safe = texto_funciones_real[:15000]
-            contexto_funcional = f"CONTEXTO OBLIGATORIO (MANUAL DE FUNCIONES): El usuario aspira a un cargo con estas funciones ESPECÍFICAS: '{funciones_safe}'. AMBIENTA LA PREGUNTA AQUÍ."
+            # AQUÍ ESTÁ EL AJUSTE DE AISLAMIENTO:
+            contexto_funcional = f"CONTEXTO DE ROL (SOLO PARA NARRATIVA): El usuario aspira a un cargo con estas funciones: '{funciones_safe}'. INSTRUCCIÓN DE SEGURIDAD: Usa estas funciones ÚNICAMENTE para ambientar al personaje en la 'narrativa_caso'. NO mezcles este texto con la NORMA legal para formular la pregunta técnica. La pregunta debe salir 100% de la NORMA proporcionada abajo."
             mision_entidad = "" 
         else:
             mision_entidad = self.mission_profiles.get(self.entity, self.mission_profiles["Genérico"])
