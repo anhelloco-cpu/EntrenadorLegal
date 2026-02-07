@@ -503,17 +503,18 @@ class LegalEngineTITAN:
     def get_calibration_instructions(self):
         return "INSTRUCCIONES: NO REPETIR TEXTO, NO 'CHIVATEAR' NIVELES."
 # ### --- FIN PARTE 3 ---
-# ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER + 6 CAPITANES) ---
+# ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER + 9 CAPITANES) ---
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICADO: ANTI-PEREZA + ROL PRIORITARIO + MODO PESADILLA + 6 CAPITANES)
+    # GENERADOR DE CASOS (MODIFICADO: ANTI-PEREZA + ROL PRIORITARIO + MODO PESADILLA + 9 CAPITANES)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
         Genera la pregunta. Integra:
         1. Sniper V106 (Precisión).
         2. Semáforo (Amarillo -> Pesadilla) por IDENTIDAD.
-        3. Los 6 Capitanes (Reglas de Hierro en Prompt).
+        3. Los 9 Capitanes (Reglas de Hierro en Prompt).
         4. Filtro Anti-Inexequible.
+        5. Lógica Condicional (Bloque Único vs Narrativo).
         """
         if not self.api_key: return {"error": "Falta Llave"}
         if not self.chunks: return {"error": "Falta Norma"}
@@ -624,7 +625,67 @@ class LegalEngineTITAN:
             """
 
         dificultad_prompt = f"NIVEL: {self.level.upper()}."
-        instruccion_estilo = "ESTILO: TÉCNICO." if "Sin Caso" in self.structure_type else "ESTILO: NARRATIVO."
+        
+        # --- LÓGICA CONDICIONAL DE ESTRUCTURA (TOGGLE: SIN CASO vs CON CASO) ---
+        # AQUÍ ES DONDE EL CÓDIGO DECIDE SI FUSIONA (CGR) O SEPARA (CNSC)
+        if "Sin Caso" in self.structure_type:
+            # MODO BLOQUE ÚNICO (FUSIÓN TOTAL - ESTILO CGR)
+            instruccion_estilo = "ESTILO: TÉCNICO (BLOQUE ÚNICO DE ANÁLISIS)."
+            json_structure_instruction = f"""
+            FORMATO JSON OBLIGATORIO (MODO BLOQUE ÚNICO - SIGUE ESTAS INSTRUCCIONES INTERNAS):
+            {{
+                "articulo_fuente": "{self.current_article_label}",
+                "narrativa_caso": "", 
+                "preguntas": [
+                    {{
+                        "enunciado": "UN SOLO PÁRRAFO denso y sofisticado (Marco -> Restricción -> Nudo) sin anclas semánticas. NO separes el caso de la pregunta. Fusión total.", 
+                        "opciones": {{
+                            "A": "Opción Correcta (Condicionada al hecho del caso)...", 
+                            "B": "Gemelo Contiguo (Mismo artículo, hipótesis distinta)...", 
+                            "C": "Gemelo Contiguo (Principio en tensión que cede)...", 
+                            "D": "Gemelo Contiguo (Requisito parecido pero inaplicable)..."
+                        }}, 
+                        "respuesta": "A", 
+                        "tip_memoria": "Mnemotecnia para recordar el matiz técnico...",
+                        "explicaciones": {{
+                            "A": "Justificación técnica de por qué este principio prevalece...",
+                            "B": "Explicación de por qué esta parte del artículo no aplica...",
+                            "C": "Explicación de por qué este principio cede...",
+                            "D": "Explicación de por qué este requisito no se cumple..."
+                        }}
+                    }}
+                ]
+            }}
+            """
+        else:
+            # MODO NARRATIVO SEPARADO (ESTILO CNSC / SITUACIONAL)
+            instruccion_estilo = "ESTILO: NARRATIVO (SEPARADO - CONTEXTO Y PREGUNTA)."
+            json_structure_instruction = f"""
+            FORMATO JSON OBLIGATORIO (MODO NARRATIVO - SIGUE ESTAS INSTRUCCIONES INTERNAS):
+            {{
+                "articulo_fuente": "{self.current_article_label}",
+                "narrativa_caso": "Situación real basada en el ADN del cargo donde introduces una variable CLAVE (sujeto, tiempo, hallazgo)...",
+                "preguntas": [
+                    {{
+                        "enunciado": "Párrafo SIN anclas semánticas que plantea el conflicto técnico de procedibilidad...", 
+                        "opciones": {{
+                            "A": "Opción Correcta (Condicionada al hecho del caso)...", 
+                            "B": "Gemelo Contiguo (Mismo artículo, hipótesis distinta)...", 
+                            "C": "Gemelo Contiguo (Principio en tensión que cede)...", 
+                            "D": "Gemelo Contiguo (Requisito parecido pero inaplicable)..."
+                        }}, 
+                        "respuesta": "A", 
+                        "tip_memoria": "Mnemotecnia para recordar el matiz técnico...",
+                        "explicaciones": {{
+                            "A": "Justificación técnica de por qué este principio prevalece...",
+                            "B": "Explicación de por qué esta parte del artículo no aplica...",
+                            "C": "Explicación de por qué este principio cede...",
+                            "D": "Explicación de por qué este requisito no se cumple..."
+                        }}
+                    }}
+                ]
+            }}
+            """
         
         # 1. TRAMPAS Y DIFICULTAD
         instruccion_trampas = ""
@@ -680,7 +741,7 @@ class LegalEngineTITAN:
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
 
-# PROMPT FINAL (9 CAPITANES ROMPE-RANKING + ESTANQUEIDAD COMPLETA)
+        # PROMPT FINAL (9 CAPITANES ROMPE-RANKING + ESTRUCTURA DINÁMICA)
         prompt = f"""
         ACTÚA COMO UN EVALUADOR JEFE DE LA CONTRALORÍA GENERAL (NIVEL {self.level.upper()}).
         ENTIDAD: {self.entity.upper()}.
@@ -727,30 +788,7 @@ class LegalEngineTITAN:
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
         
-        FORMATO JSON OBLIGATORIO (CON INSTRUCCIONES HOSTILES INTERNAS):
-        {{
-            "articulo_fuente": "{self.current_article_label}",
-            "narrativa_caso": "Situación real basada en el ADN del cargo con variables ocultas y tensión de principios...",
-            "preguntas": [
-                {{
-                    "enunciado": "Párrafo SIN anclas semánticas que plantea un conflicto técnico de procedibilidad (Concepto -> Restricción -> Nudo)...", 
-                    "opciones": {{
-                        "A": "Opción Correcta (Condicionada al hecho del caso)...", 
-                        "B": "Gemelo Contiguo (Mismo artículo, hipótesis distinta)...", 
-                        "C": "Gemelo Contiguo (Principio en tensión que cede)...", 
-                        "D": "Gemelo Contiguo (Requisito parecido pero inaplicable)..."
-                    }}, 
-                    "respuesta": "A", 
-                    "tip_memoria": "Mnemotecnia para recordar el matiz técnico...",
-                    "explicaciones": {{
-                        "A": "Justificación técnica de por qué este principio prevalece en este caso específico...",
-                        "B": "Explicación de por qué esta parte del artículo no aplica aquí...",
-                        "C": "Explicación de por qué este principio cede ante el otro...",
-                        "D": "Explicación de por qué este requisito no se cumple..."
-             }}
-                }}
-            ]
-        }}
+        {json_structure_instruction}
         """
         max_retries = 3
         attempts = 0
