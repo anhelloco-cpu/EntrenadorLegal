@@ -573,18 +573,28 @@ class LegalEngineTITAN:
         if self.level in ["Profesional", "Asesor"]:
             instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES."
 
-        # 2. LÓGICA DE ROL (CORREGIDA: AISLAMIENTO DE DOMINIOS)
+        # 2. LÓGICA DE ROL (JERARQUÍA ESTRICTA: MANUAL > ROL PREDEFINIDO)
         texto_funciones_real = self.manual_text if self.manual_text else self.job_functions
         contexto_funcional = ""
         mision_entidad = "" 
 
         if texto_funciones_real:
+            # CASO A: HAY MANUAL (Se usa como Lente de Enfoque, NO como fuente de verdad)
             funciones_safe = texto_funciones_real[:15000]
-            # AQUÍ ESTÁ EL AJUSTE DE AISLAMIENTO:
-            contexto_funcional = f"CONTEXTO DE ROL (SOLO PARA NARRATIVA): El usuario aspira a un cargo con estas funciones: '{funciones_safe}'. INSTRUCCIÓN DE SEGURIDAD: Usa estas funciones ÚNICAMENTE para ambientar al personaje en la 'narrativa_caso'. NO mezcles este texto con la NORMA legal para formular la pregunta técnica. La pregunta debe salir 100% de la NORMA proporcionada abajo."
-            mision_entidad = "" 
+            contexto_funcional = f"""
+            CONTEXTO DE ROL (LENTE EVALUATIVO):
+            El usuario aspira a un cargo con estas funciones: '{funciones_safe}'.
+            INSTRUCCIONES DE SEGURIDAD (AISLAMIENTO DE DOMINIOS):
+            1. Usa estas funciones SOLO para la 'narrativa_caso' (el personaje) y para decidir QUÉ preguntar (Relevancia).
+            2. PROHIBIDO usar fechas, códigos de convocatoria o datos administrativos del manual en las OPCIONES TÉCNICAS.
+            3. La pregunta debe salir 100% de la NORMA proporcionada abajo.
+            """
+            mision_entidad = "" # El manual anula al rol genérico
         else:
-            mision_entidad = self.mission_profiles.get(self.entity, self.mission_profiles["Genérico"])
+            # CASO B: NO HAY MANUAL -> USA ROL PREDEFINIDO (PARTE 2)
+            # Se asume que self.mission_profiles ya tiene cargados los roles de Auditor, Juez, etc.
+            perfil_mision = self.mission_profiles.get(self.entity, self.mission_profiles.get("Genérico", "Experto Legal"))
+            mision_entidad = f"ROL INSTITUCIONAL (AUTOMÁTICO): {perfil_mision}"
 
         # 4. FEEDBACK (LOS CAPITANES REACTIVOS)
         feedback_instr = ""
@@ -615,7 +625,7 @@ class LegalEngineTITAN:
         {instruccion_trampas}
         {feedback_instr}
         
-        Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
+        Genera {self.questions_per_case} preguntas basándote EXCLUSIVAMENTE en la NORMA proporcionada abajo.
         
         REGLAS DE ORO (LOS 6 CAPITANES - BLINDAJE DE ÉLITE):
         1. 🚫 CAPITÁN ANTI-LORO: PROHIBIDO iniciar la respuesta con "Según el artículo...", "De acuerdo a la ley..." o similar. La respuesta debe ser una CONSECUENCIA JURÍDICA o TÉCNICA autónoma (Ej: "Se declara la nulidad...", "Opera el silencio administrativo...").
@@ -624,6 +634,10 @@ class LegalEngineTITAN:
         4. 🧠 CAPITÁN ANTI-OBVIEDAD (Descarte Imposible): PROHIBIDO usar "Todas las anteriores", "Ninguna de las anteriores" o respuestas de sentido común moral. Aplica la PRUEBA DEL 50/50: La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un plazo, una competencia, una excepción).
         5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente. No preguntes sobre leyes muertas.
         6. 🔗 CAPITÁN CONTEXTO: La pregunta debe depender del CASO HIPOTÉTICO.
+        
+        REGLA DE ESTANQUEIDAD (CRÍTICA):
+        - Si el texto cargado es una NORMA, ignora cualquier fecha, código o dato administrativo que provenga del Manual de Funciones.
+        - Si el texto es una definición teórica (RAE), TRANSFÓRMALA en un Procedimiento de Auditoría o Falta Disciplinaria. NO preguntes definiciones de memoria.
         
         OTRAS REGLAS:
         - FORMATO DE ENUNCIADO: El 'enunciado' NO debe ser una pregunta ni terminar con signos de interrogación. Debe ser una instrucción directa (ej: 'Determine la acción correcta...').
@@ -636,7 +650,7 @@ class LegalEngineTITAN:
         EJEMPLO A IMITAR (ESTILO Y FORMATO):
         '''{self.example_question}'''
         
-        NORMA (Fragmento de Estudio): "{texto_final_ia}"
+        NORMA (FUENTE DE VERDAD): "{texto_final_ia}"
         
         {self.get_strict_rules()}
         {self.get_calibration_instructions()}
