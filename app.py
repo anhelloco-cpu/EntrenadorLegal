@@ -654,6 +654,18 @@ class LegalEngineTITAN:
             perfil_mision = self.mission_profiles.get(self.entity, self.mission_profiles.get("Genérico", "Experto Legal"))
             mision_entidad = f"ROL INSTITUCIONAL (AUTOMÁTICO): {perfil_mision}"
 
+        # 3. REGLA MAESTRA DE MIMESIS (SOLO PARA POST-GUÍA)
+        instruccion_mimesis = ""
+        if self.study_phase == "Post-Guía" and self.example_question:
+            instruccion_mimesis = f"""
+            ⚠️ REGLA DE ORO: EL ESPEJO TÉCNICO (MIMESIS)
+            Tu estructura de enunciado debe ser IDÉNTICA en tono, profundidad y lógica al siguiente ejemplo:
+            '{self.example_question}'
+            
+            Analiza el ejemplo: usa una introducción conceptual, luego cita un marco restrictivo (ej. régimen normativo de la CGR) y termina en un nudo técnico de procedibilidad o competencia.
+            Aplica esta MISMA sofisticación a la NORMA técnica que tienes como fuente.
+            """
+
         # 4. FEEDBACK (LOS CAPITANES REACTIVOS)
         feedback_instr = ""
         if self.feedback_history:
@@ -677,6 +689,7 @@ class LegalEngineTITAN:
         {mision_entidad}
         {contexto_funcional}
         {instruccion_pesadilla}
+        {instruccion_mimesis}
         
         {dificultad_prompt}
         {instruccion_estilo}
@@ -691,16 +704,12 @@ class LegalEngineTITAN:
         3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas. Nadie debe adivinar por el tamaño del texto.
         4. 🧠 CAPITÁN ANTI-OBVIEDAD (Descarte Imposible): PROHIBIDO usar "Todas las anteriores", "Ninguna de las anteriores" o respuestas de sentido común moral. Aplica la PRUEBA DEL 50/50: La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un plazo, una competencia, una excepción).
         5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente. No preguntes sobre leyes muertas.
-        6. 🔗 CAPITÁN CONTEXTO: La pregunta debe depender del CASO HIPOTÉTICO diseñado según el ADN técnico del cargo.
+        6. 🔗 CAPITÁN CONTEXTO (DEPENDENCIA LÓGICA): OBLIGATORIO. La pregunta debe ser TÉCNICAMENTE IRRESOLUBLE sin los datos del caso narrado. El enunciado debe plantear un problema de procedibilidad o competencia donde la respuesta correcta sea una excepción o un requisito específico de la norma.
         
         REGLA DE ESTANQUEIDAD (CRÍTICA):
-        - La NORMA legal abajo es la ÚNICA fuente técnica para las respuestas.
-        - El MANUAL de funciones es solo un escenario narrativo. PROHIBIDO usar datos administrativos (sueldos, fechas de convocatoria) en el examen.
-        - Si el texto es una definición teórica, TRANSFÓRMALA en un procedimiento técnico práctico. No preguntes memoria.
-        
-        OTRAS REGLAS:
-        - FORMATO DE ENUNCIADO: El 'enunciado' NO debe ser una pregunta ni terminar con signos de interrogación. Debe ser una instrucción directa (ej: 'Determine la acción correcta...').
-        - ANTI-PEREZA: PROHIBIDO preguntar sobre firmas, vigencias o frases de cajón.
+        - El Manual de funciones pone las fichas en el tablero (el caso) y la NORMA técnica pone las reglas. La respuesta debe ser la consecuencia jurídica de aplicar la norma a los hechos.
+        - PROHIBIDO preguntar sobre el sueldo, la fecha de la convocatoria o requisitos de experiencia del manual.
+        - Si el texto es una definición teórica, TRANSFÓRMALA en un procedimiento técnico práctico basado en el ADN del cargo.
 
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
@@ -717,10 +726,10 @@ class LegalEngineTITAN:
         FORMATO JSON OBLIGATORIO:
         {{
             "articulo_fuente": "{self.current_article_label}",
-            "narrativa_caso": "Texto de contexto situacional del rol...",
+            "narrativa_caso": "Texto de contexto situacional donde se introduce una variable (sujeto, tiempo, hallazgo) que activa la norma...",
             "preguntas": [
                 {{
-                    "enunciado": "Instrucción directa...", 
+                    "enunciado": "Párrafo de análisis legal que sigue la Trilogía (Concepto -> Restricción -> Nudo Técnico)...", 
                     "opciones": {{
                         "A": "...", 
                         "B": "...", 
