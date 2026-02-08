@@ -378,8 +378,11 @@ class LegalEngineTITAN:
                     c_seccion = get_full_name_v106(i, linea_limpia, p_sec)
 
                 # --- LÓGICA DE HERENCIA (CASCADA) ---
+                # Cada línea se guarda en su contenedor y en todos sus contenedores padres
                 niveles_activos = ["TODO EL DOCUMENTO"]
-                if c_libro: niveles_activos.append(c_libro)
+                
+                if c_libro: 
+                    niveles_activos.append(c_libro)
                 if c_titulo:
                     nom_tit = f"{c_libro} > {c_titulo}" if c_libro else c_titulo
                     niveles_activos.append(nom_tit)
@@ -398,7 +401,9 @@ class LegalEngineTITAN:
                     secciones[nivel].append(linea_raw)
                 
             return {k: "\n".join(v) for k, v in secciones.items() if len(v) > 0}
+
         else:
+            # Estrategia para Guías Técnicas (Bloques fijos)
             text_clean = re.sub(r'\n\s*\n', '<PARAGRAPH_BREAK>', full_text)
             raw_paragraphs = text_clean.split('<PARAGRAPH_BREAK>')
             final_blocks = {}; current_block_content = ""; block_count = 1
@@ -1345,5 +1350,4 @@ if st.session_state.page == 'game':
                 for r in errores_sel:
                     engine.feedback_history.append(reasons_map[r])
                 st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
-
 # ### --- FIN PARTE 6 ---
