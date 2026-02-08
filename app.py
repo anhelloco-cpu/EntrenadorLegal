@@ -928,22 +928,27 @@ def roman_to_int(s):
         return 0
 
 def natural_sort_key(s):
-    """Clave de ordenamiento que entiende Números, Romanos y Acentos."""
-    # NORMALIZACIÓN: Quitamos acentos para que el ordenamiento sea perfecto (TÍTULO == TITULO)
+    """Clave de ordenamiento BLINDADA (Evita el TypeError int vs str)."""
     s_clean = s.upper().replace('Á', 'A').replace('É', 'E').replace('Í', 'I').replace('Ó', 'O').replace('Ú', 'U')
+    
     parts = re.split(r'(\d+|[IVXLCDM]+)', s_clean)
     key = []
     for part in parts:
         if not part: continue
+        # Usamos tuplas (Prioridad, Valor) para evitar comparar int con str
+        # 0 = Número (Gana prioridad)
+        # 1 = Texto (Va después)
         if part.isdigit():
-            key.append(int(part))
+            key.append((0, int(part)))
         elif re.match(r'^[IVXLCDM]+$', part):
             val = roman_to_int(part)
-            key.append(val if val > 0 else part)
+            if val > 0:
+                key.append((0, val))
+            else:
+                key.append((1, part))
         else:
-            key.append(part)
+            key.append((1, part))
     return key
-
 with st.sidebar:
     st.title("🦅 TITÁN v104 The Sentinel")
     
