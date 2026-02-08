@@ -335,7 +335,7 @@ class LegalEngineTITAN:
             p_word_num = r'(?:PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO|SEXTO|SÉPTIMO|OCTAVO|NOVENO|DÉCIMO|[IVXLCDM\d]+[º°\.oª]?)'
             
             p_libro = rf'^\s*(LIBRO)\s+{p_word_num}\b'
-            p_tit = rf'^\s*(TÍTULO|TITULO|TITULO PRELIMINAR)\s*{p_word_num}?\b' 
+            p_tit = rf'^\s*(?:TÍTULO|TITULO|TITULO PRELIMINAR|[IVXLCDM]+\.?)\s*{p_word_num}?\b'
             p_cap = rf'^\s*(CAPÍTULO|CAPITULO)\s+{p_word_num}\b'
             p_sec = rf'^\s*(SECCIÓN|SECCION)\s+{p_word_num}\b'
             # Soporte total para artículos: ARTICULO 1º, ARTÍCULO 1o., ARTICULO 1.
