@@ -1280,6 +1280,7 @@ if st.session_state.page == 'game':
     st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **{subtitulo}**")
     st.progress(perc/100)
 
+    # Generación de Caso si no existe
     if not st.session_state.get('current_data'):
         msg = f"🧠 Analizando {engine.current_article_label} - NIVEL {engine.level.upper()}..."
         with st.spinner(msg):
@@ -1287,12 +1288,16 @@ if st.session_state.page == 'game':
             if data and "preguntas" in data:
                 st.session_state.case_id += 1 
                 st.session_state.current_data = data
-                st.session_state.q_idx = 0; st.session_state.answered = False; st.rerun()
+                st.session_state.q_idx = 0
+                st.session_state.answered = False
+                st.rerun()
             else:
                 err = data.get('error', 'Desconocido')
-                st.error(f"Error: {err}"); st.button("Reintentar", on_click=st.rerun)
+                st.error(f"Error: {err}")
+                st.button("Reintentar", on_click=st.rerun)
                 st.stop()
 
+    # Mostrar Narrativa
     data = st.session_state.current_data
     narrativa = data.get('narrativa_caso','Error')
     st.markdown(f"<div class='narrative-box'><h4>🏛️ {engine.entity}</h4>{narrativa}</div>", unsafe_allow_html=True)
@@ -1304,7 +1309,7 @@ if st.session_state.page == 'game':
         
         form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
         
-	with st.form(key=form_key):
+        with st.form(key=form_key):
             # 1. Mostrar Opciones
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()], index=None)
@@ -1320,7 +1325,8 @@ if st.session_state.page == 'game':
             if skipped: 
                 key_bloqueo = engine.current_article_label.split(" - ITEM")[0].strip()
                 engine.temporary_blacklist.add(key_bloqueo)
-                st.session_state.current_data = None; st.rerun()
+                st.session_state.current_data = None
+                st.rerun()
 
             # 4. Lógica de Validación (FILTRO DE HIERRO INTEGRADO)
             if submitted:
@@ -1336,7 +1342,7 @@ if st.session_state.page == 'game':
                         key_maestria = key_maestria.split(" - ITEM")[0].strip()
                     
                     if "ARTÍCULO" not in key_maestria and "BLOQUE" not in key_maestria and "ITEM" not in key_maestria:
-                            key_maestria = engine.current_chunk_idx
+                        key_maestria = engine.current_chunk_idx
 
                     # B) Validar Respuesta
                     if letra_sel == q['respuesta']: 
@@ -1358,7 +1364,8 @@ if st.session_state.page == 'game':
 
                         # Gestión de etiquetas visuales (Sidebar)
                         if engine.current_article_label != "General":
-                            if full_tag in engine.failed_articles: engine.failed_articles.remove(full_tag)
+                            if full_tag in engine.failed_articles: 
+                                engine.failed_articles.remove(full_tag)
                             if engine.mastery_tracker.get(key_maestria, 0) == 2:
                                 engine.mastered_articles.add(full_tag)
                     
@@ -1372,7 +1379,8 @@ if st.session_state.page == 'game':
                         
                         # Penalización visual
                         if engine.current_article_label != "General":
-                            if full_tag in engine.mastered_articles: engine.mastered_articles.remove(full_tag)
+                            if full_tag in engine.mastered_articles: 
+                                engine.mastered_articles.remove(full_tag)
                             engine.failed_articles.add(full_tag)
                     
                     # C) Mostrar Explicación Final
@@ -1381,10 +1389,18 @@ if st.session_state.page == 'game':
                         st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
                     
                     st.session_state.answered = True
+
+        # Botones de navegación (aparecen después de responder)
+        if st.session_state.answered:
             if st.session_state.q_idx < len(q_list) - 1:
-                if st.button("Siguiente"): st.session_state.q_idx += 1; st.session_state.answered = False; st.rerun()
+                if st.button("Siguiente Pregunta"): 
+                    st.session_state.q_idx += 1
+                    st.session_state.answered = False
+                    st.rerun()
             else:
-                if st.button("Nuevo Caso"): st.session_state.current_data = None; st.rerun()
+                if st.button("🔄 Generar Nuevo Caso"): 
+                    st.session_state.current_data = None
+                    st.rerun()
         
         st.divider()
         if st.button("⬅️ VOLVER AL MENÚ"):
@@ -1405,4 +1421,5 @@ if st.session_state.page == 'game':
                 for r in errores_sel:
                     engine.feedback_history.append(reasons_map[r])
                 st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
+
 # ### --- FIN PARTE 6 ---
