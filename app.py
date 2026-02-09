@@ -1047,7 +1047,11 @@ with st.sidebar:
     fase_default = 0 if engine.study_phase == "Pre-Guía" else 1
     fase = st.radio("Fase:", ["Pre-Guía", "Post-Guía"], index=fase_default)
     engine.study_phase = fase
-
+# --- CONTROL DE INTENSIDAD (MODO SALVAJE) ---
+    st.markdown("#### 🔥 INTENSIDAD")
+    wild = st.checkbox("Activar MODO SALVAJE (Ganar XP)", value=False, help="Solo en este modo tus aciertos suman puntos de maestría.")
+    st.session_state.wild_mode = wild
+    # --------------------------------------------
     st.markdown("#### 🔧 ESTRUCTURA")
     col1, col2 = st.columns(2)
     with col1:
