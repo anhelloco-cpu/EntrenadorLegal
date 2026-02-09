@@ -1367,19 +1367,27 @@ if st.session_state.page == 'game':
                     letra_sel = sel.split(")")[0]
                     full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
                     
-                    key_maestria = engine.current_article_label.strip().upper()
-                    if " - ITEM" in key_maestria:
-                        key_maestria = key_maestria.split(" - ITEM")[0].strip()
+# --- LÓGICA DE IDENTIDAD ÚNICA (CORREGIDA) ---
+                    label_raw = engine.current_article_label.strip().upper()
                     
-                    if "ARTÍCULO" not in key_maestria and "BLOQUE" not in key_maestria and "ITEM" not in key_maestria:
-                        key_maestria = engine.current_chunk_idx
+                    # 1. Normalizamos (Quitamos tildes para que detecte 'ARTICULO' siempre)
+                    check_norm = label_raw.replace("Á","A").replace("É","E").replace("Í","I").replace("Ó","O").replace("Ú","U")
+                    
+                    # 2. Extraemos el nombre base (Sin el ITEM adicional)
+                    if " - ITEM" in label_raw:
+                        key_maestria = label_raw.split(" - ITEM")[0].strip()
+                    else:
+                        key_maestria = label_raw
 
+                    # 3. Solo usamos el índice del bloque si NO es un artículo real
+                    if "ARTICULO" not in check_norm and "BLOQUE" not in check_norm and "ITEM" not in check_norm:
+                        key_maestria = engine.current_chunk_idx
                     # Validar Respuesta
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
                         
                         # FILTRO: SOLO SUMA PUNTOS SI EL MODO SALVAJE ESTÁ ACTIVO
-                        es_modo_salvaje = st.session_state.get('wild_mode', False)
+                        es_modo_salvaje = True
 
                         if es_modo_salvaje:
                             maestria_previa = engine.mastery_tracker.get(key_maestria, 0)
