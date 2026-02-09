@@ -55,6 +55,24 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    /* --- CONTROLES DE TAMAÑO DE LETRA --- */
+    
+    /* A. TAMAÑO DE LA PREGUNTA (Modifica el 26 por el que quieras) */
+    div[data-testid="stRadio"] > label {
+        font-size: 26px !important; 
+        font-weight: bold !important;
+        color: #1E1E1E !important;
+        line-height: 1.3 !important;
+        padding-bottom: 10px !important;
+    }
+
+    /* B. TAMAÑO DE LAS OPCIONES (Modifica el 22 por el que quieras) */
+    div[data-testid="stRadio"] div[role="radiogroup"] label p {
+        font-size: 22px !important; 
+        line-height: 1.4 !important;
+        color: #333 !important;
+    }
+
     /* Estilo para botones principales en negro elegante */
     .stButton>button {
         width: 100%; 
@@ -82,7 +100,7 @@ st.markdown("""
         border-left: 6px solid #424242; 
         margin-bottom: 25px;
         font-family: 'Georgia', serif; 
-        font-size: 1.15em; 
+        font-size: 1.3em !important; 
         line-height: 1.6;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
