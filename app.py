@@ -1304,7 +1304,7 @@ if st.session_state.page == 'game':
         
         form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
         
-with st.form(key=form_key):
+	with st.form(key=form_key):
             # 1. Mostrar Opciones
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()], index=None)
