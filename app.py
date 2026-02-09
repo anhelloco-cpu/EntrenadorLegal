@@ -1304,43 +1304,45 @@ if st.session_state.page == 'game':
         
         form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
         
-        with st.form(key=form_key):
+with st.form(key=form_key):
+            # 1. Mostrar Opciones
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()], index=None)
             
+            # 2. Botones de Acción
             col_val, col_skip = st.columns([1, 1])
             with col_val:
                 submitted = st.form_submit_button("✅ VALIDAR RESPUESTA")
             with col_skip:
                 skipped = st.form_submit_button("⏭️ SALTAR (BLOQUEAR)")
             
+            # 3. Lógica de Salto
             if skipped: 
-                # Bloqueo inteligente: Usa el nombre real para la lista negra
                 key_bloqueo = engine.current_article_label.split(" - ITEM")[0].strip()
                 engine.temporary_blacklist.add(key_bloqueo)
                 st.session_state.current_data = None; st.rerun()
 
+            # 4. Lógica de Validación (FILTRO DE HIERRO INTEGRADO)
             if submitted:
                 if not sel:
                     st.warning("⚠️ Debes seleccionar una opción primero.")
                 else:
-                    # Cálculo de variables (DENTRO del else)
+                    # A) Preparar Variables
                     letra_sel = sel.split(")")[0]
                     full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
                     
-                    # Definición de clave de maestría
                     key_maestria = engine.current_article_label.strip().upper()
                     if " - ITEM" in key_maestria:
                         key_maestria = key_maestria.split(" - ITEM")[0].strip()
                     
                     if "ARTÍCULO" not in key_maestria and "BLOQUE" not in key_maestria and "ITEM" not in key_maestria:
-                         key_maestria = engine.current_chunk_idx
+                            key_maestria = engine.current_chunk_idx
 
-                    # --- INICIO VALIDACIÓN BLINDADA (Todo alineado bajo el else) ---
+                    # B) Validar Respuesta
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
                         
-                        # FILTRO DE HIERRO: SOLO MAESTRÍA EN MODO SALVAJE
+                        # --- EL FILTRO: SOLO SUMA PUNTOS SI EL MODO SALVAJE ESTÁ ACTIVO ---
                         es_modo_salvaje = st.session_state.get('wild_mode', False)
 
                         if es_modo_salvaje:
@@ -1354,7 +1356,7 @@ if st.session_state.page == 'game':
                         else:
                             st.info("💡 Acierto en Modo Normal: **No suma puntos de maestría**.")
 
-                        # Gestión de etiquetas visuales
+                        # Gestión de etiquetas visuales (Sidebar)
                         if engine.current_article_label != "General":
                             if full_tag in engine.failed_articles: engine.failed_articles.remove(full_tag)
                             if engine.mastery_tracker.get(key_maestria, 0) == 2:
@@ -1373,14 +1375,12 @@ if st.session_state.page == 'game':
                             if full_tag in engine.mastered_articles: engine.mastered_articles.remove(full_tag)
                             engine.failed_articles.add(full_tag)
                     
-                    # Explicación técnica
+                    # C) Mostrar Explicación Final
                     st.info(q['explicacion'])
                     if 'tip_final' in q and q['tip_final']:
                         st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
                     
                     st.session_state.answered = True
-
-        if st.session_state.answered:
             if st.session_state.q_idx < len(q_list) - 1:
                 if st.button("Siguiente"): st.session_state.q_idx += 1; st.session_state.answered = False; st.rerun()
             else:
