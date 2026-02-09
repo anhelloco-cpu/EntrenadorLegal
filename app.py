@@ -1262,6 +1262,7 @@ with st.sidebar:
         }
         st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
 # ### --- FIN PARTE 5 ---
+
 # ### --- INICIO PARTE 6: CICLO PRINCIPAL DEL JUEGO (GAME LOOP) ---
 # ==========================================
 # CICLO PRINCIPAL DEL JUEGO
@@ -1280,7 +1281,7 @@ if st.session_state.page == 'game':
     st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **{subtitulo}**")
     st.progress(perc/100)
 
-    # Generación de Caso si no existe
+    # 1. GENERACIÓN DEL CASO (Si no existe)
     if not st.session_state.get('current_data'):
         msg = f"🧠 Analizando {engine.current_article_label} - NIVEL {engine.level.upper()}..."
         with st.spinner(msg):
@@ -1297,7 +1298,7 @@ if st.session_state.page == 'game':
                 st.button("Reintentar", on_click=st.rerun)
                 st.stop()
 
-    # Mostrar Narrativa
+    # 2. MOSTRAR NARRATIVA Y PREGUNTA
     data = st.session_state.current_data
     narrativa = data.get('narrativa_caso','Error')
     st.markdown(f"<div class='narrative-box'><h4>🏛️ {engine.entity}</h4>{narrativa}</div>", unsafe_allow_html=True)
@@ -1309,31 +1310,32 @@ if st.session_state.page == 'game':
         
         form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
         
+        # --- AQUÍ EMPIEZA EL FORMULARIO (Espacios corregidos) ---
         with st.form(key=form_key):
-            # 1. Mostrar Opciones
+            # A. Mostrar Opciones
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()], index=None)
             
-            # 2. Botones de Acción
+            # B. Botones de Acción
             col_val, col_skip = st.columns([1, 1])
             with col_val:
                 submitted = st.form_submit_button("✅ VALIDAR RESPUESTA")
             with col_skip:
                 skipped = st.form_submit_button("⏭️ SALTAR (BLOQUEAR)")
             
-            # 3. Lógica de Salto
+            # C. Lógica de Salto (Skip)
             if skipped: 
                 key_bloqueo = engine.current_article_label.split(" - ITEM")[0].strip()
                 engine.temporary_blacklist.add(key_bloqueo)
                 st.session_state.current_data = None
                 st.rerun()
 
-            # 4. Lógica de Validación (FILTRO DE HIERRO INTEGRADO)
+            # D. Lógica de Validación (FILTRO DE HIERRO INTEGRADO)
             if submitted:
                 if not sel:
                     st.warning("⚠️ Debes seleccionar una opción primero.")
                 else:
-                    # A) Preparar Variables
+                    # Preparar Variables
                     letra_sel = sel.split(")")[0]
                     full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
                     
@@ -1344,11 +1346,11 @@ if st.session_state.page == 'game':
                     if "ARTÍCULO" not in key_maestria and "BLOQUE" not in key_maestria and "ITEM" not in key_maestria:
                         key_maestria = engine.current_chunk_idx
 
-                    # B) Validar Respuesta
+                    # Validar Respuesta
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
                         
-                        # --- EL FILTRO: SOLO SUMA PUNTOS SI EL MODO SALVAJE ESTÁ ACTIVO ---
+                        # FILTRO: SOLO SUMA PUNTOS SI EL MODO SALVAJE ESTÁ ACTIVO
                         es_modo_salvaje = st.session_state.get('wild_mode', False)
 
                         if es_modo_salvaje:
@@ -1362,7 +1364,7 @@ if st.session_state.page == 'game':
                         else:
                             st.info("💡 Acierto en Modo Normal: **No suma puntos de maestría**.")
 
-                        # Gestión de etiquetas visuales (Sidebar)
+                        # Gestión de etiquetas visuales
                         if engine.current_article_label != "General":
                             if full_tag in engine.failed_articles: 
                                 engine.failed_articles.remove(full_tag)
@@ -1372,7 +1374,7 @@ if st.session_state.page == 'game':
                     else: 
                         st.error(f"Incorrecto. Era {q['respuesta']}")
                         
-                        # Penalización técnica
+                        # Penalización
                         engine.failed_indices.add(engine.current_chunk_idx)
                         if engine.chunk_embeddings is not None:
                             engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
@@ -1383,14 +1385,14 @@ if st.session_state.page == 'game':
                                 engine.mastered_articles.remove(full_tag)
                             engine.failed_articles.add(full_tag)
                     
-                    # C) Mostrar Explicación Final
+                    # Mostrar Explicación Final
                     st.info(q['explicacion'])
                     if 'tip_final' in q and q['tip_final']:
                         st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
                     
                     st.session_state.answered = True
 
-        # Botones de navegación (aparecen después de responder)
+        # 3. NAVEGACIÓN (Fuera del Formulario)
         if st.session_state.answered:
             if st.session_state.q_idx < len(q_list) - 1:
                 if st.button("Siguiente Pregunta"): 
@@ -1407,7 +1409,7 @@ if st.session_state.page == 'game':
             st.session_state.page = 'setup'
             st.rerun()
 
-        # --- CALIBRACIÓN MANUAL ---
+        # 4. CALIBRACIÓN MANUAL
         with st.expander("🛠️ CALIBRACIÓN MANUAL", expanded=True):
             reasons_map = {
                 "Muy Fácil": "pregunta_facil",
