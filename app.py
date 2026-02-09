@@ -613,8 +613,12 @@ class LegalEngineTITAN:
                     end_pos = min(len(texto_base), start_pos + 4000)
 
                 texto_final_ia = texto_base[start_pos:end_pos] 
-                self.current_article_label = seleccion.group(0).strip()[:60]
-
+		# 🧼 LIMPIADOR DE ORDINALES: Transforma "Articulo 1o." en "ARTICULO 1"
+                raw_tag = seleccion.group(0).strip().upper()
+                # Esta regex quita los símbolos º, °, el punto y la 'o' u 'O' que sobra al final de los números
+                clean_tag = re.sub(r'(\d+)[º°\.oOª\s]+', r'\1', raw_tag, flags=re.I).strip()
+                
+                self.current_article_label = clean_tag[:60]
                 # --- MICRO-SEGMENTACIÓN ---
                 patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
                 sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
