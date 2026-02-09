@@ -614,8 +614,8 @@ class LegalEngineTITAN:
             self.current_article_label = "General"
             texto_final_ia = texto_base[:4000]
 
-        # --- CEREBRO: MODO PESADILLA (SEMÁFORO SINCRONIZADO) ---
-        # Buscamos la maestría por Nombre (Identidad) para que coincida con Parte 3 y 6
+   # --- CEREBRO: MODO PESADILLA (NIVEL DIOS - 9 CAPITANES HOSTILES) ---
+        # Buscamos la maestría por Nombre (Identidad)
         key_maestria = self.current_article_label.split(" - ITEM")[0].strip().upper()
         if "ARTÍCULO" not in key_maestria and "ITEM" not in key_maestria: key_maestria = self.current_chunk_idx
         
@@ -624,11 +624,15 @@ class LegalEngineTITAN:
         
         if maestria_actual >= 1:
             instruccion_pesadilla = """
-            🔥 ALERTA MODO PESADILLA ACTIVADO (CAPITÁN PESADILLA):
-            El usuario ya domina la base. PROHIBIDO hacer preguntas directas o literales.
-            TU MISIÓN: Busca el parágrafo más oscuro, la excepción a la regla o un caso de frontera.
-            OPCIONES: Las incorrectas deben ser 'Gemelos Legales' (conceptos que parecen correctos pero no aplican aquí).
-            DIFICULTAD: 10/10.
+            🔥 ALERTA DE MAESTRÍA (MODO PESADILLA ACTIVO):
+            El usuario ya dominó el concepto básico. AHORA ACTIVAR PROTOCOLO DE ALTA COMPLEJIDAD:
+            
+            1. 🎯 OBJETIVO (CAPITÁN SNIPER): IGNORA la regla general del artículo. Busca el PARÁGRAFO, la EXCEPCIÓN o la nota de vigencia más oscura. Pregunta por lo que "NO" se puede hacer o la excepción a la regla.
+            2. 👯 TRAMPAS (CAPITÁN GEMELOS): Las opciones incorrectas NO pueden ser errores obvios. Tienen que ser 'Gemelos Legales': frases que son CORRECTAS en otros contextos o artículos vecinos, pero que NO aplican a este caso específico por un detalle técnico.
+            3. 💥 LÓGICA (CAPITÁN COLISIÓN): Plantea un "Caso de Frontera": una situación donde dos normas parecen chocar. La respuesta correcta es la que aplica el principio de especialidad o jerarquía.
+            4. 🚫 PROHIBIDO: Preguntas de memoria literal. La pregunta debe obligar a DESCOMPONER el caso para encontrar el error de procedimiento.
+            
+            DIFICULTAD: 11/10 (Rompe-Ranking). Si la respuesta es obvia, has fallado. El usuario debe dudar entre dos opciones hasta el final.
             """
 
       # --- NUEVO: CONFIGURACIÓN TÉCNICA (GUÍA CGR - PÁG 14-18) ---
