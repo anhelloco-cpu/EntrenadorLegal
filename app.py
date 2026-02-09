@@ -1319,7 +1319,7 @@ if st.session_state.page == 'game':
                 key_bloqueo = engine.current_article_label.split(" - ITEM")[0].strip()
                 engine.temporary_blacklist.add(key_bloqueo)
                 st.session_state.current_data = None; st.rerun()
-			if submitted:
+	if submitted:
                 if not sel:
                     st.warning("⚠️ Debes seleccionar una opción primero.")
                 else:
@@ -1404,5 +1404,4 @@ if st.session_state.page == 'game':
                 for r in errores_sel:
                     engine.feedback_history.append(reasons_map[r])
                 st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
-
 # ### --- FIN PARTE 6 ---
