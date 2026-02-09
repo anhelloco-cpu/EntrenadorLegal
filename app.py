@@ -59,7 +59,7 @@ st.markdown("""
     
     /* A. TAMAÑO DE LA PREGUNTA (Modifica el 26 por el que quieras) */
     div[data-testid="stRadio"] > label {
-        font-size: 26px !important; 
+        font-size: 30px !important; 
         font-weight: bold !important;
         color: #1E1E1E !important;
         line-height: 1.3 !important;
@@ -1441,5 +1441,6 @@ if st.session_state.page == 'game':
                 for r in errores_sel:
                     engine.feedback_history.append(reasons_map[r])
                 st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
+
 
 # ### --- FIN PARTE 6 ---
