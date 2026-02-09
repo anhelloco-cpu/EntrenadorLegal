@@ -631,7 +631,31 @@ class LegalEngineTITAN:
             DIFICULTAD: 10/10.
             """
 
-        dificultad_prompt = f"NIVEL: {self.level.upper()}."
+      # --- NUEVO: CONFIGURACIÓN TÉCNICA (GUÍA CGR - PÁG 14-18) ---
+        # Mapeo de niveles jerárquicos a niveles de desarrollo y Bloom
+        config_nivel = {
+            "Asistencial": {
+                "dev": "BÁSICO", 
+                "bloom": "NIVEL 1-2 (Recuerdo/Comprensión)", 
+                "focus": "ejecución de tareas operativas y procesos administrativos simples."
+            },
+            "Técnico": {
+                "dev": "INTERMEDIO", 
+                "bloom": "NIVEL 3 (Aplicación)", 
+                "focus": "aplicación de tecnologías y resolución de problemas específicos del cargo."
+            },
+            "Profesional": {
+                "dev": "AVANZADO", 
+                "bloom": "NIVEL 4 (Análisis)", 
+                "focus": "Análisis de Errores, relación y generalización en contextos complejos."
+            },
+            "Asesor": {
+                "dev": "AVANZADO", 
+                "bloom": "NIVEL 4 (Análisis)", 
+                "focus": "criterios de alta gerencia, discrecionalidad técnica e impacto institucional."
+            }
+        }
+        meta = config_nivel.get(self.level, config_nivel["Profesional"])
         
         # --- LÓGICA CONDICIONAL DE ESTRUCTURA (TOGGLE: SIN CASO vs CON CASO) ---
         # AQUÍ ES DONDE EL CÓDIGO DECIDE SI FUSIONA (CGR) O SEPARA (CNSC)
@@ -722,15 +746,25 @@ class LegalEngineTITAN:
             perfil_mision = self.mission_profiles.get(self.entity, self.mission_profiles.get("Genérico", "Experto Legal"))
             mision_entidad = f"ROL INSTITUCIONAL (AUTOMÁTICO): {perfil_mision}"
 
-        # 3. REGLA MAESTRA DE MIMESIS (NUEVO: DISECCIÓN SINTÁCTICA FORZADA)
+	# 3. REGLA MAESTRA DE MIMESIS (ADAPTABLE: CGR vs CNSC)
         instruccion_mimesis = ""
         if self.study_phase == "Post-Guía" and self.example_question:
+            # Detectamos si el usuario quiere bloque único o separado
+            es_bloque_unico = "Sin Caso" in self.structure_type
+            
+            estilo_final = "Fusión total en un solo párrafo denso (Bloque Único)." if es_bloque_unico else "Estructura separada (Caso + Pregunta), pero manteniendo el tono seco del molde."
+            
             instruccion_mimesis = f"""
             ⚠️ FASE DE DISECCIÓN ESTRUCTURAL (OBLIGATORIA):
-            Antes de redactar la pregunta, analiza gramaticalmente este molde de excelencia: '''{self.example_question}'''
-            1. Identifica los conectores que usa (ej: 'En ese sentido', 'Por consiguiente', 'Dadas las condiciones').
-            2. Mapea el flujo lógico: [Marco Conceptual] -> [Restricción del Escenario] -> [Nudo de Procedibilidad].
-            3. TU MISIÓN: Replica exactamente este ritmo sintáctico. El enunciado resultante debe sentirse como si lo hubiera escrito la misma persona que el ejemplo.
+            Analiza el molde de excelencia: '''{self.example_question}'''
+            
+            TU MISIÓN: Replica su 'RITMO DE TRES ACTOS' bajo este formato: {estilo_final}
+            1. ACTO 1 (MARCO): Definición técnica/jurídica abstracta.
+            2. ACTO 2 (RESTRICCIÓN): Limitación legal usando conectores como 'La legislación establece'.
+            3. ACTO 3 (NUDO): Conector 'En ese sentido, es imperativo advertir que...' + aplicación al caso.
+
+            🚫 PROHIBICIÓN: Si seleccionaste 'Con Caso', NO uses 'Ante la situación descrita'. 
+            Empieza el 'narrativa_caso' directamente con el ACTO 1 y deja el ACTO 3 para el 'enunciado'.
             """
 
         # 4. FEEDBACK (LOS CAPITANES REACTIVOS)
@@ -747,18 +781,24 @@ class LegalEngineTITAN:
             if instrucciones_correccion:
                 feedback_instr = "CORRECCIONES DEL USUARIO (PRIORIDAD MAXIMA): " + " ".join(instrucciones_correccion)
 
-        # PROMPT FINAL (9 CAPITANES ROMPE-RANKING + ESTRUCTURA DINÁMICA)
+	# PROMPT FINAL (ADN INTEGRADO - ADAPTABLE A CUALQUIER ENTIDAD)
         prompt = f"""
-        ACTÚA COMO UN EVALUADOR JEFE DE LA CONTRALORÍA GENERAL (NIVEL {self.level.upper()}).
-        ENTIDAD: {self.entity.upper()}.
+        ACTÚA COMO UN EVALUADOR JEFE DE {self.entity.upper()} PARA EL NIVEL {self.level.upper()}.
         TIPO DE DOCUMENTO: {self.doc_type.upper()}.
+        
+        REQUERIMIENTOS TÉCNICOS OBLIGATORIOS (GUÍA DE ORIENTACIÓN):
+        1. NIVEL DE DESARROLLO DE COMPETENCIA: {meta['dev']}. 
+        2. DIMENSIÓN COGNITIVA (BLOOM): {meta['bloom']}.
+        3. FOCO EVALUATIVO: La pregunta debe centrarse en la {meta['focus']}
+        
+       METODOLOGÍA DE CONSTRUCCIÓN (NIVEL DE ESFUERZO):
+        - ANÁLISIS DE ERRORES (Nivel 4): Si el nivel es Profesional/Asesor, el usuario debe descomponer el todo en sus partes. La pregunta debe obligar a identificar qué requisito legal NO se cumple o qué principio prevalece en una colisión técnica.
+        - APLICACIÓN DIRECTA (Nivel 3): Si el nivel es Asistencial/Técnico, el usuario debe seleccionar y utilizar principios para ejecutar una tarea o resolver un problema específico.
         
         {mision_entidad}
         {contexto_funcional}
         {instruccion_pesadilla}
         {instruccion_mimesis}
-        
-        {dificultad_prompt}
         {instruccion_estilo}
         {instruccion_trampas}
         {feedback_instr}
