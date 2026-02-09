@@ -1319,57 +1319,60 @@ if st.session_state.page == 'game':
                 key_bloqueo = engine.current_article_label.split(" - ITEM")[0].strip()
                 engine.temporary_blacklist.add(key_bloqueo)
                 st.session_state.current_data = None; st.rerun()
-
-            if submitted:
+	if submitted:
                 if not sel:
                     st.warning("⚠️ Debes seleccionar una opción primero.")
                 else:
+                    # Cálculo de variables (DENTRO del else)
                     letra_sel = sel.split(")")[0]
                     full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
                     
-                    # --- DEFINICIÓN DE CLAVE DE MAESTRÍA (SOLDADURA FINAL) ---
-                    # Usamos el nombre del artículo para que coincida con el Censo de Parte 3
+                    # Definición de clave de maestría
                     key_maestria = engine.current_article_label.strip().upper()
-                    if " - ITEM" in key_maestria: # Si es un sub-item, sumamos al padre
+                    if " - ITEM" in key_maestria:
                         key_maestria = key_maestria.split(" - ITEM")[0].strip()
                     
-                    # Si por alguna razón es "General", usamos el índice como fallback
                     if "ARTÍCULO" not in key_maestria and "BLOQUE" not in key_maestria and "ITEM" not in key_maestria:
                          key_maestria = engine.current_chunk_idx
 
+                    # --- INICIO VALIDACIÓN BLINDADA (Todo alineado bajo el else) ---
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
                         
-                        # --- LÓGICA DE SEMÁFORO (0->1->2) CON CLAVE DE IDENTIDAD ---
-                        maestria_previa = engine.mastery_tracker.get(key_maestria, 0)
-                        
-                        if maestria_previa < 1:
-                            # Primer acierto: Pasa a AMARILLO
-                            engine.mastery_tracker[key_maestria] = 1
-                            st.toast("🟡 ARTÍCULO EN AMARILLO. Siguiente: MODO PESADILLA.", icon="🟡")
-                        else:
-                            # Segundo acierto: Pasa a VERDE (Dominado)
-                            engine.mastery_tracker[key_maestria] = 2
-                            st.toast("🟢 ¡DOMINADO! Artículo en Verde.", icon="🟢")
+                        # FILTRO DE HIERRO: SOLO MAESTRÍA EN MODO SALVAJE
+                        es_modo_salvaje = st.session_state.get('wild_mode', False)
 
+                        if es_modo_salvaje:
+                            maestria_previa = engine.mastery_tracker.get(key_maestria, 0)
+                            if maestria_previa < 1:
+                                engine.mastery_tracker[key_maestria] = 1
+                                st.toast("🟡 MAESTRÍA +1 (Modo Salvaje).", icon="🔥")
+                            else:
+                                engine.mastery_tracker[key_maestria] = 2
+                                st.toast("🟢 ¡DOMINADO EN SALVAJE!", icon="🏆")
+                        else:
+                            st.info("💡 Acierto en Modo Normal: **No suma puntos de maestría**.")
+
+                        # Gestión de etiquetas visuales
                         if engine.current_article_label != "General":
                             if full_tag in engine.failed_articles: engine.failed_articles.remove(full_tag)
-                            # Sidebar solo muestra si es Verde (Nivel 2)
                             if engine.mastery_tracker.get(key_maestria, 0) == 2:
                                 engine.mastered_articles.add(full_tag)
+                    
                     else: 
                         st.error(f"Incorrecto. Era {q['respuesta']}")
                         
-                        # Penalización: Guardamos el fallo en el índice para Embeddings
+                        # Penalización técnica
                         engine.failed_indices.add(engine.current_chunk_idx)
                         if engine.chunk_embeddings is not None:
                             engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
                         
-                        # Penalización Visual: Etiqueta Roja
+                        # Penalización visual
                         if engine.current_article_label != "General":
                             if full_tag in engine.mastered_articles: engine.mastered_articles.remove(full_tag)
                             engine.failed_articles.add(full_tag)
                     
+                    # Explicación técnica
                     st.info(q['explicacion'])
                     if 'tip_final' in q and q['tip_final']:
                         st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
