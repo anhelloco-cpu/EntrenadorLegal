@@ -971,14 +971,15 @@ class LegalEngineTITAN:
                                 nueva_letra_respuesta = letra
                                 estado = "✅ CORRECTA"
                             
-		    # 1. Limpiamos el texto para quitar la letra (A, B, C...) que escribió la IA
-                    texto_puro = re.sub(r'^(?:La opción\s+[A-D]\s+es\s+(?:correcta|incorrecta)(?:\s+porque)?\s*[:\.]?\s*|^\s*[A-D]\s*[:\.]\s*)', '', item["explicacion"], flags=re.IGNORECASE).strip()
-                    # 2. Aseguramos que empiece con mayúscula
-                    texto_puro = texto_puro[0].upper() + texto_puro[1:] if texto_puro else "Sin detalle."
+                            # 1. Limpiamos el texto para quitar la letra (A, B, C...) que escribió la IA
+                            texto_puro = re.sub(r'^(?:La opción\s+[A-D]\s+es\s+(?:correcta|incorrecta)(?:\s+porque)?\s*[:\.]?\s*|^\s*[A-D]\s*[:\.]\s*)', '', item["explicacion"], flags=re.IGNORECASE).strip()
+                            # 2. Aseguramos que empiece con mayúscula
+                            texto_puro = texto_puro[0].upper() + texto_puro[1:] if texto_puro else "Sin detalle."
+                            
+                            # 3. Acumulamos la explicación limpia
+                            texto_final_explicacion += f"**({letra}) {estado}:** {texto_puro}\n\n"
                     
-                    # 3. Esta es la línea que reemplaza a la tuya (usando el texto ya limpio)
-                    texto_final_explicacion += f"**({letra}) {estado}:** {texto_puro}\n\n"
-                    
+                    # --- CORRECCIÓN: ESTAS LÍNEAS VAN AFUERA DEL BUCLE 'for i' ---
                     q['opciones'] = nuevas_ops
                     q['respuesta'] = nueva_letra_respuesta
                     q['explicacion'] = texto_final_explicacion
