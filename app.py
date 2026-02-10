@@ -1328,16 +1328,41 @@ with st.sidebar:
         st.session_state.page = 'game'
         st.rerun()
     
+# Al final de la barra lateral (Sidebar)
     if engine.chunks:
         full_save_data = {
-            "chunks": engine.chunks, "mastery": engine.mastery_tracker, "failed": list(engine.failed_indices),
-            "feed": engine.feedback_history, "ent": engine.entity, "axis": engine.thematic_axis,
-            "lvl": engine.level, "phase": engine.study_phase, "ex_q": engine.example_question, "job": engine.job_functions,
-            "struct_type": engine.structure_type, "q_per_case": engine.questions_per_case,
-            "sections": engine.sections_map, "act_sec": engine.active_section_name,
-            "seen_arts": list(engine.seen_articles), "failed_arts": list(engine.failed_articles), "mastered_arts": list(engine.mastered_articles)
+            # --- 1. MEMORIA CENTRAL (TEXTO Y PROGRESO) ---
+            "chunks": engine.chunks,
+            "mastery": engine.mastery_tracker,        # Tus medallas (0, 1, 2)
+            "failed": list(engine.failed_indices),    # Tus errores técnicos
+
+            # --- 2. CONFIGURACIÓN DEL USUARIO ---
+            "feed": engine.feedback_history,          # Ajustes de la IA
+            "ent": engine.entity,                     # Entidad (Contraloría, etc.)
+            "axis": engine.thematic_axis,             # El Eje Temático [LEY 1755]
+            "lvl": engine.level,                      # Nivel (Profesional, etc.)
+            "phase": engine.study_phase,              # Fase (Pre/Post)
+            "struct_type": engine.structure_type,     # Sin Caso / Con Caso
+            "q_per_case": engine.questions_per_case,  # Preguntas por caso
+
+            # --- 3. CONTEXTO DE ROL (ESTO FALTABA) ---
+            "job": engine.job_functions,              # Lo que se ve en la caja de texto
+            "manual_clean": getattr(engine, 'manual_text', ""), # ¡CRÍTICO! El ADN purificado oculto
+
+            # --- 4. MAPA DE NAVEGACIÓN ---
+            "sections": engine.sections_map,          # Mapa de la ley
+            "act_sec": engine.active_section_name,    # Dónde te quedaste
+            "ex_q": engine.example_question,          # Tu ejemplo de estilo
+
+            # --- 5. RASTREO VISUAL Y BLOQUEOS (ESTO FALTABA) ---
+            "seen_arts": list(engine.seen_articles),          # Artículos vistos
+            "failed_arts": list(engine.failed_articles),      # Lista Roja visual
+            "mastered_arts": list(engine.mastered_articles),  # Lista Verde visual
+            "blacklist": list(engine.temporary_blacklist)     # ¡IMPORTANTE! Lo que bloqueaste con el botón SALTAR
         }
-        st.download_button("💾 Guardar Progreso", json.dumps(full_save_data), "backup_titan_full.json")
+        
+        st.divider()
+        st.download_button("💾 Guardar Progreso Total", json.dumps(full_save_data), "backup_titan_full.json", type="primary")
 # ### --- FIN PARTE 5 ---
 
 # ### --- INICIO PARTE 6: CICLO PRINCIPAL DEL JUEGO (GAME LOOP) ---
