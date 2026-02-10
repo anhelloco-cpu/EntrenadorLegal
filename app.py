@@ -619,12 +619,14 @@ class LegalEngineTITAN:
                 start_pos = seleccion.start()
                 current_match_index = matches.index(seleccion)
                 
-                if current_match_index + 1 < len(matches):
-                    end_pos = matches[current_match_index + 1].start()
-                else:
-                    end_pos = min(len(texto_base), start_pos + 4000)
+                # AJUSTE LOWI HERRERA: En lugar de cortar en el siguiente artículo, 
+                # le damos una ventana de 8,000 caracteres para que "lea más" y pueda integrar temas.
+                
+                context_window = 8000 
+                end_pos = min(len(texto_base), start_pos + context_window)
 
-                texto_final_ia = texto_base[start_pos:end_pos] 
+                # El texto final ahora contiene el artículo seleccionado Y los artículos que le siguen
+                texto_final_ia = texto_base[start_pos:end_pos]
                 # Construimos la etiqueta MANUALMENTE usando solo el número limpio del Grupo 1
                 num_limpio = seleccion.group(1).strip().upper()
                 self.current_article_label = f"ARTICULO {num_limpio}"
