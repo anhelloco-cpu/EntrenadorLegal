@@ -1209,31 +1209,30 @@ with st.sidebar:
         if upl is not None:
             if 'last_loaded' not in st.session_state or st.session_state.last_loaded != upl.name:
                 try:
+
                     d = json.load(upl)
                     engine.chunks = d['chunks']
                     
-                    # --- SINCRONIZADOR DE IDENTIDAD PROTEGIDA (Respeta el Eje Temático) ---
+                    # --- SINCRONIZADOR DE IDENTIDAD (Mantiene el formato [EJE] ARTICULO X) ---
                     def clean_full_identity(k):
                         k_str = str(k).upper()
-                        # 1. Rescatamos el Eje (lo que está entre [])
                         match_eje = re.search(r'(\[.*?\])', k_str)
-                        # Si no tiene corchetes, usamos el eje actual del motor como respaldo
                         eje_prefix = match_eje.group(1) if match_eje else f"[{engine.thematic_axis.upper()}]"
-                        
-                        # 2. Limpiamos solo el número del artículo (quitamos º, o, ., etc.)
                         match_art = re.search(r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', k_str)
-                        if match_art:
-                            return f"{eje_prefix} ARTICULO {match_art.group(1)}"
-                        
-                        return k_str # Si es un bloque de manual, se deja igual
+                        if match_art: return f"{eje_prefix} ARTICULO {match_art.group(1)}"
+                        return k_str
 
-                    # Aplicamos la limpieza manteniendo la estructura [EJE] ARTICULO X
+                    # Carga de Progreso Visual
                     engine.mastery_tracker = {clean_full_identity(k): v for k, v in d['mastery'].items()}
                     engine.seen_articles = set(clean_full_identity(a) for a in d.get('seen_arts', []))
                     engine.failed_articles = set(clean_full_identity(a) for a in d.get('failed_arts', []))
                     engine.mastered_articles = set(clean_full_identity(a) for a in d.get('mastered_arts', []))
                     
-                    # --- RESTO DE VARIABLES (Mantenemos tu lógica intacta) ---
+                    # --- NUEVO: RECUPERACIÓN DE BLOQUEOS Y ADN ---
+                    engine.temporary_blacklist = set(d.get('blacklist', [])) # Recupera lo que bloqueaste
+                    engine.manual_text = d.get('manual_clean', "")           # Recupera el ADN purificado
+                    
+                    # --- RESTO DE VARIABLES ---
                     engine.failed_indices = set(d['failed'])
                     engine.feedback_history = d.get('feed', [])
                     engine.entity = d.get('ent', "")
@@ -1252,8 +1251,9 @@ with st.sidebar:
                              engine.chunk_embeddings = dl_model.encode(engine.chunks)
 
                     st.session_state.last_loaded = upl.name
-                    st.success("¡Backup Cargado con Identidad Completa!")
+                    st.success("¡Backup Total Cargado!")
                     time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+
                 except Exception as e: 
                     st.error(f"Error al leer: {e}")
 
