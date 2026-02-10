@@ -363,7 +363,7 @@ class LegalEngineTITAN:
             p_cap = rf'^\s*(?:(?:CAPÍTULO|CAPITULO)\s+{p_word_num}|\d+\.)\b'
             p_sec = rf'^\s*(SECCIÓN|SECCION)\s+{p_word_num}\b'
             # Soporte total para artículos: ARTICULO 1º, ARTÍCULO 1o., ARTICULO 1.
-            p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
+            p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[º°\.o]?|[IVXLCDM]+)\b'
 
             for i in range(len(lineas)):
                 linea_raw = lineas[i]
@@ -497,7 +497,7 @@ class LegalEngineTITAN:
         
         # 1. DEFINIR PATRÓN DE BÚSQUEDA
         if self.doc_type == "Norma (Leyes/Decretos)":
-            p_censo = r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
+            p_censo = r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*(?:\d+[º°\.o]?|[IVXLCDM]+)\b'
         else:
             p_censo = r'^\s*\d+(?:\.\d+)+\b' 
             
@@ -510,8 +510,8 @@ class LegalEngineTITAN:
             # Si dice INEXEQUIBLE, DEROGADO o NULO cerca, NO LO CONTAMOS
             if "INEXEQUIBLE" in ventana_contexto or "DEROGADO" in ventana_contexto or "NULO" in ventana_contexto:
                 continue
-	    # Guardamos LIMPIO: Palabra "ARTICULO" + Número (sin la O)
-            items_validos.append(f"ARTICULO {match.group(1).upper()}")
+                
+            items_validos.append(match.group(0).strip().upper())
 
         items_unicos = set(items_validos)
         
@@ -574,8 +574,7 @@ class LegalEngineTITAN:
         matches = []
         
         if self.doc_type == "Norma (Leyes/Decretos)":
-            # Regex Protectora: Grupo 1 captura Romano o Número; ignora la basura final (º, o, O, .)
-            p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
+            p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[º°\.o]?|[IVXLCDM]+)\b'
             matches = list(re.finditer(p_art, texto_base, re.IGNORECASE | re.MULTILINE))
             
         elif self.doc_type == "Guía Técnica / Manual":
@@ -613,13 +612,9 @@ class LegalEngineTITAN:
                 else:
                     end_pos = min(len(texto_base), start_pos + 4000)
 
-                texto_final_ia = texto_base[start_pos:end_pos]
+                texto_final_ia = texto_base[start_pos:end_pos] 
+                self.current_article_label = seleccion.group(0).strip()[:60]
 
-		# 🧼 LIMPIADOR DE ORDINALES: Transforma "Articulo 1o." en "ARTICULO 1"
-                # Usamos el Grupo 1 de la nueva regex que ya trae el número o romano totalmente LIMPIO
-                num_limpio = seleccion.group(1).strip().upper()
-                self.current_article_label = f"ARTICULO {num_limpio}"
- 
                 # --- MICRO-SEGMENTACIÓN ---
                 patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
                 sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
@@ -786,26 +781,24 @@ class LegalEngineTITAN:
             estilo_final = "Fusión total en un solo párrafo denso (Bloque Único)." if es_bloque_unico else "Estructura separada (Caso + Pregunta), pero manteniendo el tono seco del molde."
             
             instruccion_mimesis = f"""
-           ⚠️ PROTOCOLO DE EXTRACCIÓN SINTÁCTICA (ANTIPLAGIO):
+            ⚠️ FASE DE DISECCIÓN ESTRUCTURAL (OBLIGATORIA):
             Analiza el molde de excelencia: '''{self.example_question}'''
-            
-            TU MISIÓN: Extraer el ESQUELETO jurídico (el ritmo) pero IGNORAR el tema (CGR/Delegación/Fiscal).
-            Replica su 'RITMO DE TRES ACTOS' bajo este formato: {estilo_final}
-            
-            🚫 PROHIBICIÓN DE CONTENIDO (MURO DE ESTANQUEIDAD):
-            - El ejemplo es TÓXICO en contenido. Prohibido usar sus cargos (Contralor) o temas (Delegación) si no están en la norma actual.
-            - Si el ejemplo habla de 'CGR' y la norma de 'Etnias', la pregunta final DEBE ser 100% sobre ETNIAS.
-            - El 100% de la sustancia legal debe venir de la NORMA REAL proporcionada abajo.
-            
-            ESTRUCTURA A IMITAR:
-            1. ACTO 1 (MARCO): Definición técnica/jurídica abstracta.
-            2. ACTO 2 (RESTRICCIÓN): Limitación legal.
-            3. ACTO 3 (NUDO): Aplicación al caso específico.
-            
 
-            🚫 PROHIBICIÓN: Si seleccionaste 'Con Caso', NO uses 'Ante la situación descrita'. 
+            TU MISIÓN: Replica su 'RITMO DE TRES ACTOS' y su COMPLEJIDAD LÓGICA, pero INYECTA EL TEMA DE TU NORMA (PDF):
+            
+            1. ACTO 1 (MARCO): Definición técnica/jurídica abstracta (Usa el tono del ejemplo, no el tema).
+            2. ACTO 2 (RESTRICCIÓN): Limitación legal usando conectores como 'La legislación establece'.
+            3. ACTO 3 (NUDO TÉCNICO): Conector 'En ese sentido, es imperativo advertir que...' + EL CONFLICTO DE TU NORMA.
+            
+            🚫 VACUNA ANTI-CONTAMINACIÓN (CRÍTICO): 
+            - El ejemplo habla de 'Contraloría/Delegación'. TU NORMA habla de otro tema.
+            - El ejemplo es SOLO UN MOLDE. Su contenido es TÓXICO para esta pregunta.
+            - USA EL ESQUELETO DEL EJEMPLO, PERO CON LA CARNE DE TU PDF.
+
+            🚫 PROHIBICIÓN DE FORMATO: Si seleccionaste 'Con Caso', NO uses 'Ante la situación descrita'. 
             Empieza el 'narrativa_caso' directamente con el ACTO 1 y deja el ACTO 3 para el 'enunciado'.
-            """
+            
+              """
 
         # 4. FEEDBACK (LOS CAPITANES REACTIVOS)
         feedback_instr = ""
@@ -857,14 +850,12 @@ class LegalEngineTITAN:
         9. 💥 CAPITÁN COLISIÓN: Obliga al usuario a decidir entre dos principios constitucionales en tensión (ej. Eficacia vs Legalidad) o normas que parecen chocar.
         10. ⚓ CAPITÁN ANCLA (FIDELIDAD ABSOLUTA): Tienes PROHIBIDO citar, mencionar o basar la respuesta en leyes, decretos o códigos que NO estén explícitamente en el texto proporcionado (fuente técnica). Si el nivel es Profesional, la dificultad DEBE nacer de analizar los matices, plazos y excepciones que el texto SÍ menciona, no de traer información de otros libros externos. Si inventas una ley ajena al PDF, tu proceso de generación será invalidado.
 
+
         REGLA DE ESTANQUEIDAD Y MIMESIS (CRÍTICA):
         - El Manual de funciones pone las fichas en el tablero (el caso) y la NORMA técnica (EL PDF CARGADO) pone las reglas únicas. Bajo ninguna circunstancia uses tu conocimiento general sobre la entidad para suplantar o añadir requisitos que no estén en el texto de la norma proporcionada.
         - PROHIBIDO preguntar sobre el sueldo, la fecha de la convocatoria o requisitos de experiencia del manual.
         - Si el texto es una definición teórica, TRANSFÓRMALA en un procedimiento técnico práctico basado en el ADN del cargo.
-        
-        - 🛑 VETO DE CONTENIDO DEL EJEMPLO: El ejemplo de abajo es estrictamente ESTRUCTURAL. Queda prohibido usar sus temas (delegación, fiscalía, CGR) en la nueva pregunta. El 100% de la sustancia legal debe nacer de la NORMA REAL proporcionada.
-        
-        - SI ESTÁS EN 'POST-GUÍA': Replica el 'Ritmo de Tres Actos' del ejemplo (Concepto -> Restricción -> Nudo Técnico) pero con el contenido de la norma nueva.
+        - SI ESTÁS EN 'POST-GUÍA': Replica la estructura del ejemplo abajo (Concepto -> Restricción -> Nudo Técnico).
 
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
