@@ -1210,8 +1210,21 @@ with st.sidebar:
                 try:
                     d = json.load(upl)
                     engine.chunks = d['chunks']
- 		    # Versión Híbrida: Acepta números de backups viejos y etiquetas nuevas como "ARTICULO 6"
-                    engine.mastery_tracker = {str(k).upper(): v for k, v in d['mastery'].items()}
+                    
+                    # --- SINCRONIZADOR MAESTRO (Traducción al formato Unobtanium) ---
+                    # Esta Regex limpia cualquier etiqueta vieja (con º, o, .) para que coincida con el Sniper
+                    def clean_key(k):
+                        match = re.search(r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', str(k), re.I)
+                        if match: return f"ARTICULO {match.group(1).upper()}"
+                        return str(k).upper()
+
+                    # Cargamos y limpiamos el Tracker y las listas de seguimiento
+                    engine.mastery_tracker = {clean_key(k): v for k, v in d['mastery'].items()}
+                    engine.seen_articles = set(clean_key(a) for a in d.get('seen_arts', []))
+                    engine.failed_articles = set(clean_key(a) for a in d.get('failed_arts', []))
+                    engine.mastered_articles = set(clean_key(a) for a in d.get('mastered_arts', []))
+                    
+                    # --- RESTO DE VARIABLES (Mantenemos tu lógica intacta) ---
                     engine.failed_indices = set(d['failed'])
                     engine.feedback_history = d.get('feed', [])
                     engine.entity = d.get('ent', "")
@@ -1224,9 +1237,6 @@ with st.sidebar:
                     engine.job_functions = d.get('job', "")
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
-                    engine.seen_articles = set(d.get('seen_arts', []))
-                    engine.failed_articles = set(d.get('failed_arts', []))
-                    engine.mastered_articles = set(d.get('mastered_arts', []))
 
                     if DL_AVAILABLE:
                          with st.spinner("🧠 Recuperando memoria neuronal..."): 
