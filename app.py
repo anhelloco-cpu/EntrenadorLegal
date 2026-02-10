@@ -1211,7 +1211,7 @@ with st.sidebar:
                     d = json.load(upl)
                     engine.chunks = d['chunks']
  		    # Versión Híbrida: Acepta números de backups viejos y etiquetas nuevas como "ARTICULO 6"
-		    engine.mastery_tracker = {str(k).upper(): v for k, v in d['mastery'].items()}
+                    engine.mastery_tracker = {str(k).upper(): v for k, v in d['mastery'].items()}
                     engine.failed_indices = set(d['failed'])
                     engine.feedback_history = d.get('feed', [])
                     engine.entity = d.get('ent', "")
