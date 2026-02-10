@@ -14,7 +14,7 @@ from collections import Counter
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v104: The Sentinel
+#  TITÁN v105: Unobtanium
 #  ----------------------------------------------------------------------------
 #  ESTA VERSIÓN INCLUYE:
 #  1. CEREBRO INSTITUCIONAL: Personalidad de Auditor, Fiscal, etc.
@@ -48,7 +48,7 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v104 - The Sentinel", 
+    page_title="TITÁN v105 - Unobtanium", 
     page_icon="⚖️", 
     layout="wide"
 )
@@ -329,7 +329,7 @@ class LegalEngineTITAN:
         return raw_text
 
     # --------------------------------------------------------------------------
-    # SEGMENTACIÓN INTELIGENTE (TITÁN V106: ARQUITECTURA HÍBRIDA + HERENCIA)
+    # SEGMENTACIÓN INTELIGENTE (TITÁN V105: ARQUITECTURA HÍBRIDA + HERENCIA)
     # --------------------------------------------------------------------------
     def smart_segmentation(self, full_text):
         """
@@ -971,7 +971,13 @@ class LegalEngineTITAN:
                                 nueva_letra_respuesta = letra
                                 estado = "✅ CORRECTA"
                             
-                            texto_final_explicacion += f"**({letra}) {estado}:** {item['explicacion']}\n\n"
+		    # 1. Limpiamos el texto para quitar la letra (A, B, C...) que escribió la IA
+                    texto_puro = re.sub(r'^(?:La opción\s+[A-D]\s+es\s+(?:correcta|incorrecta)(?:\s+porque)?\s*[:\.]?\s*|^\s*[A-D]\s*[:\.]\s*)', '', item["explicacion"], flags=re.IGNORECASE).strip()
+                    # 2. Aseguramos que empiece con mayúscula
+                    texto_puro = texto_puro[0].upper() + texto_puro[1:] if texto_puro else "Sin detalle."
+                    
+                    # 3. Esta es la línea que reemplaza a la tuya (usando el texto ya limpio)
+                    texto_final_explicacion += f"**({letra}) {estado}:** {texto_puro}\n\n"
                     
                     q['opciones'] = nuevas_ops
                     q['respuesta'] = nueva_letra_respuesta
@@ -1041,7 +1047,7 @@ def natural_sort_key(s):
             key.append((1, part))
     return key
 with st.sidebar:
-    st.title("🦅 TITÁN v104 The Sentinel")
+    st.title("🦅 TITÁN v105 Unobtanium")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
