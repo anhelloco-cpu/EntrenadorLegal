@@ -786,13 +786,22 @@ class LegalEngineTITAN:
             estilo_final = "Fusión total en un solo párrafo denso (Bloque Único)." if es_bloque_unico else "Estructura separada (Caso + Pregunta), pero manteniendo el tono seco del molde."
             
             instruccion_mimesis = f"""
-            ⚠️ FASE DE DISECCIÓN ESTRUCTURAL (OBLIGATORIA):
+           ⚠️ PROTOCOLO DE EXTRACCIÓN SINTÁCTICA (ANTIPLAGIO):
             Analiza el molde de excelencia: '''{self.example_question}'''
             
-            TU MISIÓN: Replica su 'RITMO DE TRES ACTOS' bajo este formato: {estilo_final}
+            TU MISIÓN: Extraer el ESQUELETO jurídico (el ritmo) pero IGNORAR el tema (CGR/Delegación/Fiscal).
+            Replica su 'RITMO DE TRES ACTOS' bajo este formato: {estilo_final}
+            
+            🚫 PROHIBICIÓN DE CONTENIDO (MURO DE ESTANQUEIDAD):
+            - El ejemplo es TÓXICO en contenido. Prohibido usar sus cargos (Contralor) o temas (Delegación) si no están en la norma actual.
+            - Si el ejemplo habla de 'CGR' y la norma de 'Etnias', la pregunta final DEBE ser 100% sobre ETNIAS.
+            - El 100% de la sustancia legal debe venir de la NORMA REAL proporcionada abajo.
+            
+            ESTRUCTURA A IMITAR:
             1. ACTO 1 (MARCO): Definición técnica/jurídica abstracta.
-            2. ACTO 2 (RESTRICCIÓN): Limitación legal usando conectores como 'La legislación establece'.
-            3. ACTO 3 (NUDO): Conector 'En ese sentido, es imperativo advertir que...' + aplicación al caso.
+            2. ACTO 2 (RESTRICCIÓN): Limitación legal.
+            3. ACTO 3 (NUDO): Aplicación al caso específico.
+            
 
             🚫 PROHIBICIÓN: Si seleccionaste 'Con Caso', NO uses 'Ante la situación descrita'. 
             Empieza el 'narrativa_caso' directamente con el ACTO 1 y deja el ACTO 3 para el 'enunciado'.
@@ -848,12 +857,14 @@ class LegalEngineTITAN:
         9. 💥 CAPITÁN COLISIÓN: Obliga al usuario a decidir entre dos principios constitucionales en tensión (ej. Eficacia vs Legalidad) o normas que parecen chocar.
         10. ⚓ CAPITÁN ANCLA (FIDELIDAD ABSOLUTA): Tienes PROHIBIDO citar, mencionar o basar la respuesta en leyes, decretos o códigos que NO estén explícitamente en el texto proporcionado (fuente técnica). Si el nivel es Profesional, la dificultad DEBE nacer de analizar los matices, plazos y excepciones que el texto SÍ menciona, no de traer información de otros libros externos. Si inventas una ley ajena al PDF, tu proceso de generación será invalidado.
 
-
         REGLA DE ESTANQUEIDAD Y MIMESIS (CRÍTICA):
         - El Manual de funciones pone las fichas en el tablero (el caso) y la NORMA técnica (EL PDF CARGADO) pone las reglas únicas. Bajo ninguna circunstancia uses tu conocimiento general sobre la entidad para suplantar o añadir requisitos que no estén en el texto de la norma proporcionada.
         - PROHIBIDO preguntar sobre el sueldo, la fecha de la convocatoria o requisitos de experiencia del manual.
         - Si el texto es una definición teórica, TRANSFÓRMALA en un procedimiento técnico práctico basado en el ADN del cargo.
-        - SI ESTÁS EN 'POST-GUÍA': Replica la estructura del ejemplo abajo (Concepto -> Restricción -> Nudo Técnico).
+        
+        - 🛑 VETO DE CONTENIDO DEL EJEMPLO: El ejemplo de abajo es estrictamente ESTRUCTURAL. Queda prohibido usar sus temas (delegación, fiscalía, CGR) en la nueva pregunta. El 100% de la sustancia legal debe nacer de la NORMA REAL proporcionada.
+        
+        - SI ESTÁS EN 'POST-GUÍA': Replica el 'Ritmo de Tres Actos' del ejemplo (Concepto -> Restricción -> Nudo Técnico) pero con el contenido de la norma nueva.
 
         IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
         No me des la explicación en un solo texto corrido.
