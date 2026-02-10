@@ -711,7 +711,7 @@ class LegalEngineTITAN:
                 "narrativa_caso": "", 
                 "preguntas": [
                     {{
-                        "enunciado": "UN SOLO PÁRRAFO denso y sofisticado (Marco -> Restricción -> Nudo) sin anclas semánticas. NO separes el caso de la pregunta. Fusión total.", 
+                        "enunciado": "UN SOLO PÁRRAFO denso y sofisticado (Marco -> Restricción -> Nudo) sin anclas semánticas. NO separes el caso de la pregunta. Fusión total. (PROHIBIDO: El enunciado y la respuesta correcta NO pueden ser idénticos).", 
                         "opciones": {{
                             "A": "Opción Correcta (Condicionada al hecho del caso)...", 
                             "B": "Gemelo Contiguo (Mismo artículo, hipótesis distinta)...", 
