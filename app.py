@@ -1047,7 +1047,7 @@ def natural_sort_key(s):
             key.append((1, part))
     return key
 with st.sidebar:
-    st.title("🦅 TITÁN v105 Unobtanium")
+    st.title("🦅 TITÁN v105 - Unobtanium")
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
@@ -1210,7 +1210,8 @@ with st.sidebar:
                 try:
                     d = json.load(upl)
                     engine.chunks = d['chunks']
-                    engine.mastery_tracker = {int(k):v for k,v in d['mastery'].items()}
+ 		    # Versión Híbrida: Acepta números de backups viejos y etiquetas nuevas como "ARTICULO 6"
+		    engine.mastery_tracker = {str(k).upper(): v for k, v in d['mastery'].items()}
                     engine.failed_indices = set(d['failed'])
                     engine.feedback_history = d.get('feed', [])
                     engine.entity = d.get('ent', "")
