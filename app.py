@@ -363,8 +363,8 @@ class LegalEngineTITAN:
             p_cap = rf'^\s*(?:(?:CAPÍTULO|CAPITULO)\s+{p_word_num}|\d+\.)\b'
             p_sec = rf'^\s*(SECCIÓN|SECCION)\s+{p_word_num}\b'
             # Soporte total para artículos: ARTICULO 1º, ARTÍCULO 1o., ARTICULO 1.
-            p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[º°\.o]?|[IVXLCDM]+)\b'
-
+	    # Regex Purificada V106: Grupo 1 solo captura el número limpio
+            p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
             for i in range(len(lineas)):
                 linea_raw = lineas[i]
                 
@@ -497,11 +497,15 @@ class LegalEngineTITAN:
         
         # 1. DEFINIR PATRÓN DE BÚSQUEDA
         if self.doc_type == "Norma (Leyes/Decretos)":
-            p_censo = r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*(?:\d+[º°\.o]?|[IVXLCDM]+)\b'
+
+        # 1. DEFINIR PATRÓN DE BÚSQUEDA (Sincronizado con Sniper V106)
+        if self.doc_type == "Norma (Leyes/Decretos)":
+            # Captura solo el número en el Grupo 1, ignorando la basura (º, o, .)
+            p_censo = r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
         else:
-            p_censo = r'^\s*\d+(?:\.\d+)+\b' 
+            p_censo = r'^\s*(\d+(?:\.\d+)+)\b' 
             
-        # 2. CENSO FILTRADO (Detectar y Descartar Inexequibles)
+        # 2. CENSO FILTRADO (Detectar y Descartar Inexequibles + LIMPIEZA)
         items_validos = []
         for match in re.finditer(p_censo, texto_estudio, re.I | re.M):
             # Miramos 200 caracteres adelante del artículo encontrado
@@ -511,7 +515,15 @@ class LegalEngineTITAN:
             if "INEXEQUIBLE" in ventana_contexto or "DEROGADO" in ventana_contexto or "NULO" in ventana_contexto:
                 continue
                 
-            items_validos.append(match.group(0).strip().upper())
+            # --- LIMPIEZA DE ETIQUETA (CRÍTICO) ---
+            # Usamos el Grupo 1 (Número puro) para reconstruir la etiqueta limpia
+            if self.doc_type == "Norma (Leyes/Decretos)":
+                num_limpio = match.group(1).strip().upper()
+                label_final = f"ARTICULO {num_limpio}"
+            else:
+                label_final = match.group(1).strip() # Para manuales (1.1, 1.2)
+
+            items_validos.append(label_final)
 
         items_unicos = set(items_validos)
         
@@ -574,7 +586,10 @@ class LegalEngineTITAN:
         matches = []
         
         if self.doc_type == "Norma (Leyes/Decretos)":
-            p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[º°\.o]?|[IVXLCDM]+)\b'
+
+        # Regex Protectora: El Grupo 1 ahora SOLO captura el número o romano puro
+            p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
+
             matches = list(re.finditer(p_art, texto_base, re.IGNORECASE | re.MULTILINE))
             
         elif self.doc_type == "Guía Técnica / Manual":
@@ -613,7 +628,9 @@ class LegalEngineTITAN:
                     end_pos = min(len(texto_base), start_pos + 4000)
 
                 texto_final_ia = texto_base[start_pos:end_pos] 
-                self.current_article_label = seleccion.group(0).strip()[:60]
+                # Construimos la etiqueta MANUALMENTE usando solo el número limpio del Grupo 1
+                num_limpio = seleccion.group(1).strip().upper()
+                self.current_article_label = f"ARTICULO {num_limpio}"
 
                 # --- MICRO-SEGMENTACIÓN ---
                 patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
