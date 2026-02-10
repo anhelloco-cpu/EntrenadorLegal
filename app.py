@@ -1400,10 +1400,17 @@ if st.session_state.page == 'game':
             with col_skip:
                 skipped = st.form_submit_button("⏭️ SALTAR (BLOQUEAR)")
             
-            # C. Lógica de Salto (Skip)
+# C. Lógica de Salto (Skip) - CORREGIDA
             if skipped: 
                 key_bloqueo = engine.current_article_label.split(" - ITEM")[0].strip()
                 engine.temporary_blacklist.add(key_bloqueo)
+                
+                # --- ROMPEMOS EL BUCLE DE MEMORIA ---
+                # 1. Borramos el rastro del error anterior para que el imán se apague
+                engine.last_failed_embedding = None 
+                # 2. Forzamos al motor a elegir un bloque aleatorio nuevo
+                engine.current_chunk_idx = -1 
+                
                 st.session_state.current_data = None
                 st.rerun()
 
