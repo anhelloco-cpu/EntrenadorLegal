@@ -363,7 +363,7 @@ class LegalEngineTITAN:
             p_cap = rf'^\s*(?:(?:CAPÍTULO|CAPITULO)\s+{p_word_num}|\d+\.)\b'
             p_sec = rf'^\s*(SECCIÓN|SECCION)\s+{p_word_num}\b'
             # Soporte total para artículos: ARTICULO 1º, ARTÍCULO 1o., ARTICULO 1.
-            p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[º°\.o]?|[IVXLCDM]+)\b'
+            p_art = r'^\s*(ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
 
             for i in range(len(lineas)):
                 linea_raw = lineas[i]
@@ -497,7 +497,7 @@ class LegalEngineTITAN:
         
         # 1. DEFINIR PATRÓN DE BÚSQUEDA
         if self.doc_type == "Norma (Leyes/Decretos)":
-            p_censo = r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*(?:\d+[º°\.o]?|[IVXLCDM]+)\b'
+            p_censo = r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
         else:
             p_censo = r'^\s*\d+(?:\.\d+)+\b' 
             
@@ -510,8 +510,8 @@ class LegalEngineTITAN:
             # Si dice INEXEQUIBLE, DEROGADO o NULO cerca, NO LO CONTAMOS
             if "INEXEQUIBLE" in ventana_contexto or "DEROGADO" in ventana_contexto or "NULO" in ventana_contexto:
                 continue
-                
-            items_validos.append(match.group(0).strip().upper())
+	    # Guardamos LIMPIO: Palabra "ARTICULO" + Número (sin la O)
+            items_validos.append(f"ARTICULO {match.group(1).upper()}")
 
         items_unicos = set(items_validos)
         
@@ -574,7 +574,8 @@ class LegalEngineTITAN:
         matches = []
         
         if self.doc_type == "Norma (Leyes/Decretos)":
-            p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*(\d+[º°\.o]?|[IVXLCDM]+)\b'
+            # Regex Protectora: Grupo 1 captura Romano o Número; ignora la basura final (º, o, O, .)
+            p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
             matches = list(re.finditer(p_art, texto_base, re.IGNORECASE | re.MULTILINE))
             
         elif self.doc_type == "Guía Técnica / Manual":
@@ -612,13 +613,13 @@ class LegalEngineTITAN:
                 else:
                     end_pos = min(len(texto_base), start_pos + 4000)
 
-                texto_final_ia = texto_base[start_pos:end_pos] 
+                texto_final_ia = texto_base[start_pos:end_pos]
+
 		# 🧼 LIMPIADOR DE ORDINALES: Transforma "Articulo 1o." en "ARTICULO 1"
-                raw_tag = seleccion.group(0).strip().upper()
-                # Esta regex quita los símbolos º, °, el punto y la 'o' u 'O' que sobra al final de los números
-                clean_tag = re.sub(r'(\d+)[º°\.oOª\s]+', r'\1', raw_tag, flags=re.I).strip()
-                
-                self.current_article_label = clean_tag[:60]
+                # Usamos el Grupo 1 de la nueva regex que ya trae el número o romano totalmente LIMPIO
+                num_limpio = seleccion.group(1).strip().upper()
+                self.current_article_label = f"ARTICULO {num_limpio}"
+ 
                 # --- MICRO-SEGMENTACIÓN ---
                 patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
                 sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
