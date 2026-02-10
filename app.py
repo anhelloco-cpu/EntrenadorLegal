@@ -495,9 +495,6 @@ class LegalEngineTITAN:
         
         texto_estudio = self.sections_map.get(self.active_section_name, "\n".join(self.chunks))
         
-        # 1. DEFINIR PATRÓN DE BÚSQUEDA
-        if self.doc_type == "Norma (Leyes/Decretos)":
-
         # 1. DEFINIR PATRÓN DE BÚSQUEDA (Sincronizado con Sniper V106)
         if self.doc_type == "Norma (Leyes/Decretos)":
             # Captura solo el número en el Grupo 1, ignorando la basura (º, o, .)
