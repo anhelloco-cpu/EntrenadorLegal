@@ -1186,42 +1186,38 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error leyendo PDF: {e}")
 
-# 1. ESCÁNER DE HUELLAS (Descubrimiento automático de ejes)
-ejes_encontrados = set()
-for k in engine.mastery_tracker.keys():
-    match = re.search(r'\[(.*?)\]', str(k))
-    if match: ejes_encontrados.add(match.group(1))
-
-lista_ejes = sorted(list(ejes_encontrados)) + ["[+ Registrar Nueva Norma]"]
-
-# 2. SELECTOR MAESTRO
-eje_seleccionado = st.selectbox("Seleccione el Eje de Estudio:", lista_ejes)
-
-# 3. INTERRUPTOR DE NUEVA LEY
-if eje_seleccionado == "[+ Registrar Nueva Norma]":
-    axis_final = st.text_input("Bautice la nueva norma:", placeholder="Ej: Ley 1437 de 2011")
-else:
-    axis_final = eje_seleccionado
-
-# 4. BOTÓN DE PROCESAMIENTO (Solo vía PDF)
-if st.button("🚀 PROCESAR Y SEGMENTAR"):
-    if not st.session_state.raw_text_study:
-        st.error("⚠️ Primero debe subir un archivo PDF arriba.")
-    elif not axis_final:
-        st.error("⚠️ Debe definir un nombre para el Eje Temático.")
-    else:
-        # El sistema ya no usa txt_manual, usa solo el PDF guardado en memoria
-        num_bloques, adn_resumen = engine.process_law(st.session_state.raw_text_study, axis_final, doc_type_input)
+# --- 1. ESCÁNER DE MEMORIA (NUEVO: Busca qué leyes ya existen) ---
+        ejes_encontrados = set()
+        for k in engine.mastery_tracker.keys():
+            match = re.search(r'\[(.*?)\]', str(k))
+            if match: ejes_encontrados.add(match.group(1))
         
-        if num_bloques > 0:
-            if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
-                engine.job_functions = adn_resumen
+        lista_ejes = sorted(list(ejes_encontrados)) + ["[+ Registrar Nueva Norma]"]
+        eje_previo = st.selectbox("Ejes detectados en tu memoria (Opcional):", lista_ejes)
+
+        # Si eliges uno de la lista, el nombre se pone solo. Si no, usas el actual.
+        valor_eje = eje_previo if eje_previo != "[+ Registrar Nueva Norma]" else engine.thematic_axis
+
+        # --- 2. TUS LÍNEAS ORIGINALES (MANTENIDAS AL 100%) ---
+        st.caption("Or pega aquí el texto manualmente:")
+        # Solo cambiamos el 'value' para que reciba lo del selector si así lo quieres
+        axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=valor_eje)
+        txt_manual = st.text_area("Texto de la Norma:", height=150)
+        
+        if st.button("🚀 PROCESAR Y SEGMENTAR"):
+            # Tu lógica de elección de contenido intacta
+            contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
+            num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
             
-            st.session_state.current_data = None
-            st.success(f"¡{axis_final} Procesada con éxito!")
-            time.sleep(0.5)
-            st.rerun()
-            
+            if num_bloques > 0:
+                if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
+                    engine.job_functions = adn_resumen
+                
+                st.session_state.current_data = None
+                st.success(f"¡Documento Procesado!")
+                time.sleep(0.5)
+                st.rerun()
+
     with tab2:
         st.caption("Carga un archivo .json guardado previamente.")
         upl = st.file_uploader("Archivo JSON:", type=['json'])
