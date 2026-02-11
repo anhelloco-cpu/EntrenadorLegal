@@ -1202,9 +1202,13 @@ with st.sidebar:
             key="selector_maestro_ejes" # <--- Esta es la cédula única
         )
 
-        # 3. SINCRONIZACIÓN
+        # 3. SINCRONIZACIÓN (CORREGIDA)
         if eje_previo != "[+ Registrar Nuevo Eje Tematico]":
+            # Si eliges uno de la lista, lo cargamos al motor
             engine.thematic_axis = eje_previo
+        elif engine.thematic_axis in ejes_encontrados:
+            # Si entras a modo registro, limpiamos el motor para dejarte escribir de cero
+            engine.thematic_axis = ""
         
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             # Tu lógica de elección de contenido intacta
