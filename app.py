@@ -1199,7 +1199,8 @@ with st.sidebar:
         st.caption("Or pega aquí el texto manualmente:")
         axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
         txt_manual = st.text_area("Texto de la Norma:", height=150)
-        
+
+
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
             num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
@@ -1208,11 +1209,14 @@ with st.sidebar:
                 if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
                     engine.job_functions = adn_resumen
                 
+                # --- CAMBIO CLAVE ---
+                st.session_state.page = 'setup' # <--- Forzamos que se quede en el menú
                 st.session_state.current_data = None
                 st.success(f"¡Documento Procesado!")
                 time.sleep(0.5)
                 st.rerun()
-
+       
+ 
     with tab2:
         st.caption("Carga un archivo .json guardado previamente.")
         upl = st.file_uploader("Archivo JSON:", type=['json'])
