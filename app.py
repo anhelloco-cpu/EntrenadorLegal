@@ -467,9 +467,21 @@ class LegalEngineTITAN:
         
         self.thematic_axis = axis_name 
         self.doc_type = doc_type_input 
-        self.sections_map = self.smart_segmentation(text)
+
+        # self.sections_map = self.smart_segmentation(text)
+        # self.active_section_name = "TODO EL DOCUMENTO"
+        # self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
+
+# Sumamos las nuevas secciones a las que ya existían
+        nuevas_secciones = self.smart_segmentation(text)
+        self.sections_map.update(nuevas_secciones) 
+        
         self.active_section_name = "TODO EL DOCUMENTO"
-        self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
+        
+        # Agregamos los nuevos bloques de texto sin borrar los anteriores
+        nuevos_chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
+        self.chunks.extend(nuevos_chunks)
+
         if not self.mastery_tracker: self.mastery_tracker = {}
         if dl_model: 
             with st.spinner("🧠 Generando mapa neuronal..."): 
@@ -629,7 +641,12 @@ class LegalEngineTITAN:
                 texto_final_ia = texto_base[start_pos:end_pos]
                 # Construimos la etiqueta MANUALMENTE usando solo el número limpio del Grupo 1
                 num_limpio = seleccion.group(1).strip().upper()
-                self.current_article_label = f"ARTICULO {num_limpio}"
+
+
+                # self.current_article_label = f"ARTICULO {num_limpio}"
+
+# Ahora le ponemos la marca de la ley para que el desplegable la reconozca
+                self.current_article_label = f"[{self.thematic_axis}] ARTICULO {num_limpio}"
 
                 # --- MICRO-SEGMENTACIÓN ---
                 patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
@@ -1200,71 +1217,60 @@ with st.sidebar:
 
         st.caption("Selecciona una ley existente o registra una nueva:")
 
-# --- 1. ESCÁNER DE BIBLIOTECA (ACUMULATIVO) ---
+# --- 1. ESCÁNER DE BIBLIOTECA (Detecta leyes en el historial y en memoria) ---
         ejes_encontrados = set()
-        
-        # Escaneamos el historial de lo ya estudiado
         for k in engine.mastery_tracker.keys():
             match = re.search(r'\[(.*?)\]', str(k))
             if match: ejes_encontrados.add(match.group(1))
-            
-        # Escaneamos los bloques de texto en el motor (Chunks activos)
-        if engine.chunks:
+        
+        if hasattr(engine, 'chunks') and engine.chunks:
             for chunk in engine.chunks:
-                # Buscamos el patrón [Nombre de Ley] al inicio del bloque
                 match_c = re.search(r'^\[(.*?)\]', str(chunk))
                 if match_c: ejes_encontrados.add(match_c.group(1))
 
-        # Agregamos el eje que esté en memoria actualmente para que no se pierda
-        if engine.thematic_axis:
-            ejes_encontrados.add(engine.thematic_axis)
-
-        # Creamos la lista limpia y ordenada
         opcion_nueva = "[+ Registrar Nuevo Eje Tematico]"
         lista_desplegable = sorted([e for e in ejes_encontrados if e]) + [opcion_nueva]
 
-        # --- 2. CÁLCULO DINÁMICO DEL ÍNDICE ---
-        # Esto hace que el desplegable se mueva solo a la ley que acabas de cargar
+        # --- 2. SELECTOR DE BIBLIOTECA (Mantiene el foco) ---
         try:
-            if engine.thematic_axis in lista_desplegable:
-                idx_actual = lista_desplegable.index(engine.thematic_axis)
-            else:
-                idx_actual = len(lista_desplegable) - 1
+            idx_actual = lista_desplegable.index(engine.thematic_axis) if engine.thematic_axis in lista_desplegable else len(lista_desplegable)-1
         except:
-            idx_actual = len(lista_desplegable) - 1
+            idx_actual = len(lista_desplegable)-1
 
         eje_seleccionado = st.selectbox(
-            "📚 Biblioteca de Normas en Memoria:", 
+            "📚 Biblioteca de Normas Cargadas:", 
             lista_desplegable, 
             index=idx_actual,
             key="selector_maestro_biblioteca"
         )
 
-        # 3. SINCRONIZACIÓN
+        # Si eliges una del menú, se auto-escribe abajo y el motor se enfoca en ella
         if eje_seleccionado != opcion_nueva:
             engine.thematic_axis = eje_seleccionado
 
-        # 4. TU INPUT ORIGINAL (Ahora se actualiza solo)
-        axis_input = st.text_input("Eje Temático Actual (Nombre de la Ley):", value=engine.thematic_axis)
+        # --- 3. INPUT DE NOMBRE Y TEXTO ---
+        axis_input = st.text_input("Eje Temático Actual:", value=engine.thematic_axis)
         engine.thematic_axis = axis_input
-        
-        # ... (aquí sigue tu txt_manual y el botón de procesar)
+        txt_manual = st.text_area("Texto de la Norma (si no usas PDF):", height=100)
 
-        if st.button("🚀 PROCESAR Y SEGMENTAR"):
+        # --- 4. EL BOTÓN DE PROCESAR (CORREGIDO PARA NO BORRAR) ---
+        if st.button("🚀 PROCESAR E INTEGRAR A TITÁN"):
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
-            num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
             
-            if num_bloques > 0:
-                if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
-                    engine.job_functions = adn_resumen
+            if not contenido_final:
+                st.error("⚠️ No hay contenido para procesar.")
+            else:
+                # IMPORTANTE: Aquí enviamos la señal al motor de que es una CARGA ADICIONAL
+                # Si tu engine.process_law está en la Parte 4, asegúrate que haga .extend()
+                num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
                 
-                # --- CAMBIO CLAVE ---
-                st.session_state.page = 'setup' # <--- Forzamos que se quede en el menú
-                st.session_state.current_data = None
-                st.success(f"¡Documento Procesado!")
-                time.sleep(0.5)
-                st.rerun()
-       
+                if num_bloques > 0:
+                    st.session_state.page = 'setup' # Nos quedamos aquí para ver el mapa
+                    st.session_state.current_data = None # Refrescamos el generador de preguntas
+                    
+                    st.success(f"✅ {axis_input} integrada. Total de bloques: {len(engine.chunks)}")
+                    time.sleep(1)
+                    st.rerun()       
  
     with tab2:
         st.caption("Carga un archivo .json guardado previamente.")
