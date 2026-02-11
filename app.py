@@ -1186,34 +1186,25 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error leyendo PDF: {e}")
 
-# --- 1. ESCÁNER DE MEMORIA (NUEVO: Busca qué leyes ya existen) ---
+        # 1. ESCÁNER DE HUELLAS
         ejes_encontrados = set()
         for k in engine.mastery_tracker.keys():
             match = re.search(r'\[(.*?)\]', str(k))
             if match: ejes_encontrados.add(match.group(1))
         
         lista_ejes = sorted(list(ejes_encontrados)) + ["[+ Registrar Nuevo Eje Tematico]"]
-        eje_previo = st.selectbox("Ejes detectados en tu memoria (Opcional):", lista_ejes)
 
-        # Si eliges uno de la lista, el nombre se pone solo. Si no, usas el actual.
-       
-        # A. El selector ahora empieza en la última opción: "[+ Registrar Nuevo Eje Tematico]"
+        # 2. SELECTOR ÚNICO (Con 'key' para evitar el reventón)
         eje_previo = st.selectbox(
             "Ejes detectados en tu memoria (Opcional):", 
             lista_ejes, 
-            index=len(lista_ejes)-1
+            index=len(lista_ejes)-1,
+            key="selector_maestro_ejes" # <--- Esta es la cédula única
         )
 
-        # B. SINCRONIZACIÓN: Solo si eliges una ley real de la lista, el motor se actualiza.
-        # Si dejas "[+ Registrar...]", el sistema te da libertad total para escribir abajo.
+        # 3. SINCRONIZACIÓN
         if eje_previo != "[+ Registrar Nuevo Eje Tematico]":
             engine.thematic_axis = eje_previo
-
-        # --- 2. TUS LÍNEAS ORIGINALES (MANTENIDAS AL 100%) ---
-        st.caption("Or pega aquí el texto manualmente:")
-        # Solo cambiamos el 'value' para que reciba lo del selector si así lo quieres
-        axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=valor_eje)
-        txt_manual = st.text_area("Texto de la Norma:", height=150)
         
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             # Tu lógica de elección de contenido intacta
