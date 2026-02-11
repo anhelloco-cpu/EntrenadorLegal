@@ -1196,44 +1196,55 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error leyendo PDF: {e}")
 
-        # st.caption("Or pega aquí el texto manualmente:")
-        # axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
-        # txt_manual = st.text_area("Texto de la Norma:", height=150)
-
 # ... (aquí termina tu código de PdfReader)
 
         st.caption("Selecciona una ley existente o registra una nueva:")
 
-        # --- 1. AQUÍ INSERTAMOS EL ESCÁNER QUE NO TENÍAS ---
+# --- 1. ESCÁNER DE BIBLIOTECA (ACUMULATIVO) ---
         ejes_encontrados = set()
         
-        # Escaneamos el historial de lo que ya has estudiado
+        # Escaneamos el historial de lo ya estudiado
         for k in engine.mastery_tracker.keys():
             match = re.search(r'\[(.*?)\]', str(k))
             if match: ejes_encontrados.add(match.group(1))
             
-        # Escaneamos los bloques de texto que ya están en el motor
+        # Escaneamos los bloques de texto en el motor (Chunks activos)
         if engine.chunks:
             for chunk in engine.chunks:
+                # Buscamos el patrón [Nombre de Ley] al inicio del bloque
                 match_c = re.search(r'^\[(.*?)\]', str(chunk))
                 if match_c: ejes_encontrados.add(match_c.group(1))
 
-        # Creamos la lista para el desplegable
-        opcion_nueva = "[+ Registrar Nuevo Eje Tematico]"
-        lista_desplegable = sorted(list(ejes_encontrados)) + [opcion_nueva]
+        # Agregamos el eje que esté en memoria actualmente para que no se pierda
+        if engine.thematic_axis:
+            ejes_encontrados.add(engine.thematic_axis)
 
-        # 2. EL SELECTOR QUE TE AHORRA ESCRIBIR
+        # Creamos la lista limpia y ordenada
+        opcion_nueva = "[+ Registrar Nuevo Eje Tematico]"
+        lista_desplegable = sorted([e for e in ejes_encontrados if e]) + [opcion_nueva]
+
+        # --- 2. CÁLCULO DINÁMICO DEL ÍNDICE ---
+        # Esto hace que el desplegable se mueva solo a la ley que acabas de cargar
+        try:
+            if engine.thematic_axis in lista_desplegable:
+                idx_actual = lista_desplegable.index(engine.thematic_axis)
+            else:
+                idx_actual = len(lista_desplegable) - 1
+        except:
+            idx_actual = len(lista_desplegable) - 1
+
         eje_seleccionado = st.selectbox(
             "📚 Biblioteca de Normas en Memoria:", 
             lista_desplegable, 
-            index=len(lista_desplegable)-1
+            index=idx_actual,
+            key="selector_maestro_biblioteca"
         )
 
-        # Si eliges una del desplegable, la ponemos como eje actual
+        # 3. SINCRONIZACIÓN
         if eje_seleccionado != opcion_nueva:
             engine.thematic_axis = eje_seleccionado
 
-        # 3. TU TEXTO DE INPUT ORIGINAL (Ahora se autocompleta)
+        # 4. TU INPUT ORIGINAL (Ahora se actualiza solo)
         axis_input = st.text_input("Eje Temático Actual (Nombre de la Ley):", value=engine.thematic_axis)
         engine.thematic_axis = axis_input
         
