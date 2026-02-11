@@ -1186,13 +1186,23 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error leyendo PDF: {e}")
 
-        # 1. ESCÁNER DE HUELLAS
+
+
+
+
+# 1. ESCÁNER DE HUELLAS (Actualizado para incluir el eje actual)
         ejes_encontrados = set()
         for k in engine.mastery_tracker.keys():
             match = re.search(r'\[(.*?)\]', str(k))
             if match: ejes_encontrados.add(match.group(1))
         
-        lista_ejes = sorted(list(ejes_encontrados)) + ["[+ Registrar Nuevo Eje Tematico]"]
+        # OBLIGAMOS a que el eje que estás escribiendo aparezca en la lista
+        if engine.thematic_axis:
+            ejes_encontrados.add(engine.thematic_axis)
+        
+        opcion_registro = "[+ Registrar Nuevo Eje Tematico]"
+        lista_ejes = sorted(list(ejes_encontrados)) + [opcion_registro]
+
 
         # 2. SELECTOR ÚNICO (Con 'key' para evitar el reventón)
         eje_previo = st.selectbox(
@@ -1215,18 +1225,20 @@ with st.sidebar:
         # LA LÍNEA QUE FALTABA: Esto "carga" lo que escribes en el TITÁN
         engine.thematic_axis = axis_input
 
-        if st.button("🚀 PROCESAR Y SEGMENTAR"):
-            # Tu lógica de elección de contenido intacta
+            if st.button("🚀 PROCESAR Y SEGMENTAR"):
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
             num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
             
             if num_bloques > 0:
-                if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
-                    engine.job_functions = adn_resumen
+                # Actualizamos el Eje en el motor inmediatamente
+                engine.thematic_axis = axis_input 
                 
+                # LIMPIAMOS datos viejos para forzar el refresco del mapa
                 st.session_state.current_data = None
-                st.success(f"¡Documento Procesado!")
+                
+                st.success(f"¡{axis_input} Procesado!")
                 time.sleep(0.5)
+                # EL RERUN ES VITAL: Esto obliga al Sidebar a dibujar el Mapa de la Ley
                 st.rerun()
 
     with tab2:
