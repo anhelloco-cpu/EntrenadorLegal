@@ -1221,13 +1221,16 @@ with st.sidebar:
                   # 2. Re-activación del Modo Salvaje (XP)
                     st.session_state.wild_mode = d.get('wild_state', False)
                     
-                  # 3. Sincronizador de Identidad (Ajustado para no perder XP)
+                  # 3. Sincronizador de Identidad (VERSIÓN LIMPIA - SIN CORCHETES)
                     def clean_full_identity(k):
                         k_str = str(k).upper()
-                        match_eje = re.search(r'(\[.*?\])', k_str)
-                        eje_prefix = match_eje.group(1) if match_eje else f"[{engine.thematic_axis.upper()}]"
+                        # Solo extraemos el número del artículo, ignoramos el [EJE]
                         match_art = re.search(r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', k_str)
-                        if match_art: return f"{eje_prefix} ARTICULO {match_art.group(1)}"
+                        
+                        # Retornamos la llave pura (ARTICULO X) para que get_stats la encuentre
+                        if match_art: 
+                            return f"ARTICULO {match_art.group(1)}"
+                        
                         return k_str
 
                     # Carga de Progreso Visual
