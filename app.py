@@ -1161,7 +1161,7 @@ with st.sidebar:
     
     tab1, tab2 = st.tabs(["📝 NUEVO DOCUMENTO", "📂 CARGAR BACKUP"])
     
-    with tab1:
+with tab1:
         st.markdown("### 📂 TIPO DE DOCUMENTO")
         doc_type_input = st.radio(
             "¿Qué vas a estudiar?", 
@@ -1169,13 +1169,23 @@ with st.sidebar:
             help="Norma busca Artículos jerarquizados. Guía busca Párrafos."
         )
         st.divider()
-        
+
+        # --- EL BOTÓN QUE PROPUSISTE ---
+        # Solo aparece si ya hay un texto en memoria para no estorbar
+        if st.session_state.raw_text_study:
+            if st.button("🆕 Cargar nueva ley o documento técnico", use_container_width=True):
+                st.session_state.raw_text_study = "" # Vaciamos el "inbox"
+                st.rerun() # Refrescamos para que el Portero deje pasar al siguiente PDF
+
         st.markdown("### 📄 Cargar Documento")
         
         upl_pdf = st.file_uploader("Subir PDF de Estudio:", type=['pdf'])
         
+        # Tu lógica de extracción perfecta que no vamos a tocar:
         if upl_pdf and not st.session_state.raw_text_study:
             with st.spinner("📄 Extrayendo texto una sola vez..."):
+                # ... (aquí sigue tu código de PdfReader que ya funciona)
+
                 try:
                     reader = pypdf.PdfReader(upl_pdf)
                     txt_pdf = ""
