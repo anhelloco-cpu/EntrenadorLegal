@@ -1190,56 +1190,60 @@ with st.sidebar:
 
 
 
-# 1. ESCÁNER DE HUELLAS (Actualizado para incluir el eje actual)
+# 1. ESCÁNER DE HUELLAS (Detecta leyes y añade el eje actual)
         ejes_encontrados = set()
         for k in engine.mastery_tracker.keys():
             match = re.search(r'\[(.*?)\]', str(k))
             if match: ejes_encontrados.add(match.group(1))
         
-        # OBLIGAMOS a que el eje que estás escribiendo aparezca en la lista
         if engine.thematic_axis:
             ejes_encontrados.add(engine.thematic_axis)
         
         opcion_registro = "[+ Registrar Nuevo Eje Tematico]"
         lista_ejes = sorted(list(ejes_encontrados)) + [opcion_registro]
 
-
-        # 2. SELECTOR ÚNICO (Con 'key' para evitar el reventón)
+        # 2. SELECTOR MAESTRO
         eje_previo = st.selectbox(
             "Ejes detectados en tu memoria (Opcional):", 
             lista_ejes, 
             index=len(lista_ejes)-1,
-            key="selector_maestro_ejes" # <--- Esta es la cédula única
+            key="selector_maestro_ejes"
         )
 
-        # 3. SINCRONIZACIÓN (CORREGIDA)
-        if eje_previo != "[+ Registrar Nuevo Eje Tematico]":
-            # Si eliges uno de la lista, lo cargamos al motor
+        # 3. SINCRONIZACIÓN
+        if eje_previo != opcion_registro:
             engine.thematic_axis = eje_previo
         elif engine.thematic_axis in ejes_encontrados:
-            # Si entras a modo registro, limpiamos el motor para dejarte escribir de cero
             engine.thematic_axis = ""
-        # El cuadro de texto ahora toma el valor del motor
-        axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
-        
-        # LA LÍNEA QUE FALTABA: Esto "carga" lo que escribes en el TITÁN
-        engine.thematic_axis = axis_input
 
+        st.caption("Or pega aquí el texto manualmente:")
+        axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
+        engine.thematic_axis = axis_input
+        
+        txt_manual = st.text_area("Texto de la Norma:", height=150)
+        
+        # 4. BOTÓN (Indentación corregida)
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
-        contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
-        num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
+            # Todo este bloque ahora tiene 4 espacios de sangría
+            contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
             
-        if num_bloques > 0:
-        # Actualizamos el Eje en el motor inmediatamente
-        engine.thematic_axis = axis_input 
+            if not contenido_final:
+                st.error("⚠️ Sube un PDF o pega texto antes de procesar.")
+            else:
+                num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
                 
-        # LIMPIAMOS datos viejos para forzar el refresco del mapa
-        st.session_state.current_data = None
-                
-        st.success(f"¡{axis_input} Procesado!")
-        time.sleep(0.5)
-        # EL RERUN ES VITAL: Esto obliga al Sidebar a dibujar el Mapa de la Ley
-        st.rerun()
+                if num_bloques > 0:
+                    if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
+                        engine.job_functions = adn_resumen
+                    
+                    # Sincronización final y limpieza de datos viejos
+                    engine.thematic_axis = axis_input 
+                    st.session_state.current_data = None
+                    
+                    st.success(f"¡{axis_input} Procesado!")
+                    time.sleep(0.5)
+                    # ESTE RERUN activa el MAPA DE LA LEY y refresca el Sidebar
+                    st.rerun()
 
     with tab2:
         st.caption("Carga un archivo .json guardado previamente.")
