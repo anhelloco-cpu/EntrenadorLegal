@@ -1170,85 +1170,38 @@ with st.sidebar:
         )
         st.divider()
         
-st.markdown("### 📄 Cargar Documento")
-
-upl_pdf = st.file_uploader("Subir PDF de Estudio:", type=['pdf'])
-
-# Mantenemos tu lógica, pero añadimos el chequeo de "Nombre de Archivo"
-# Si el nombre cambia, significa que es una norma nueva y hay que extraer
-if upl_pdf:
-    archivo_es_nuevo = st.session_state.get('last_pdf_name') != upl_pdf.name
-    
-    if archivo_es_nuevo or not st.session_state.raw_text_study:
-        with st.spinner("📄 Extrayendo texto de la nueva norma..."):
-            try:
-                reader = pypdf.PdfReader(upl_pdf)
-                txt_pdf = ""
-                for page in reader.pages:
-                    txt_pdf += page.extract_text() + "\n"
-                
-                # Actualizamos la memoria con el nuevo PDF
-                st.session_state.raw_text_study = txt_pdf
-                st.session_state.last_pdf_name = upl_pdf.name # Guardamos el nombre actual
-                
-                st.success(f"¡{upl_pdf.name} guardado en memoria!")
-            except Exception as e:
-                st.error(f"Error leyendo PDF: {e}")
-
-# 1. ESCÁNER DE HUELLAS (Detecta leyes y añade el eje actual)
-        ejes_encontrados = set()
-        for k in engine.mastery_tracker.keys():
-            match = re.search(r'\[(.*?)\]', str(k))
-            if match: ejes_encontrados.add(match.group(1))
+        st.markdown("### 📄 Cargar Documento")
         
-        if engine.thematic_axis:
-            ejes_encontrados.add(engine.thematic_axis)
+        upl_pdf = st.file_uploader("Subir PDF de Estudio:", type=['pdf'])
         
-        opcion_registro = "[+ Registrar Nuevo Eje Tematico]"
-        lista_ejes = sorted(list(ejes_encontrados)) + [opcion_registro]
-
-        # 2. SELECTOR MAESTRO
-        eje_previo = st.selectbox(
-            "Ejes detectados en tu memoria (Opcional):", 
-            lista_ejes, 
-            index=len(lista_ejes)-1,
-            key="selector_maestro_ejes"
-        )
-
-        # 3. SINCRONIZACIÓN
-        if eje_previo != opcion_registro:
-            engine.thematic_axis = eje_previo
-        elif engine.thematic_axis in ejes_encontrados:
-            engine.thematic_axis = ""
+        if upl_pdf and not st.session_state.raw_text_study:
+            with st.spinner("📄 Extrayendo texto una sola vez..."):
+                try:
+                    reader = pypdf.PdfReader(upl_pdf)
+                    txt_pdf = ""
+                    for page in reader.pages:
+                        txt_pdf += page.extract_text() + "\n"
+                    st.session_state.raw_text_study = txt_pdf
+                    st.success("¡PDF guardado en memoria!")
+                except Exception as e:
+                    st.error(f"Error leyendo PDF: {e}")
 
         st.caption("Or pega aquí el texto manualmente:")
         axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
-        engine.thematic_axis = axis_input
-        
         txt_manual = st.text_area("Texto de la Norma:", height=150)
         
-        # 4. BOTÓN (Indentación corregida)
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
-            # Todo este bloque ahora tiene 4 espacios de sangría
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
+            num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
             
-            if not contenido_final:
-                st.error("⚠️ Sube un PDF o pega texto antes de procesar.")
-            else:
-                num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
+            if num_bloques > 0:
+                if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
+                    engine.job_functions = adn_resumen
                 
-                if num_bloques > 0:
-                    if doc_type_input == "Guía Técnica / Manual" and adn_resumen:
-                        engine.job_functions = adn_resumen
-                    
-                    # Sincronización final y limpieza de datos viejos
-                    engine.thematic_axis = axis_input 
-                    st.session_state.current_data = None
-                    
-                    st.success(f"¡{axis_input} Procesado!")
-                    time.sleep(0.5)
-                    # ESTE RERUN activa el MAPA DE LA LEY y refresca el Sidebar
-                    st.rerun()
+                st.session_state.current_data = None
+                st.success(f"¡Documento Procesado!")
+                time.sleep(0.5)
+                st.rerun()
 
     with tab2:
         st.caption("Carga un archivo .json guardado previamente.")
