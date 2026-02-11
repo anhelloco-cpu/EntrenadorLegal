@@ -1209,7 +1209,12 @@ with st.sidebar:
         elif engine.thematic_axis in ejes_encontrados:
             # Si entras a modo registro, limpiamos el motor para dejarte escribir de cero
             engine.thematic_axis = ""
+        # El cuadro de texto ahora toma el valor del motor
+        axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
         
+        # LA LÍNEA QUE FALTABA: Esto "carga" lo que escribes en el TITÁN
+        engine.thematic_axis = axis_input
+
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             # Tu lógica de elección de contenido intacta
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
