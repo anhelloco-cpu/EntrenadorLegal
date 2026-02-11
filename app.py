@@ -1225,21 +1225,21 @@ with st.sidebar:
         # LA LÍNEA QUE FALTABA: Esto "carga" lo que escribes en el TITÁN
         engine.thematic_axis = axis_input
 
-            if st.button("🚀 PROCESAR Y SEGMENTAR"):
-            contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
-            num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
+        if st.button("🚀 PROCESAR Y SEGMENTAR"):
+        contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
+        num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
             
-            if num_bloques > 0:
-                # Actualizamos el Eje en el motor inmediatamente
-                engine.thematic_axis = axis_input 
+        if num_bloques > 0:
+        # Actualizamos el Eje en el motor inmediatamente
+        engine.thematic_axis = axis_input 
                 
-                # LIMPIAMOS datos viejos para forzar el refresco del mapa
-                st.session_state.current_data = None
+        # LIMPIAMOS datos viejos para forzar el refresco del mapa
+        st.session_state.current_data = None
                 
-                st.success(f"¡{axis_input} Procesado!")
-                time.sleep(0.5)
-                # EL RERUN ES VITAL: Esto obliga al Sidebar a dibujar el Mapa de la Ley
-                st.rerun()
+        st.success(f"¡{axis_input} Procesado!")
+        time.sleep(0.5)
+        # EL RERUN ES VITAL: Esto obliga al Sidebar a dibujar el Mapa de la Ley
+        st.rerun()
 
     with tab2:
         st.caption("Carga un archivo .json guardado previamente.")
