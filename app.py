@@ -1196,10 +1196,48 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error leyendo PDF: {e}")
 
-        st.caption("Or pega aquí el texto manualmente:")
-        axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
-        txt_manual = st.text_area("Texto de la Norma:", height=150)
+        # st.caption("Or pega aquí el texto manualmente:")
+        # axis_input = st.text_input("Eje Temático (Ej: Ley 1755):", value=engine.thematic_axis)
+        # txt_manual = st.text_area("Texto de la Norma:", height=150)
 
+# ... (aquí termina tu código de PdfReader)
+
+        st.caption("Selecciona una ley existente o registra una nueva:")
+
+        # --- 1. AQUÍ INSERTAMOS EL ESCÁNER QUE NO TENÍAS ---
+        ejes_encontrados = set()
+        
+        # Escaneamos el historial de lo que ya has estudiado
+        for k in engine.mastery_tracker.keys():
+            match = re.search(r'\[(.*?)\]', str(k))
+            if match: ejes_encontrados.add(match.group(1))
+            
+        # Escaneamos los bloques de texto que ya están en el motor
+        if engine.chunks:
+            for chunk in engine.chunks:
+                match_c = re.search(r'^\[(.*?)\]', str(chunk))
+                if match_c: ejes_encontrados.add(match_c.group(1))
+
+        # Creamos la lista para el desplegable
+        opcion_nueva = "[+ Registrar Nuevo Eje Tematico]"
+        lista_desplegable = sorted(list(ejes_encontrados)) + [opcion_nueva]
+
+        # 2. EL SELECTOR QUE TE AHORRA ESCRIBIR
+        eje_seleccionado = st.selectbox(
+            "📚 Biblioteca de Normas en Memoria:", 
+            lista_desplegable, 
+            index=len(lista_desplegable)-1
+        )
+
+        # Si eliges una del desplegable, la ponemos como eje actual
+        if eje_seleccionado != opcion_nueva:
+            engine.thematic_axis = eje_seleccionado
+
+        # 3. TU TEXTO DE INPUT ORIGINAL (Ahora se autocompleta)
+        axis_input = st.text_input("Eje Temático Actual (Nombre de la Ley):", value=engine.thematic_axis)
+        engine.thematic_axis = axis_input
+        
+        # ... (aquí sigue tu txt_manual y el botón de procesar)
 
         if st.button("🚀 PROCESAR Y SEGMENTAR"):
             contenido_final = st.session_state.raw_text_study if st.session_state.raw_text_study else txt_manual
