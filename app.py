@@ -1211,9 +1211,17 @@ with st.sidebar:
                 try:
 
                     d = json.load(upl)
+
+                  # 1. Recuperación de ADN y Estructura
                     engine.chunks = d['chunks']
+                    engine.doc_type = d.get('doc_type', "Norma (Leyes/Decretos)")
+                    st.session_state.raw_text_study = d.get('raw_pdf_text', "")
+                    engine.thematic_axis = d.get('axis', "General") # Cargamos el Eje ANTES de limpiar identidades
                     
-                    # --- SINCRONIZADOR DE IDENTIDAD (Mantiene el formato [EJE] ARTICULO X) ---
+                  # 2. Re-activación del Modo Salvaje (XP)
+                    st.session_state.wild_mode = d.get('wild_state', False)
+                    
+                  # 3. Sincronizador de Identidad (Ajustado para no perder XP)
                     def clean_full_identity(k):
                         k_str = str(k).upper()
                         match_eje = re.search(r'(\[.*?\])', k_str)
@@ -1236,7 +1244,6 @@ with st.sidebar:
                     engine.failed_indices = set(d['failed'])
                     engine.feedback_history = d.get('feed', [])
                     engine.entity = d.get('ent', "")
-                    engine.thematic_axis = d.get('axis', "General")
                     engine.level = d.get('lvl', "Profesional")
                     engine.study_phase = d.get('phase', "Pre-Guía")
                     engine.structure_type = d.get('struct_type', "Técnico / Normativo (Sin Caso)")
@@ -1333,6 +1340,9 @@ with st.sidebar:
         full_save_data = {
             # --- 1. MEMORIA CENTRAL (TEXTO Y PROGRESO) ---
             "chunks": engine.chunks,
+            "doc_type": engine.doc_type,              # <--- NEW: ¡ESTO FALTABA!
+            "raw_pdf_text": st.session_state.raw_text_study,
+            "wild_state": st.session_state.get('wild_mode', False), # <-- ¡NUEVO! Guarda el interruptor XP
             "mastery": engine.mastery_tracker,        # Tus medallas (0, 1, 2)
             "failed": list(engine.failed_indices),    # Tus errores técnicos
 
