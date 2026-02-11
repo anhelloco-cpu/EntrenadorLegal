@@ -1192,11 +1192,22 @@ with st.sidebar:
             match = re.search(r'\[(.*?)\]', str(k))
             if match: ejes_encontrados.add(match.group(1))
         
-        lista_ejes = sorted(list(ejes_encontrados)) + ["[+ Registrar Nueva Norma]"]
+        lista_ejes = sorted(list(ejes_encontrados)) + ["[+ Registrar Nuevo Eje Tematico]"]
         eje_previo = st.selectbox("Ejes detectados en tu memoria (Opcional):", lista_ejes)
 
         # Si eliges uno de la lista, el nombre se pone solo. Si no, usas el actual.
-        valor_eje = eje_previo if eje_previo != "[+ Registrar Nueva Norma]" else engine.thematic_axis
+       
+        # A. El selector ahora empieza en la última opción: "[+ Registrar Nuevo Eje Tematico]"
+        eje_previo = st.selectbox(
+            "Ejes detectados en tu memoria (Opcional):", 
+            lista_ejes, 
+            index=len(lista_ejes)-1
+        )
+
+        # B. SINCRONIZACIÓN: Solo si eliges una ley real de la lista, el motor se actualiza.
+        # Si dejas "[+ Registrar...]", el sistema te da libertad total para escribir abajo.
+        if eje_previo != "[+ Registrar Nuevo Eje Tematico]":
+            engine.thematic_axis = eje_previo
 
         # --- 2. TUS LÍNEAS ORIGINALES (MANTENIDAS AL 100%) ---
         st.caption("Or pega aquí el texto manualmente:")
