@@ -1170,25 +1170,30 @@ with st.sidebar:
         )
         st.divider()
         
-        st.markdown("### 📄 Cargar Documento")
-        
-        upl_pdf = st.file_uploader("Subir PDF de Estudio:", type=['pdf'])
-        
-        if upl_pdf and not st.session_state.raw_text_study:
-            with st.spinner("📄 Extrayendo texto una sola vez..."):
-                try:
-                    reader = pypdf.PdfReader(upl_pdf)
-                    txt_pdf = ""
-                    for page in reader.pages:
-                        txt_pdf += page.extract_text() + "\n"
-                    st.session_state.raw_text_study = txt_pdf
-                    st.success("¡PDF guardado en memoria!")
-                except Exception as e:
-                    st.error(f"Error leyendo PDF: {e}")
+st.markdown("### 📄 Cargar Documento")
 
+upl_pdf = st.file_uploader("Subir PDF de Estudio:", type=['pdf'])
 
-
-
+# Mantenemos tu lógica, pero añadimos el chequeo de "Nombre de Archivo"
+# Si el nombre cambia, significa que es una norma nueva y hay que extraer
+if upl_pdf:
+    archivo_es_nuevo = st.session_state.get('last_pdf_name') != upl_pdf.name
+    
+    if archivo_es_nuevo or not st.session_state.raw_text_study:
+        with st.spinner("📄 Extrayendo texto de la nueva norma..."):
+            try:
+                reader = pypdf.PdfReader(upl_pdf)
+                txt_pdf = ""
+                for page in reader.pages:
+                    txt_pdf += page.extract_text() + "\n"
+                
+                # Actualizamos la memoria con el nuevo PDF
+                st.session_state.raw_text_study = txt_pdf
+                st.session_state.last_pdf_name = upl_pdf.name # Guardamos el nombre actual
+                
+                st.success(f"¡{upl_pdf.name} guardado en memoria!")
+            except Exception as e:
+                st.error(f"Error leyendo PDF: {e}")
 
 # 1. ESCÁNER DE HUELLAS (Detecta leyes y añade el eje actual)
         ejes_encontrados = set()
