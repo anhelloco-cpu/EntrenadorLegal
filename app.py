@@ -1240,7 +1240,7 @@ with st.sidebar:
         except:
             idx_actual = len(lista_desplegable)-1
 
-        # --- 3. SELECTOR QUE "ABRE" LA LEY SELECCIONADA ---
+# --- 3. SELECTOR QUE CARGA LA LEY AL SELECCIONARLA ---
         eje_seleccionado = st.selectbox(
             "📚 Biblioteca de Normas Cargadas:", 
             lista_desplegable, 
@@ -1248,18 +1248,21 @@ with st.sidebar:
             key="selector_maestro_biblioteca"
         )
 
-        # LÓGICA DE INTERCAMBIO DE MAPA (ESTO ES LO QUE TE FALTABA)
+        # LÓGICA DE INTERCAMBIO DE MAPA (RE-ACTIVA)
         if eje_seleccionado != opcion_nueva:
-            engine.thematic_axis = eje_seleccionado
-            
-            # Si la ley existe en la estantería, cambiamos el MAPA ACTIVO
-            if hasattr(engine, 'law_library') and eje_seleccionado in engine.law_library:
-                # Solo cambiamos si es diferente para evitar refrescos infinitos
-                if engine.sections_map != engine.law_library[eje_seleccionado]:
+            # SI EL USUARIO CAMBIA LA SELECCIÓN EN EL MENÚ...
+            if engine.thematic_axis != eje_seleccionado:
+                engine.thematic_axis = eje_seleccionado
+                
+                # 1. Buscamos el mapa de esa ley en la estantería (law_library)
+                if hasattr(engine, 'law_library') and eje_seleccionado in engine.law_library:
+                    # 2. Reemplazamos el visor actual por el de la ley elegida
                     engine.sections_map = engine.law_library[eje_seleccionado]
-                    # No hace falta rerun aquí, el cambio se verá en el Mapa de abajo
+                    
+                    # 3. EL TRUCO: Forzamos el refresco para que el Mapa de abajo cambie YA
+                    st.rerun() 
 
-        # 4. INPUT DE NOMBRE (Se autocompleta con el selector)
+        # 4. INPUT DE NOMBRE (Sincronizado)
         axis_input = st.text_input("Eje Temático Actual:", value=engine.thematic_axis)
         engine.thematic_axis = axis_input
 
