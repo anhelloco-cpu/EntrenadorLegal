@@ -464,22 +464,24 @@ class LegalEngineTITAN:
             if not hasattr(self, 'manual_text') or not self.manual_text: 
                 self.manual_text = "" 
         # ---------------------------------------------------
-        
-        self.thematic_axis = axis_name 
+self.thematic_axis = axis_name 
         self.doc_type = doc_type_input 
 
-        # self.sections_map = self.smart_segmentation(text)
-        # self.active_section_name = "TODO EL DOCUMENTO"
-        # self.chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
-
-# Sumamos las nuevas secciones a las que ya existían
-        nuevas_secciones = self.smart_segmentation(text)
-        self.sections_map.update(nuevas_secciones) 
+        # 1. Generamos el mapa exclusivo de ESTA nueva ley
+        nuevo_mapa_ley = self.smart_segmentation(text)
+        
+        # 2. Creamos la "Estantería" si no existe y guardamos el mapa de esta ley
+        if not hasattr(self, 'law_library'): self.law_library = {}
+        self.law_library[axis_name] = nuevo_mapa_ley
+        
+        # 3. El visor actual (sections_map) mostrará solo esta ley recién cargada
+        self.sections_map = nuevo_mapa_ley 
         
         self.active_section_name = "TODO EL DOCUMENTO"
         
-        # Agregamos los nuevos bloques de texto sin borrar los anteriores
+        # 4. ACUMULAMOS los bloques (Esto lo dejamos como tú lo tienes, para el Global)
         nuevos_chunks = [text[i:i+50000] for i in range(0, len(text), 50000)]
+        if not self.chunks: self.chunks = []
         self.chunks.extend(nuevos_chunks)
 
         if not self.mastery_tracker: self.mastery_tracker = {}
@@ -1217,26 +1219,28 @@ with st.sidebar:
 
         st.caption("Selecciona una ley existente o registra una nueva:")
 
-# --- 1. ESCÁNER DE BIBLIOTECA (Detecta leyes en el historial y en memoria) ---
+# --- 1. ESCÁNER DE BIBLIOTECA (Detecta leyes en el historial y en la estantería) ---
         ejes_encontrados = set()
+        
+        # Buscamos en la estantería de mapas que creamos en la Parte 3
+        if hasattr(engine, 'law_library'):
+            ejes_encontrados.update(engine.law_library.keys())
+        
+        # Buscamos en el historial de aciertos por si acaso
         for k in engine.mastery_tracker.keys():
             match = re.search(r'\[(.*?)\]', str(k))
             if match: ejes_encontrados.add(match.group(1))
-        
-        if hasattr(engine, 'chunks') and engine.chunks:
-            for chunk in engine.chunks:
-                match_c = re.search(r'^\[(.*?)\]', str(chunk))
-                if match_c: ejes_encontrados.add(match_c.group(1))
 
         opcion_nueva = "[+ Registrar Nuevo Eje Tematico]"
         lista_desplegable = sorted([e for e in ejes_encontrados if e]) + [opcion_nueva]
 
-        # --- 2. SELECTOR DE BIBLIOTECA (Mantiene el foco) ---
+        # --- 2. CÁLCULO DINÁMICO DEL ÍNDICE ---
         try:
             idx_actual = lista_desplegable.index(engine.thematic_axis) if engine.thematic_axis in lista_desplegable else len(lista_desplegable)-1
         except:
             idx_actual = len(lista_desplegable)-1
 
+        # --- 3. SELECTOR QUE "ABRE" LA LEY SELECCIONADA ---
         eje_seleccionado = st.selectbox(
             "📚 Biblioteca de Normas Cargadas:", 
             lista_desplegable, 
@@ -1244,13 +1248,21 @@ with st.sidebar:
             key="selector_maestro_biblioteca"
         )
 
-        # Si eliges una del menú, se auto-escribe abajo y el motor se enfoca en ella
+        # LÓGICA DE INTERCAMBIO DE MAPA (ESTO ES LO QUE TE FALTABA)
         if eje_seleccionado != opcion_nueva:
             engine.thematic_axis = eje_seleccionado
+            
+            # Si la ley existe en la estantería, cambiamos el MAPA ACTIVO
+            if hasattr(engine, 'law_library') and eje_seleccionado in engine.law_library:
+                # Solo cambiamos si es diferente para evitar refrescos infinitos
+                if engine.sections_map != engine.law_library[eje_seleccionado]:
+                    engine.sections_map = engine.law_library[eje_seleccionado]
+                    # No hace falta rerun aquí, el cambio se verá en el Mapa de abajo
 
-        # --- 3. INPUT DE NOMBRE Y TEXTO ---
+        # 4. INPUT DE NOMBRE (Se autocompleta con el selector)
         axis_input = st.text_input("Eje Temático Actual:", value=engine.thematic_axis)
         engine.thematic_axis = axis_input
+
         txt_manual = st.text_area("Texto de la Norma (si no usas PDF):", height=100)
 
         # --- 4. EL BOTÓN DE PROCESAR (CORREGIDO PARA NO BORRAR) ---
