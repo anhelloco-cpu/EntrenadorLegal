@@ -873,7 +873,7 @@ class LegalEngineTITAN:
         
         MISION: Genera {self.questions_per_case} preguntas de NIVEL ELITE (ROMPE-RANKING) basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
         
-        REGLAS DE ORO (LOS 9 CAPITANES - BLINDAJE EXTREMO):
+        REGLAS DE ORO (LOS 11 CAPITANES - BLINDAJE EXTREMO):
         1. 🚫 CAPITÁN ANTI-LORO: PROHIBIDO iniciar la respuesta con "Según el artículo...", "De acuerdo a la ley..." o similar. La respuesta debe ser una CONSECUENCIA JURÍDICA o TÉCNICA autónoma (Ej: "Se declara la nulidad...", "Opera el silencio administrativo...").
         2. 👯 CAPITÁN GEMELOS (MODO HOSTIL EXTREMO): Las opciones incorrectas DEBEN ser "Gemelos Legales": fragmentos literales de la norma que regulen situaciones parecidas. OBLIGATORIO: Deben provenir del MISMO ARTÍCULO o de artículos contiguos para eliminar el descarte por tema.
         3. ⚖️ CAPITÁN ECUALIZADOR: OBLIGATORIO. Las opciones A, B, C y D deben tener una LONGITUD VISUAL IDÉNTICA. Si la correcta es larga, rellena las incorrectas. Nadie debe adivinar por el tamaño del texto.
@@ -884,6 +884,7 @@ class LegalEngineTITAN:
         8. 🔀 CAPITÁN CONDICIONALIDAD: La opción correcta debe serlo SOLO si se identifica una condición fáctica implícita en el caso narrado (paradoja de corrección condicionada).
         9. 💥 CAPITÁN COLISIÓN: Obliga al usuario a decidir entre dos principios constitucionales en tensión (ej. Eficacia vs Legalidad) o normas que parecen chocar.
         10. ⚓ CAPITÁN ANCLA (FIDELIDAD ABSOLUTA): Tienes PROHIBIDO citar, mencionar o basar la respuesta en leyes, decretos o códigos que NO estén explícitamente en el texto proporcionado (fuente técnica). Si el nivel es Profesional, la dificultad DEBE nacer de analizar los matices, plazos y excepciones que el texto SÍ menciona, no de traer información de otros libros externos. Si inventas una ley ajena al PDF, tu proceso de generación será invalidado.
+        11. 🎭 CAPITÁN ESPEJISMO (TRAMPA DEL ECO): OBLIGATORIO. Si en el enunciado o caso usas palabras técnicas llamativas, estas NO pueden aparecer en la respuesta correcta. Debes usarlas ÚNICAMENTE en las opciones incorrectas (distractores). La respuesta correcta debe expresar la misma idea pero usando sinónimos técnicos o la consecuencia jurídica pura. El usuario que busque "palabras que rimen" con la pregunta debe caer en una respuesta falsa.
 
 
         REGLA DE ESTANQUEIDAD Y MIMESIS (CRÍTICA):
