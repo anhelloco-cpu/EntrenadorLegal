@@ -464,7 +464,7 @@ class LegalEngineTITAN:
             if not hasattr(self, 'manual_text') or not self.manual_text: 
                 self.manual_text = "" 
         # ---------------------------------------------------
-self.thematic_axis = axis_name 
+        self.thematic_axis = axis_name 
         self.doc_type = doc_type_input 
 
         # 1. Generamos el mapa exclusivo de ESTA nueva ley
