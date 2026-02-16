@@ -245,6 +245,9 @@ class LegalEngineTITAN:
         # --- NUEVO: VARIABLE PARA MANUAL DE FUNCIONES ---
         self.manual_text = ""
 
+        # --- ESTE ES EL CAMBIO (EL ARCHIVADOR DE LEYES) ---
+        self.law_library = {}
+
         # --- DICCIONARIO DE MISIONES (El Cerebro) ---
         self.mission_profiles = {
             "Contraloría General de la República": "TU ROL: AUDITOR FISCAL. Tu misión es proteger el PATRIMONIO PÚBLICO. Al generar la pregunta, enfócate exclusivamente en detectar DAÑO PATRIMONIAL, gestión antieconómica, ineficaz o ineficiente. Ignora definiciones de diccionario (RAE) o temas puramente teóricos a menos que sirvan para probar un detrimento económico real. Si el texto es un Manual, pregunta sobre el PROCEDIMIENTO para auditar.",
@@ -692,28 +695,27 @@ class LegalEngineTITAN:
             DIFICULTAD: 11/10 (Rompe-Ranking). Si la respuesta es obvia, has fallado. El usuario debe dudar entre dos opciones hasta el final.
             """
 
-      # --- NUEVO: CONFIGURACIÓN TÉCNICA (GUÍA CGR - PÁG 14-18) ---
-        # Mapeo de niveles jerárquicos a niveles de desarrollo y Bloom
+# --- CONFIGURACIÓN TÉCNICA (ANDERSON & KRATHWOHL - GUÍA CGR) ---
         config_nivel = {
             "Asistencial": {
-                "dev": "BÁSICO", 
-                "bloom": "NIVEL 1-2 (Recuerdo/Comprensión)", 
-                "focus": "ejecución de tareas operativas y procesos administrativos simples."
+                "dev": "RECUERDO / COMPRENSIÓN", 
+                "bloom": "NIVEL 1-2", 
+                "focus": "el dominio de métodos, procesos y marcos de referencia, así como la capacidad de explicar relaciones entre datos y principios."
             },
             "Técnico": {
-                "dev": "INTERMEDIO", 
-                "bloom": "NIVEL 3 (Aplicación)", 
-                "focus": "aplicación de tecnologías y resolución de problemas específicos del cargo."
+                "dev": "APLICACIÓN", 
+                "bloom": "NIVEL 3", 
+                "focus": "la capacidad de seleccionar, transferir y utilizar principios de la norma para ejecutar tareas o proponer soluciones concretas."
             },
             "Profesional": {
-                "dev": "AVANZADO", 
-                "bloom": "NIVEL 4 (Análisis)", 
-                "focus": "Análisis de Errores, relación y generalización en contextos complejos."
+                "dev": "ANÁLISIS", 
+                "bloom": "NIVEL 4", 
+                "focus": "la competencia para descomponer el todo en sus partes e identificar qué requisito legal NO se cumple o qué principio prevalece."
             },
             "Asesor": {
-                "dev": "AVANZADO", 
-                "bloom": "NIVEL 4 (Análisis)", 
-                "focus": "criterios de alta gerencia, discrecionalidad técnica e impacto institucional."
+                "dev": "ANÁLISIS SUPERIOR", 
+                "bloom": "NIVEL 4+", 
+                "focus": "la descomposición crítica para toma de decisiones estratégicas y resolución de colisiones normativas complejas."
             }
         }
         meta = config_nivel.get(self.level, config_nivel["Profesional"])
@@ -1293,46 +1295,38 @@ with st.sidebar:
                     st.rerun()       
  
     with tab2:
-        st.caption("Carga un archivo .json guardado previamente.")
-        upl = st.file_uploader("Archivo JSON:", type=['json'])
+
+        st.caption("📂 RESTAURACIÓN TOTAL: Recupera tu biblioteca, ADN y medallas.")
+        upl = st.file_uploader("Subir Backup (.json):", type=['json'], key="cargador_unico_titan")
+        
         if upl is not None:
             if 'last_loaded' not in st.session_state or st.session_state.last_loaded != upl.name:
                 try:
-
                     d = json.load(upl)
 
-                  # 1. Recuperación de ADN y Estructura
+                    # 1. Recuperación de la Estantería y el ADN (Memoria Total)
+                    engine.law_library = d.get('library', {}) 
+                    engine.manual_text = d.get('manual_clean', "")
                     engine.chunks = d['chunks']
                     engine.doc_type = d.get('doc_type', "Norma (Leyes/Decretos)")
                     st.session_state.raw_text_study = d.get('raw_pdf_text', "")
-                    engine.thematic_axis = d.get('axis', "General") # Cargamos el Eje ANTES de limpiar identidades
+                    engine.thematic_axis = d.get('axis', "General")
                     
-                  # 2. Re-activación del Modo Salvaje (XP)
-                    st.session_state.wild_mode = d.get('wild_state', False)
-                    
-                  # 3. Sincronizador de Identidad (VERSIÓN LIMPIA - SIN CORCHETES)
+                    # 2. Sincronizador de Identidad Protegido (No mezcla leyes)
                     def clean_full_identity(k):
                         k_str = str(k).upper()
-                        # Solo extraemos el número del artículo, ignoramos el [EJE]
+                        if "[" in k_str and "]" in k_str: return k_str
                         match_art = re.search(r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', k_str)
-                        
-                        # Retornamos la llave pura (ARTICULO X) para que get_stats la encuentre
-                        if match_art: 
-                            return f"ARTICULO {match_art.group(1)}"
-                        
-                        return k_str
+                        return f"ARTICULO {match_art.group(1)}" if match_art else k_str
 
-                    # Carga de Progreso Visual
+                    # 3. Restauración de Progreso y Estados
                     engine.mastery_tracker = {clean_full_identity(k): v for k, v in d['mastery'].items()}
                     engine.seen_articles = set(clean_full_identity(a) for a in d.get('seen_arts', []))
                     engine.failed_articles = set(clean_full_identity(a) for a in d.get('failed_arts', []))
                     engine.mastered_articles = set(clean_full_identity(a) for a in d.get('mastered_arts', []))
                     
-                    # --- NUEVO: RECUPERACIÓN DE BLOQUEOS Y ADN ---
-                    engine.temporary_blacklist = set(d.get('blacklist', [])) # Recupera lo que bloqueaste
-                    engine.manual_text = d.get('manual_clean', "")           # Recupera el ADN purificado
-                    
-                    # --- RESTO DE VARIABLES ---
+                    st.session_state.wild_mode = d.get('wild_state', False)
+                    engine.temporary_blacklist = set(d.get('blacklist', []))
                     engine.failed_indices = set(d['failed'])
                     engine.feedback_history = d.get('feed', [])
                     engine.entity = d.get('ent', "")
@@ -1341,20 +1335,19 @@ with st.sidebar:
                     engine.structure_type = d.get('struct_type', "Técnico / Normativo (Sin Caso)")
                     engine.questions_per_case = d.get('q_per_case', 1)
                     engine.example_question = d.get('ex_q', "")
-                    engine.job_functions = d.get('job', "")
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
 
                     if DL_AVAILABLE:
-                         with st.spinner("🧠 Recuperando memoria neuronal..."): 
+                         with st.spinner("🧠 Reconstruyendo mapa neuronal..."): 
                              engine.chunk_embeddings = dl_model.encode(engine.chunks)
 
                     st.session_state.last_loaded = upl.name
-                    st.success("¡Backup Total Cargado!")
+                    st.success("✅ ¡TITÁN v105 Restaurado al 100%!")
                     time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
 
                 except Exception as e: 
-                    st.error(f"Error al leer: {e}")
+                    st.error(f"Error al procesar el archivo: {e}")
 
     # --- ELEMENTOS FINALES DENTRO DEL SIDEBAR ---
     if engine.chunks:
@@ -1432,39 +1425,41 @@ with st.sidebar:
         full_save_data = {
             # --- 1. MEMORIA CENTRAL (TEXTO Y PROGRESO) ---
             "chunks": engine.chunks,
-            "doc_type": engine.doc_type,              # <--- NEW: ¡ESTO FALTABA!
+            "doc_type": engine.doc_type,
             "raw_pdf_text": st.session_state.raw_text_study,
-            "wild_state": st.session_state.get('wild_mode', False), # <-- ¡NUEVO! Guarda el interruptor XP
-            "mastery": engine.mastery_tracker,        # Tus medallas (0, 1, 2)
-            "failed": list(engine.failed_indices),    # Tus errores técnicos
+            "wild_state": st.session_state.get('wild_mode', False),
+            "mastery": engine.mastery_tracker,
+            "failed": list(engine.failed_indices),
 
-            # --- 2. CONFIGURACIÓN DEL USUARIO ---
-            "feed": engine.feedback_history,          # Ajustes de la IA
-            "ent": engine.entity,                     # Entidad (Contraloría, etc.)
-            "axis": engine.thematic_axis,             # El Eje Temático [LEY 1755]
-            "lvl": engine.level,                      # Nivel (Profesional, etc.)
-            "phase": engine.study_phase,              # Fase (Pre/Post)
-            "struct_type": engine.structure_type,     # Sin Caso / Con Caso
-            "q_per_case": engine.questions_per_case,  # Preguntas por caso
+            # --- 2. LA ESTANTERÍA (¡ESTO ES LO QUE FALTABA!) ---
+            "library": getattr(engine, 'law_library', {}), # <--- AQUÍ SE GUARDAN TODAS LAS LEYES
 
-            # --- 3. CONTEXTO DE ROL (ESTO FALTABA) ---
-            "job": engine.job_functions,              # Lo que se ve en la caja de texto
-            "manual_clean": getattr(engine, 'manual_text', ""), # ¡CRÍTICO! El ADN purificado oculto
+            # --- 3. CONFIGURACIÓN DEL USUARIO ---
+            "feed": engine.feedback_history,
+            "ent": engine.entity,
+            "axis": engine.thematic_axis,
+            "lvl": engine.level,
+            "phase": engine.study_phase,
+            "struct_type": engine.structure_type,
+            "q_per_case": engine.questions_per_case,
 
-            # --- 4. MAPA DE NAVEGACIÓN ---
-            "sections": engine.sections_map,          # Mapa de la ley
-            "act_sec": engine.active_section_name,    # Dónde te quedaste
-            "ex_q": engine.example_question,          # Tu ejemplo de estilo
+            # --- 4. CONTEXTO DE ROL ---
+            "job": engine.job_functions,
+            "manual_clean": getattr(engine, 'manual_text', ""),
 
-            # --- 5. RASTREO VISUAL Y BLOQUEOS (ESTO FALTABA) ---
-            "seen_arts": list(engine.seen_articles),          # Artículos vistos
-            "failed_arts": list(engine.failed_articles),      # Lista Roja visual
-            "mastered_arts": list(engine.mastered_articles),  # Lista Verde visual
-            "blacklist": list(engine.temporary_blacklist)     # ¡IMPORTANTE! Lo que bloqueaste con el botón SALTAR
+            # --- 5. MAPA DE NAVEGACIÓN Y RASTREO ---
+            "sections": engine.sections_map,
+            "act_sec": engine.active_section_name,
+            "ex_q": engine.example_question,
+            "seen_arts": list(engine.seen_articles),
+            "failed_arts": list(engine.failed_articles),
+            "mastered_arts": list(engine.mastered_articles),
+            "blacklist": list(engine.temporary_blacklist)
         }
         
         st.divider()
         st.download_button("💾 Guardar Progreso Total", json.dumps(full_save_data), "backup_titan_full.json", type="primary")
+
 # ### --- FIN PARTE 5 ---
 
 # ### --- INICIO PARTE 6: CICLO PRINCIPAL DEL JUEGO (GAME LOOP) ---
