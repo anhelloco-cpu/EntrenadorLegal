@@ -56,17 +56,18 @@ st.set_page_config(
 st.markdown("""
 <style>
 
-    /* 🛡️ PROTECCIÓN: Solo afecta a la PREGUNTA en la zona principal */
-    div[data-testid="stMain"] div[data-testid="stRadio"] > label p {
-        font-size: 30px !important;  /* <--- Agregamos 'p' al final del selector */
+/* 🛡️ PROTECCIÓN: Solo afecta a la PREGUNTA en la zona principal */
+    div[data-testid="stMain"] div[data-testid="stRadio"] label[data-testid="stWidgetLabel"] p {
+        font-size: 40px !important;
         font-weight: bold !important;
         color: #1E1E1E !important;
         line-height: 1.3 !important;
-        padding-bottom: 10px !important;
+        padding-bottom: 20px !important; /* <--- Lo devolví y lo subí a 20px por el tamaño de letra */
     }
-    
-    div[data-testid="stMain"] div[data-testid="stRadio"] div[role="radiogroup"] label p {
-        font-size: 22px !important;  /* <--- Tamaño de las Opciones */
+
+    /* Tamaño de las Opciones (Respuestas A, B, C, D) */
+    div[data-testid="stMain"] div[data-testid="stRadio"] div[role="radiogroup"] p {
+        font-size: 22px !important;
         line-height: 1.4 !important;
         color: #333 !important;
     }
