@@ -55,15 +55,16 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+
     /* 🛡️ PROTECCIÓN: Solo afecta a la PREGUNTA en la zona principal */
-    div[data-testid="stMain"] div[data-testid="stRadio"] > label {
-        font-size: 40px !important;  /* <--- Tamaño de la Pregunta */
+    div[data-testid="stMain"] div[data-testid="stRadio"] > label p {
+        font-size: 40px !important;  /* <--- Agregamos 'p' al final del selector */
         font-weight: bold !important;
         color: #1E1E1E !important;
         line-height: 1.3 !important;
         padding-bottom: 10px !important;
     }
-
+    
     div[data-testid="stMain"] div[data-testid="stRadio"] div[role="radiogroup"] label p {
         font-size: 22px !important;  /* <--- Tamaño de las Opciones */
         line-height: 1.4 !important;
