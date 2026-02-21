@@ -57,7 +57,7 @@ st.markdown("""
 <style>
     /* 🛡️ PROTECCIÓN: Solo afecta a la PREGUNTA en la zona principal */
     div[data-testid="stMain"] div[data-testid="stRadio"] > label {
-        font-size: 30px !important;  /* <--- Tamaño de la Pregunta */
+        font-size: 40px !important;  /* <--- Tamaño de la Pregunta */
         font-weight: bold !important;
         color: #1E1E1E !important;
         line-height: 1.3 !important;
