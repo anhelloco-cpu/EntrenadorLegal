@@ -58,7 +58,7 @@ st.markdown("""
 
 /* 🛡️ SELECTOR ULTRA-PRECISO: Ignora la estructura y busca el ID del Widget */
     [data-testid="stWidgetLabel"] p {
-        font-size: 30px !important;
+        font-size: 25px !important;
         font-weight: bold !important;
         color: #1E1E1E !important;
         line-height: 1.2 !important;
