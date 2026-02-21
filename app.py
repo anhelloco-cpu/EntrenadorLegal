@@ -58,7 +58,7 @@ st.markdown("""
 
     /* 🛡️ PROTECCIÓN: Solo afecta a la PREGUNTA en la zona principal */
     div[data-testid="stMain"] div[data-testid="stRadio"] > label p {
-        font-size: 40px !important;  /* <--- Agregamos 'p' al final del selector */
+        font-size: 30px !important;  /* <--- Agregamos 'p' al final del selector */
         font-weight: bold !important;
         color: #1E1E1E !important;
         line-height: 1.3 !important;
@@ -97,7 +97,7 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     
-    /* Caja para la narrativa del caso/norma */
+    /* Caja para la narrativa del caso/norma - MODIFICADO */
     .narrative-box {
         background-color: #f5f5f5; 
         padding: 25px; 
@@ -105,11 +105,18 @@ st.markdown("""
         border-left: 6px solid #424242; 
         margin-bottom: 25px;
         font-family: 'Georgia', serif; 
-        font-size: 1.3em !important; 
-        line-height: 1.6;
+        font-size: 35px !important;  /* <--- Sube este valor a 35px o 40px */
+        line-height: 1.4 !important;
+        color: #1E1E1E !important;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    
+
+    /* Ajuste adicional para párrafos dentro de la caja narrativa */
+    .narrative-box p {
+        font-size: 35px !important; /* <--- Asegura que el texto interno también crezca */
+        line-height: 1.4 !important;
+    }
+
     /* Etiquetas para artículos fallados (ROJO) */
     .failed-tag {
         background-color: #ffcccc; 
