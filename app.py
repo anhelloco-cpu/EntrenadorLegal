@@ -1554,14 +1554,19 @@ if st.session_state.page == 'game':
                     letra_sel = sel.split(")")[0]
                     full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
                     
-# --- LÓGICA DE IDENTIDAD ÚNICA (CORREGIDA) ---
+
+# --- LÓGICA DE IDENTIDAD ÚNICA (CORREGIDA PARA EL PORCENTAJE) ---
                     label_raw = engine.current_article_label.strip().upper()
                     
                     # 1. Normalizamos (Quitamos tildes para que detecte 'ARTICULO' siempre)
                     check_norm = label_raw.replace("Á","A").replace("É","E").replace("Í","I").replace("Ó","O").replace("Ú","U")
                     
-                    # 2. Extraemos el nombre base (Sin el ITEM adicional)
-                    if " - ITEM" in label_raw:
+                    # 2. Extraemos el nombre base EXACTO que busca el contador (Sin corchetes)
+                    match_art = re.search(r'(ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', check_norm)
+                    
+                    if match_art:
+                        key_maestria = f"ARTICULO {match_art.group(2)}"
+                    elif " - ITEM" in label_raw:
                         key_maestria = label_raw.split(" - ITEM")[0].strip()
                     else:
                         key_maestria = label_raw
@@ -1569,6 +1574,8 @@ if st.session_state.page == 'game':
                     # 3. Solo usamos el índice del bloque si NO es un artículo real
                     if "ARTICULO" not in check_norm and "BLOQUE" not in check_norm and "ITEM" not in check_norm:
                         key_maestria = engine.current_chunk_idx
+
+
                     # Validar Respuesta
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
