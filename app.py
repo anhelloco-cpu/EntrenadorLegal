@@ -1475,6 +1475,8 @@ with st.sidebar:
 # ==========================================
 # CICLO PRINCIPAL DEL JUEGO
 # ==========================================
+import random # Necesario para la ruleta de GIFs y el minijuego
+
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
     subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
@@ -1499,6 +1501,8 @@ if st.session_state.page == 'game':
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0
                 st.session_state.answered = False
+                st.session_state.needs_recovery = False # Reset minijuego
+                if 'recovery_word' in st.session_state: del st.session_state.recovery_word
                 st.rerun()
             else:
                 err = data.get('error', 'Desconocido')
@@ -1518,7 +1522,6 @@ if st.session_state.page == 'game':
         
         form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
         
-        # --- AQUÍ EMPIEZA EL FORMULARIO (Espacios corregidos) ---
         with st.form(key=form_key):
             # A. Mostrar Opciones
             opciones_validas = {k: v for k, v in q['opciones'].items() if v}
@@ -1531,37 +1534,28 @@ if st.session_state.page == 'game':
             with col_skip:
                 skipped = st.form_submit_button("⏭️ SALTAR (BLOQUEAR)")
             
-# C. Lógica de Salto (Skip) - CORREGIDA
+            # C. Lógica de Salto (Skip)
             if skipped: 
                 key_bloqueo = engine.current_article_label.split(" - ITEM")[0].strip()
                 engine.temporary_blacklist.add(key_bloqueo)
-                
-                # --- ROMPEMOS EL BUCLE DE MEMORIA ---
-                # 1. Borramos el rastro del error anterior para que el imán se apague
                 engine.last_failed_embedding = None 
-                # 2. Forzamos al motor a elegir un bloque aleatorio nuevo
                 engine.current_chunk_idx = -1 
-                
                 st.session_state.current_data = None
+                st.session_state.needs_recovery = False
+                if 'recovery_word' in st.session_state: del st.session_state.recovery_word
                 st.rerun()
 
-            # D. Lógica de Validación (FILTRO DE HIERRO INTEGRADO)
+            # D. Lógica de Validación
             if submitted:
                 if not sel:
                     st.warning("⚠️ Debes seleccionar una opción primero.")
                 else:
-                    # Preparar Variables
                     letra_sel = sel.split(")")[0]
                     full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
                     
-
-# --- LÓGICA DE IDENTIDAD ÚNICA (CORREGIDA PARA EL PORCENTAJE) ---
+                    # --- LÓGICA DE IDENTIDAD ÚNICA ---
                     label_raw = engine.current_article_label.strip().upper()
-                    
-                    # 1. Normalizamos (Quitamos tildes para que detecte 'ARTICULO' siempre)
                     check_norm = label_raw.replace("Á","A").replace("É","E").replace("Í","I").replace("Ó","O").replace("Ú","U")
-                    
-                    # 2. Extraemos el nombre base EXACTO que busca el contador (Sin corchetes)
                     match_art = re.search(r'(ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', check_norm)
                     
                     if match_art:
@@ -1571,18 +1565,16 @@ if st.session_state.page == 'game':
                     else:
                         key_maestria = label_raw
 
-                    # 3. Solo usamos el índice del bloque si NO es un artículo real
                     if "ARTICULO" not in check_norm and "BLOQUE" not in check_norm and "ITEM" not in check_norm:
                         key_maestria = engine.current_chunk_idx
-
 
                     # Validar Respuesta
                     if letra_sel == q['respuesta']: 
                         st.success("✅ ¡Correcto!") 
+                        # ¡Sonido de acierto (Moneda de Mario)!
+                        st.markdown('<audio autoplay src="https://www.myinstants.com/media/sounds/mario-coin.mp3"></audio>', unsafe_allow_html=True)
                         
-                        # FILTRO: SOLO SUMA PUNTOS SI EL MODO SALVAJE ESTÁ ACTIVO
                         es_modo_salvaje = True
-
                         if es_modo_salvaje:
                             maestria_previa = engine.mastery_tracker.get(key_maestria, 0)
                             if maestria_previa < 1:
@@ -1594,7 +1586,6 @@ if st.session_state.page == 'game':
                         else:
                             st.info("💡 Acierto en Modo Normal: **No suma puntos de maestría**.")
 
-                        # Gestión de etiquetas visuales
                         if engine.current_article_label != "General":
                             if full_tag in engine.failed_articles: 
                                 engine.failed_articles.remove(full_tag)
@@ -1604,12 +1595,20 @@ if st.session_state.page == 'game':
                     else: 
                         st.error(f"Incorrecto. Era {q['respuesta']}")
                         
+                        # --- INYECCIÓN DE DIVERSIÓN Y SONIDO DE ERROR ---
+                        st.markdown('<audio autoplay src="https://www.myinstants.com/media/sounds/erro.mp3"></audio>', unsafe_allow_html=True)
+                        gifs_error = [
+                            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExc29teTRtbG85ZzZ6emtzZWJpeHJxZDJyeGNvcWFjd3hqajNscG4wMCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xT5LMzIK1AdZJ4cYW4/giphy.gif", # Perro confundido
+                            "https://media.giphy.com/media/3o85xnoIXebk3xYx4Q/giphy.gif", # Gordon Ramsay cara de decepción
+                            "https://media.giphy.com/media/l41lFw057lAJQMwg0/giphy.gif"  # Homer Simpson
+                        ]
+                        st.image(random.choice(gifs_error), width=250)
+                        
                         # Penalización
                         engine.failed_indices.add(engine.current_chunk_idx)
                         if engine.chunk_embeddings is not None:
                             engine.last_failed_embedding = engine.chunk_embeddings[engine.current_chunk_idx]
                         
-                        # Penalización visual
                         if engine.current_article_label != "General":
                             if full_tag in engine.mastered_articles: 
                                 engine.mastered_articles.remove(full_tag)
@@ -1621,18 +1620,61 @@ if st.session_state.page == 'game':
                         st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
                     
                     st.session_state.answered = True
+                    
+                    # --- CONFIGURACIÓN DEL MINIJUEGO DE RECUPERACIÓN ---
+                    if letra_sel != q['respuesta']:
+                        st.session_state.needs_recovery = True
+                        if 'recovery_word' not in st.session_state:
+                            # Sacamos una palabra clave larga de la explicación
+                            words = [w.strip(".,;:()[]\"'") for w in q['explicacion'].split() if len(w) > 6]
+                            target = random.choice(words) if words else "Control"
+                            st.session_state.recovery_word = target
+                            
+                            # Palabras trampa relacionadas con el estudio
+                            fake_words = ["Contraloría", "Nulidad", "Fiscalización", "Inexequible", "Caducidad", "Derogatoria", "Procuraduría", "Jurisdicción", "Sanción", "Responsabilidad"]
+                            opts = random.sample([w for w in fake_words if w.upper() != target.upper()], 3) + [target]
+                            random.shuffle(opts)
+                            st.session_state.recovery_opts = opts
+                    else:
+                        st.session_state.needs_recovery = False
 
-        # 3. NAVEGACIÓN (Fuera del Formulario)
+        # 3. NAVEGACIÓN Y CANDADO DEL MINIJUEGO
         if st.session_state.answered:
-            if st.session_state.q_idx < len(q_list) - 1:
-                if st.button("Siguiente Pregunta"): 
-                    st.session_state.q_idx += 1
-                    st.session_state.answered = False
-                    st.rerun()
-            else:
-                if st.button("🔄 Generar Nuevo Caso"): 
-                    st.session_state.current_data = None
-                    st.rerun()
+            bloqueo_activo = False
+            
+            # SI FALLÓ, SE ACTIVA EL CANDADO
+            if st.session_state.get('needs_recovery', False):
+                st.markdown("### 🧩 ¡REPARA LA NORMA PARA AVANZAR!")
+                target = st.session_state.get('recovery_word', '')
+                opts = st.session_state.get('recovery_opts', [])
+                
+                texto_roto = q['explicacion'].replace(target, " **[ \_ \_ \_ \_ \_ \_ ]** ")
+                st.warning(texto_roto)
+                
+                rescate = st.radio("Selecciona la palabra clave que falta:", opts, index=None, key=f"rescue_{st.session_state.q_idx}")
+                
+                if rescate == target:
+                    st.success("✨ ¡Norma reparada! Memoria muscular activada.")
+                    st.markdown('<audio autoplay src="https://www.myinstants.com/media/sounds/mario-coin.mp3"></audio>', unsafe_allow_html=True)
+                    bloqueo_activo = False
+                else:
+                    bloqueo_activo = True
+            
+            # EL BOTÓN SOLO APARECE SI EL CANDADO ESTÁ ABIERTO
+            if not bloqueo_activo:
+                if st.session_state.q_idx < len(q_list) - 1:
+                    if st.button("Siguiente Pregunta"): 
+                        st.session_state.q_idx += 1
+                        st.session_state.answered = False
+                        st.session_state.needs_recovery = False
+                        if 'recovery_word' in st.session_state: del st.session_state.recovery_word
+                        st.rerun()
+                else:
+                    if st.button("🔄 Generar Nuevo Caso"): 
+                        st.session_state.current_data = None
+                        st.session_state.needs_recovery = False
+                        if 'recovery_word' in st.session_state: del st.session_state.recovery_word
+                        st.rerun()
         
         st.divider()
         if st.button("⬅️ VOLVER AL MENÚ"):
