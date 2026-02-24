@@ -1476,12 +1476,12 @@ with st.sidebar:
 # CICLO PRINCIPAL DEL JUEGO
 # ==========================================
 import random
-import string
+import re
 
 # --- FUNCIÓN GENERADORA DE SOPA DE LETRAS (VERSIÓN COMPACTA) ---
 def generar_sopa_letras(palabra):
     palabra = palabra.upper()
-    size = max(8, len(palabra) + 1) # Cuadrícula pequeña y rápida
+    size = max(8, len(palabra) + 1)
     letras = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ"
     grid = [[random.choice(letras) for _ in range(size)] for _ in range(size)]
     
@@ -1525,7 +1525,7 @@ if st.session_state.page == 'game':
                 st.session_state.current_data = data
                 st.session_state.q_idx = 0
                 st.session_state.answered = False
-                st.session_state.needs_recovery = False 
+                st.session_state.recovery_passed = False 
                 if 'recovery_word' in st.session_state: del st.session_state.recovery_word
                 st.rerun()
             else:
@@ -1563,11 +1563,12 @@ if st.session_state.page == 'game':
                 engine.last_failed_embedding = None 
                 engine.current_chunk_idx = -1 
                 st.session_state.current_data = None
-                st.session_state.needs_recovery = False
+                st.session_state.answered = False
+                st.session_state.recovery_passed = False
                 if 'recovery_word' in st.session_state: del st.session_state.recovery_word
                 st.rerun()
 
-            # D. Lógica de Validación
+            # D. Lógica de Validación Principal
             if submitted:
                 if not sel:
                     st.warning("⚠️ Debes seleccionar una opción primero.")
@@ -1589,10 +1590,11 @@ if st.session_state.page == 'game':
                     if "ARTICULO" not in check_norm and "BLOQUE" not in check_norm and "ITEM" not in check_norm:
                         key_maestria = engine.current_chunk_idx
 
-                    # RESPUESTA CORRECTA
+                    # --- SI ACIERTA ---
                     if letra_sel == q['respuesta']: 
-                        st.success("✅ ¡Correcto!") 
-                        st.markdown('<audio autoplay src="https://www.myinstants.com/media/sounds/mario-coin.mp3"></audio>', unsafe_allow_html=True)
+                        st.session_state.was_correct = True
+                        st.session_state.recovery_passed = True
+                        st.session_state.play_success_sound = True
                         
                         es_modo_salvaje = True
                         if es_modo_salvaje:
@@ -1610,17 +1612,11 @@ if st.session_state.page == 'game':
                             if engine.mastery_tracker.get(key_maestria, 0) == 2:
                                 engine.mastered_articles.add(full_tag)
                     
-                    # RESPUESTA INCORRECTA
+                    # --- SI FALLA ---
                     else: 
-                        st.error(f"Incorrecto. Era {q['respuesta']}")
-                        st.markdown('<audio autoplay src="https://www.myinstants.com/media/sounds/erro.mp3"></audio>', unsafe_allow_html=True)
-                        
-                        gifs_error = [
-                            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExc29teTRtbG85ZzZ6emtzZWJpeHJxZDJyeGNvcWFjd3hqajNscG4wMCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xT5LMzIK1AdZJ4cYW4/giphy.gif",
-                            "https://media.giphy.com/media/3o85xnoIXebk3xYx4Q/giphy.gif",
-                            "https://media.giphy.com/media/l41lFw057lAJQMwg0/giphy.gif"
-                        ]
-                        st.image(random.choice(gifs_error), width=250)
+                        st.session_state.was_correct = False
+                        st.session_state.recovery_passed = False
+                        st.session_state.play_error_sound = True
                         
                         engine.failed_indices.add(engine.current_chunk_idx)
                         if engine.chunk_embeddings is not None:
@@ -1630,80 +1626,121 @@ if st.session_state.page == 'game':
                             if full_tag in engine.mastered_articles: 
                                 engine.mastered_articles.remove(full_tag)
                             engine.failed_articles.add(full_tag)
-                    
-                    st.info(q['explicacion'])
-                    if 'tip_final' in q and q['tip_final']:
-                        st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
-                    
+
+                        # Configuración del Castigo Pedagógico (Usando la respuesta VERDADERA)
+                        texto_correcto = q['opciones'][q['respuesta']]
+                        palabras_prohibidas = ['ARTICULO', 'ARTÍCULO', 'NUMERAL', 'PARAGRAFO', 'RESPUESTA', 'INCORRECTO', 'OPCION', 'LITERAL', 'CODIGO', 'DECRETO', 'ANTERIOR', 'SIGUIENTE', 'PREGUNTA', 'EXPLICACION', 'PORQUE', 'CUANDO', 'DONDE', 'QUIEN', 'COMO', 'ESTE', 'ESTA', 'PARA', 'PERO', 'SINO']
+                        
+                        words_raw = [w.strip(".,;:()[]\"'").upper() for w in texto_correcto.split() if len(w) >= 5]
+                        words_filtered = [w for w in words_raw if w not in palabras_prohibidas]
+                        
+                        target = random.choice(words_filtered) if words_filtered else "CONTRALORIA"
+                        st.session_state.recovery_word = target
+                        st.session_state.recovery_text = texto_correcto
+                        
+                        st.session_state.game_type = random.choice(['reparar', 'sopa'])
+                        if st.session_state.game_type == 'sopa':
+                            st.session_state.sopa_grid = generar_sopa_letras(target)
+                        else:
+                            fake_words = ["NULIDAD", "FISCALIZACION", "INEXEQUIBLE", "CADUCIDAD", "DEROGATORIA", "PROCURADURIA", "SANCION", "DOLO", "CULPA", "OMISION", "JURISDICCION"]
+                            opts = random.sample([w for w in fake_words if w.upper() != target.upper()], 3) + [target]
+                            random.shuffle(opts)
+                            st.session_state.recovery_opts = opts
+                            
+                        gifs_error = [
+                            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExc29teTRtbG85ZzZ6emtzZWJpeHJxZDJyeGNvcWFjd3hqajNscG4wMCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xT5LMzIK1AdZJ4cYW4/giphy.gif",
+                            "https://media.giphy.com/media/3o85xnoIXebk3xYx4Q/giphy.gif",
+                            "https://media.giphy.com/media/l41lFw057lAJQMwg0/giphy.gif"
+                        ]
+                        st.session_state.error_gif = random.choice(gifs_error)
+                        
                     st.session_state.answered = True
-                    
-                    # --- CONFIGURACIÓN DE LOS MINIJUEGOS (MEMORIA MUSCULAR) ---
-                    if letra_sel != q['respuesta']:
-                        st.session_state.needs_recovery = True
-                        if 'recovery_word' not in st.session_state:
-                            # Filtro Inteligente (Solo palabras que importan)
-                            palabras_prohibidas = ['ARTICULO', 'ARTÍCULO', 'NUMERAL', 'PARAGRAFO', 'RESPUESTA', 'INCORRECTO', 'OPCION', 'LITERAL', 'CODIGO', 'DECRETO', 'ANTERIOR', 'SIGUIENTE', 'PREGUNTA', 'EXPLICACION', 'PORQUE', 'CUANDO', 'DONDE', 'QUIEN', 'COMO', 'ESTE', 'ESTA', 'PARA', 'PERO', 'SINO']
-                            
-                            words_raw = [w.strip(".,;:()[]\"'").upper() for w in q['explicacion'].split() if len(w) >= 6]
-                            words_filtered = [w for w in words_raw if w not in palabras_prohibidas]
-                            
-                            target = random.choice(words_filtered) if words_filtered else "CONTRALORIA"
-                            st.session_state.recovery_word = target
-                            
-                            # Ruleta: 50% Reparar Texto / 50% Sopa de Letras
-                            st.session_state.game_type = random.choice(['reparar', 'sopa'])
-                            if st.session_state.game_type == 'sopa':
-                                st.session_state.sopa_grid = generar_sopa_letras(target)
-                    else:
-                        st.session_state.needs_recovery = False
 
-        # 3. NAVEGACIÓN Y CANDADO DE MINIJUEGOS (TEXT INPUT)
-        if st.session_state.answered:
-            bloqueo_activo = False
+        # 3. NAVEGACIÓN Y CANDADO DE MINIJUEGOS (FUERA DEL FORMULARIO)
+        if st.session_state.get('answered', False):
             
-            if st.session_state.get('needs_recovery', False):
-                target = st.session_state.get('recovery_word', '')
-                game = st.session_state.get('game_type', 'reparar')
-                
-                if game == 'reparar':
-                    st.markdown("### 🧩 ¡REPARA LA NORMA!")
-                    texto_roto = q['explicacion'].upper().replace(target, " **[ \_ \_ \_ \_ \_ \_ ]** ")
-                    st.warning(texto_roto)
-                    st.info("Escribe exactamente la palabra que falta para desbloquear el avance.")
-                
-                elif game == 'sopa':
-                    st.markdown("### 🔎 SOPA DE LETRAS LEGAL")
-                    st.info("El concepto clave de tu error está escondido. Búscalo con la vista y escríbelo abajo.")
-                    st.markdown(st.session_state.get('sopa_grid', ''), unsafe_allow_html=True)
-
-                # Caja de texto única para escribir la respuesta (sin opciones falsas)
-                rescate_input = st.text_input("Escribe la palabra aquí:", key=f"rescue_{st.session_state.q_idx}").strip().upper()
-
-                # Validación del Candado
-                if rescate_input == target.upper():
-                    st.success(f"✨ ¡Memoria muscular activada! Palabra clave: **{target}**")
-                    st.markdown('<audio autoplay src="https://www.myinstants.com/media/sounds/mario-coin.mp3"></audio>', unsafe_allow_html=True)
-                    bloqueo_activo = False
-                else:
-                    bloqueo_activo = True
-                    if rescate_input != "":
-                        st.error("❌ Palabra incorrecta. Búscala bien e inténtalo de nuevo.")
+            # --- EFECTOS DE SONIDO (Solo suenan 1 vez) ---
+            if st.session_state.get('play_success_sound', False):
+                st.markdown('<audio autoplay src="https://www.myinstants.com/media/sounds/mario-coin.mp3"></audio>', unsafe_allow_html=True)
+                st.session_state.play_success_sound = False
             
-            # EL BOTÓN SOLO APARECE SI EL CANDADO ESTÁ ABIERTO
-            if not bloqueo_activo:
+            if st.session_state.get('play_error_sound', False):
+                st.markdown('<audio autoplay src="https://www.myinstants.com/media/sounds/erro.mp3"></audio>', unsafe_allow_html=True)
+                st.session_state.play_error_sound = False
+
+            # --- FLUJO: RESPONDIÓ CORRECTAMENTE DESDE EL INICIO ---
+            if st.session_state.was_correct:
+                st.success("✅ ¡Correcto!")
+                st.info(f"**Explicación:**\n\n{q['explicacion']}")
+                if 'tip_final' in q and q['tip_final']:
+                    st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
+                
                 if st.session_state.q_idx < len(q_list) - 1:
                     if st.button("Siguiente Pregunta"): 
                         st.session_state.q_idx += 1
                         st.session_state.answered = False
-                        st.session_state.needs_recovery = False
-                        if 'recovery_word' in st.session_state: del st.session_state.recovery_word
                         st.rerun()
                 else:
                     if st.button("🔄 Generar Nuevo Caso"): 
                         st.session_state.current_data = None
-                        st.session_state.needs_recovery = False
-                        if 'recovery_word' in st.session_state: del st.session_state.recovery_word
+                        st.session_state.answered = False
                         st.rerun()
+
+            # --- FLUJO: FALLÓ LA PREGUNTA ---
+            else:
+                # ETAPA 1: CANDADO ACTIVO (La explicación está oculta)
+                if not st.session_state.get('recovery_passed', False):
+                    st.error("❌ Respuesta Incorrecta. ¡Resuelve este reto para desbloquear la explicación y avanzar!")
+                    st.image(st.session_state.error_gif, width=250)
+                    
+                    target = st.session_state.recovery_word
+                    game = st.session_state.game_type
+                    
+                    if game == 'reparar':
+                        st.markdown("### 🧩 ¡REPARA LA OPCIÓN CORRECTA!")
+                        texto_roto = st.session_state.recovery_text.upper().replace(target, " **[ \_ \_ \_ \_ \_ \_ ]** ")
+                        st.warning(texto_roto)
+                        
+                        rescate = st.radio("Selecciona la palabra que falta:", st.session_state.recovery_opts, index=None, horizontal=True)
+                        if rescate == target:
+                            st.session_state.recovery_passed = True
+                            st.session_state.play_success_sound = True
+                            st.rerun()
+                        elif rescate is not None:
+                            st.error("❌ Opción incorrecta.")
+                            
+                    elif game == 'sopa':
+                        st.markdown("### 🔎 SOPA DE LETRAS LEGAL")
+                        st.info("El concepto clave de la opción verdadera está escondido. Búscalo con la vista y escríbelo abajo.")
+                        st.markdown(st.session_state.sopa_grid, unsafe_allow_html=True)
+                        
+                        rescate_input = st.text_input("Escribe la palabra aquí:", key=f"rescue_{st.session_state.q_idx}").strip().upper()
+                        if rescate_input == target.upper():
+                            st.session_state.recovery_passed = True
+                            st.session_state.play_success_sound = True
+                            st.rerun()
+                        elif rescate_input != "":
+                            st.error("❌ Palabra incorrecta. Búscala bien e inténtalo de nuevo.")
+                            
+                # ETAPA 2: CANDADO SUPERADO (Se revela el secreto)
+                else:
+                    st.success(f"✨ ¡Memoria muscular activada! La palabra clave era: **{st.session_state.recovery_word}**")
+                    st.info(f"**Explicación Completa:**\n\n{q['explicacion']}")
+                    if 'tip_final' in q and q['tip_final']:
+                        st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
+                    
+                    if st.session_state.q_idx < len(q_list) - 1:
+                        if st.button("Siguiente Pregunta"): 
+                            st.session_state.q_idx += 1
+                            st.session_state.answered = False
+                            st.session_state.recovery_passed = False
+                            st.rerun()
+                    else:
+                        if st.button("🔄 Generar Nuevo Caso"): 
+                            st.session_state.current_data = None
+                            st.session_state.answered = False
+                            st.session_state.recovery_passed = False
+                            st.rerun()
         
         st.divider()
         if st.button("⬅️ VOLVER AL MENÚ"):
