@@ -628,6 +628,11 @@ class LegalEngineTITAN:
             candidatos_validos = []
             for m in matches:
                 tag = m.group(0).strip()
+
+
+
+
+
 # --- EL PORTERO CORRECTO ---
                 num_check = m.group(1).strip().upper()
                 nombre_completo = f"[{self.thematic_axis}] ARTICULO {num_check}"
@@ -638,12 +643,12 @@ class LegalEngineTITAN:
                 # Miramos 200 chars adelante para ver si dice Inexequible
                 contexto = texto_base[m.end():m.end()+200].upper()
                 if "INEXEQUIBLE" in contexto or "DEROGADO" in contexto: continue
-                if tag in self.seen_articles or tag in self.temporary_blacklist: continue
+                if nombre_completo in self.seen_articles or nombre_completo in self.temporary_blacklist: continue
                 candidatos_validos.append(m)
 
             if not candidatos_validos:
                 # Si no hay nada nuevo, buscamos en los que NO estén bloqueados por ti
-                candidatos_validos = [m for m in matches if m.group(0).strip() not in self.temporary_blacklist]
+                candidatos_validos = [m for m in matches if f"[{self.thematic_axis}] ARTICULO {m.group(1).strip().upper()}" not in self.temporary_blacklist]
                 
                 # Si AUN ASÍ no hay nada (porque bloqueaste todo en esta página)
                 if not candidatos_validos:
@@ -1597,14 +1602,14 @@ if st.session_state.page == 'game':
                     st.warning("⚠️ Debes seleccionar una opción primero.")
                 else:
                     letra_sel = sel.split(")")[0]
-                    full_tag = f"[{engine.thematic_axis}] {engine.current_article_label}"
+                    full_tag = engine.current_article_label
                     
                     label_raw = engine.current_article_label.strip().upper()
                     check_norm = label_raw.replace("Á","A").replace("É","E").replace("Í","I").replace("Ó","O").replace("Ú","U")
                     match_art = re.search(r'(ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', check_norm)
                     
                     if match_art:
-                        key_maestria = f"ARTICULO {match_art.group(2)}"
+                        key_maestria = f"[{engine.thematic_axis}] ARTICULO {match_art.group(2)}"
                     elif " - ITEM" in label_raw:
                         key_maestria = label_raw.split(" - ITEM")[0].strip()
                     else:
