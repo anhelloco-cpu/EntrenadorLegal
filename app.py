@@ -978,20 +978,24 @@ class LegalEngineTITAN:
                 
                 final_json = json.loads(text_resp)
    
-# --- AUTO-FUENTE (RESTAURACIÓN Y BLINDAJE TOTAL) ---
+# --- AUTO-FUENTE (BLINDAJE INTELIGENTE) ---
                 if "articulo_fuente" in final_json:
-                    # 1. Si es un ITEM, dejamos que pase (para no romper la lógica de manuales)
                     if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
                         pass
                     else:
-                        # 2. Rescatamos el número REAL que el Sniper leyó del PDF
-                        match_num = re.search(r'(\d+)', str(self.current_article_label)) 
-                        num_seguro = match_num.group(1) if match_num else "1"
+                        # 1. Miramos qué artículo atacó REALMENTE la IA en su pregunta
+                        texto_ia = str(final_json.get("articulo_fuente", ""))
+                        match_ia = re.search(r'(\d+)', texto_ia)
                         
-                        # 3. Forzamos TU nombre de eje y el número real. 
-                        # Ignoramos cualquier "Norma Hipotética" o artículos 35, 37, 38 inventados.
-                        self.current_article_label = f"[{self.thematic_axis}] ARTICULO {num_seguro}"  
-             
+                        if match_ia:
+                            # 2. Si la IA extrajo un número válido (ej. el 4), actualizamos el letrero
+                            num_ia = match_ia.group(1)
+                            self.current_article_label = f"[{self.thematic_axis}] ARTICULO {num_ia}"
+                        else:
+                            # 3. Si la IA no mandó número o alucinó, dejamos el original del Sniper
+                            match_num = re.search(r'(\d+)', str(self.current_article_label))
+                            num_seguro = match_num.group(1) if match_num else "1"
+                            self.current_article_label = f"[{self.thematic_axis}] ARTICULO {num_seguro}"             
 
                 # --- BARAJADOR AUTOMÁTICO INTELIGENTE ---
                 for q in final_json['preguntas']:
