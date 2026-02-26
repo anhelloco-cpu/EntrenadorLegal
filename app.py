@@ -982,8 +982,11 @@ class LegalEngineTITAN:
                 if "articulo_fuente" in final_json:
                     if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
                          pass
+
+
                     elif "articulo_fuente" in final_json:
-                         self.current_article_label = final_json["articulo_fuente"].upper()
+     # Quitamos el .upper() para que respete tu escritura original
+                         self.current_article_label = final_json["articulo_fuente"]
 
                 # --- BARAJADOR AUTOMÁTICO INTELIGENTE ---
                 for q in final_json['preguntas']:
