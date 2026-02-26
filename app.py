@@ -584,12 +584,20 @@ class LegalEngineTITAN:
         if not self.chunks: return {"error": "Falta Norma"}
         
         idx = -1
-        # Lógica de repaso de errores (Embeddings)
+        # --- CORRECCIÓN 1: EL MODO PESADILLA AHORA SABE LEER NOMBRES ---
         if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
-            # Buscamos candidatos que no estén en Verde (Nivel 2)
-            # Nota: Aquí seguimos usando índices para embeddings, pero la maestría la revisaremos por nombre luego
-            candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 2]
+            candidatos = []
+            for i, s in enumerate(sims):
+                texto_bloque = self.chunks[i]
+                # Extraemos el nombre para compararlo con la libreta de maestría
+                match_art = re.search(r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', texto_bloque, re.IGNORECASE | re.MULTILINE)
+                clave_bloque = f"ARTICULO {match_art.group(1).strip().upper()}" if match_art else i
+                
+                # Solo lo añade si tiene menos de 2 puntos (No dominado)
+                if self.mastery_tracker.get(clave_bloque, 0) < 2:
+                    candidatos.append((i, s))
+                    
             candidatos.sort(key=lambda x: x[1], reverse=True)
             if candidatos: idx = candidatos[0][0]
         
@@ -599,7 +607,6 @@ class LegalEngineTITAN:
         texto_base = self.chunks[idx]
         
         # --- FILTRO 1 (CAPITÁN JUSTICIA): ESCUDO ANTI-INEXEQUIBLE (Pre-Sniper) ---
-        # Si el bloque completo está muerto, lo saltamos
         if "INEXEQUIBLE" in texto_base.upper() or "DEROGADO" in texto_base.upper():
             idx = random.choice(range(len(self.chunks)))
             texto_base = self.chunks[idx]
@@ -609,10 +616,7 @@ class LegalEngineTITAN:
         matches = []
         
         if self.doc_type == "Norma (Leyes/Decretos)":
-
-        # Regex Protectora: El Grupo 1 ahora SOLO captura el número o romano puro
             p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
-
             matches = list(re.finditer(p_art, texto_base, re.IGNORECASE | re.MULTILINE))
             
         elif self.doc_type == "Guía Técnica / Manual":
@@ -623,11 +627,15 @@ class LegalEngineTITAN:
         self.current_article_label = "General / Sin Estructura Detectada"
         
         if matches:
-            # Filtro Francotirador + Anti-Inexequible Fino
             candidatos_validos = []
             for m in matches:
                 tag = m.group(0).strip()
-                # Miramos 200 chars adelante para ver si dice Inexequible
+                
+                # --- CORRECCIÓN 2: ESCUDO MAESTRO (Ignorar los que ya tienen Nivel 2) ---
+                num_limpio_temp = m.group(1).strip().upper()
+                clave_candidato = f"ARTICULO {num_limpio_temp}"
+                if self.mastery_tracker.get(clave_candidato, 0) >= 2: continue # ¡Se salta el dominado!
+                
                 contexto = texto_base[m.end():m.end()+200].upper()
                 if "INEXEQUIBLE" in contexto or "DEROGADO" in contexto: continue
                 if tag in self.seen_articles or tag in self.temporary_blacklist: continue
@@ -637,7 +645,7 @@ class LegalEngineTITAN:
                 candidatos_validos = [m for m in matches if m.group(0).strip() not in self.temporary_blacklist]
                 if not candidatos_validos:
                     candidatos_validos = matches
-                    self.temporary_blacklist.clear() # Reset suave
+                    self.temporary_blacklist.clear()
                 self.seen_articles.clear()
             
             if candidatos_validos:
@@ -645,21 +653,12 @@ class LegalEngineTITAN:
                 start_pos = seleccion.start()
                 current_match_index = matches.index(seleccion)
                 
-                # AJUSTE LOWI HERRERA: En lugar de cortar en el siguiente artículo, 
-                # le damos una ventana de 8,000 caracteres para que "lea más" y pueda integrar temas.
-                
                 context_window = 8000 
                 end_pos = min(len(texto_base), start_pos + context_window)
 
-                # El texto final ahora contiene el artículo seleccionado Y los artículos que le siguen
                 texto_final_ia = texto_base[start_pos:end_pos]
-                # Construimos la etiqueta MANUALMENTE usando solo el número limpio del Grupo 1
                 num_limpio = seleccion.group(1).strip().upper()
 
-
-                # self.current_article_label = f"ARTICULO {num_limpio}"
-
-# Ahora le ponemos la marca de la ley para que el desplegable la reconozca
                 self.current_article_label = f"[{self.thematic_axis}] ARTICULO {num_limpio}"
 
                 # --- MICRO-SEGMENTACIÓN ---
