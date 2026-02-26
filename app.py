@@ -591,7 +591,8 @@ class LegalEngineTITAN:
             # Nota: Aquí seguimos usando índices para embeddings, pero la maestría la revisaremos por nombre luego
             candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 2]
             candidatos.sort(key=lambda x: x[1], reverse=True)
-            if candidatos: idx = candidatos[0][0]
+            # if candidatos: idx = candidatos[0][0] // BORRADO
+
         
         if idx == -1: idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
@@ -641,10 +642,13 @@ class LegalEngineTITAN:
                 candidatos_validos.append(m)
 
             if not candidatos_validos:
+                # Si no hay nada nuevo, buscamos en los que NO estén bloqueados por ti
                 candidatos_validos = [m for m in matches if m.group(0).strip() not in self.temporary_blacklist]
+                
+                # Si AUN ASÍ no hay nada (porque bloqueaste todo en esta página)
                 if not candidatos_validos:
-                    candidatos_validos = matches
-                    self.temporary_blacklist.clear() # Reset suave
+                    # Forzamos a la ruleta a buscar OTRO bloque de texto diferente
+                    return self.generate_case() 
                 self.seen_articles.clear()
             
             if candidatos_validos:
