@@ -627,6 +627,13 @@ class LegalEngineTITAN:
             candidatos_validos = []
             for m in matches:
                 tag = m.group(0).strip()
+# --- EL PORTERO CORRECTO ---
+                num_check = m.group(1).strip().upper()
+                nombre_completo = f"[{self.thematic_axis}] ARTICULO {num_check}"
+                if self.mastery_tracker.get(nombre_completo, 0) >= 2:
+                    continue # ¡Si tiene Nivel 2, lo salta sin piedad!
+                # ---------------------------
+
                 # Miramos 200 chars adelante para ver si dice Inexequible
                 contexto = texto_base[m.end():m.end()+200].upper()
                 if "INEXEQUIBLE" in contexto or "DEROGADO" in contexto: continue
