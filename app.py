@@ -611,7 +611,6 @@ class LegalEngineTITAN:
         if self.doc_type == "Norma (Leyes/Decretos)":
 
         # Regex Protectora: El Grupo 1 ahora SOLO captura el número o romano puro
-
             p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
 
             matches = list(re.finditer(p_art, texto_base, re.IGNORECASE | re.MULTILINE))
@@ -654,8 +653,8 @@ class LegalEngineTITAN:
 
                 # El texto final ahora contiene el artículo seleccionado Y los artículos que le siguen
                 texto_final_ia = texto_base[start_pos:end_pos]
-                # Construimos la etiqueta MANUALMENTE usando solo el número limpio del Grupo 1 y cambiamos O por 0
-                num_limpio = seleccion.group(1).strip().upper().replace("O", "0")
+                # Construimos la etiqueta MANUALMENTE usando solo el número limpio del Grupo 1
+                num_limpio = seleccion.group(1).strip().upper()
 
 
                 # self.current_article_label = f"ARTICULO {num_limpio}"
