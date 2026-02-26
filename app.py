@@ -542,7 +542,7 @@ class LegalEngineTITAN:
             # Usamos el Grupo 1 (Número puro) para reconstruir la etiqueta limpia
             if self.doc_type == "Norma (Leyes/Decretos)":
                 num_limpio = match.group(1).strip().upper()
-                label_final = f"[{self.thematic_axis}] ARTICULO {num_limpio}"
+                label_final = f"[{str(self.thematic_axis).strip().upper()}] ARTICULO {num_limpio.strip().upper()}"
             else:
                 label_final = match.group(1).strip() # Para manuales (1.1, 1.2)
 
@@ -635,7 +635,7 @@ class LegalEngineTITAN:
 
 # --- EL PORTERO CORRECTO ---
                 num_check = m.group(1).strip().upper()
-                nombre_completo = f"[{self.thematic_axis}] ARTICULO {num_check}"
+                nombre_completo = f"[{str(self.thematic_axis).strip().upper()}] ARTICULO {num_check.strip().upper()}"
                 if self.mastery_tracker.get(nombre_completo, 0) >= 2:
                     continue # ¡Si tiene Nivel 2, lo salta sin piedad!
                 # ---------------------------
@@ -676,7 +676,7 @@ class LegalEngineTITAN:
                 # self.current_article_label = f"ARTICULO {num_limpio}"
 
 # Ahora le ponemos la marca de la ley para que el desplegable la reconozca
-                self.current_article_label = f"[{self.thematic_axis}] ARTICULO {num_limpio}"
+                self.current_article_label = f"[{str(self.thematic_axis).strip().upper()}] ARTICULO {num_limpio.strip().upper()}"
 
                 # --- MICRO-SEGMENTACIÓN ---
                 patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
@@ -1609,7 +1609,7 @@ if st.session_state.page == 'game':
                     match_art = re.search(r'(ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', check_norm)
                     
                     if match_art:
-                        key_maestria = f"[{engine.thematic_axis}] ARTICULO {match_art.group(2)}"
+                        key_maestria = f"[{str(engine.thematic_axis).strip().upper()}] ARTICULO {match_art.group(2).strip().upper()}"
                     elif " - ITEM" in label_raw:
                         key_maestria = label_raw.split(" - ITEM")[0].strip()
                     else:
