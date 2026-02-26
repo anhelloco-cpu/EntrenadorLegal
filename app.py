@@ -589,7 +589,15 @@ class LegalEngineTITAN:
             sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
             # Buscamos candidatos que no estén en Verde (Nivel 2)
             # Nota: Aquí seguimos usando índices para embeddings, pero la maestría la revisaremos por nombre luego
-            candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 2]
+
+            candidatos = []
+            for i, s in enumerate(sims):
+                # Extraemos el número del artículo para buscarlo bien en la libreta
+                match_art = re.search(r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', self.chunks[i], re.IGNORECASE)
+                clave_bloque = f"ARTICULO {match_art.group(1).strip().upper()}" if match_art else i
+                if self.mastery_tracker.get(clave_bloque, 0) < 2:
+                    candidatos.append((i, s))
+
             candidatos.sort(key=lambda x: x[1], reverse=True)
             if candidatos: idx = candidatos[0][0]
         
@@ -627,6 +635,11 @@ class LegalEngineTITAN:
             candidatos_validos = []
             for m in matches:
                 tag = m.group(0).strip()
+
+# --- ESCUDO MAESTRO: Si ya tiene Nivel 2, lo saltamos ---
+                num_temp = m.group(1).strip().upper()
+                if self.mastery_tracker.get(f"ARTICULO {num_temp}", 0) >= 2: continue
+                
                 # Miramos 200 chars adelante para ver si dice Inexequible
                 contexto = texto_base[m.end():m.end()+200].upper()
                 if "INEXEQUIBLE" in contexto or "DEROGADO" in contexto: continue
