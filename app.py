@@ -977,16 +977,21 @@ class LegalEngineTITAN:
                     if match: text_resp = match.group(1).strip()
                 
                 final_json = json.loads(text_resp)
-                
-                # --- AUTO-FUENTE ---
+   
+# --- AUTO-FUENTE (RESTAURACIÓN Y BLINDAJE TOTAL) ---
                 if "articulo_fuente" in final_json:
+                    # 1. Si es un ITEM, dejamos que pase (para no romper la lógica de manuales)
                     if "ITEM" in self.current_article_label and "ITEM" not in final_json.get("articulo_fuente", "").upper():
-                         pass
-
-
-                    elif "articulo_fuente" in final_json:
-     # Quitamos el .upper() para que respete tu escritura original
-                         self.current_article_label = final_json["articulo_fuente"]
+                        pass
+                    else:
+                        # 2. Rescatamos el número REAL que el Sniper leyó del PDF
+                        match_num = re.search(r'(\d+)', str(self.current_article_label)) 
+                        num_seguro = match_num.group(1) if match_num else "1"
+                        
+                        # 3. Forzamos TU nombre de eje y el número real. 
+                        # Ignoramos cualquier "Norma Hipotética" o artículos 35, 37, 38 inventados.
+                        self.current_article_label = f"[{self.thematic_axis}] ARTICULO {num_seguro}"  
+             
 
                 # --- BARAJADOR AUTOMÁTICO INTELIGENTE ---
                 for q in final_json['preguntas']:
