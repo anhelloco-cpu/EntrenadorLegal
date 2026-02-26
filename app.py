@@ -542,7 +542,7 @@ class LegalEngineTITAN:
             # Usamos el Grupo 1 (Número puro) para reconstruir la etiqueta limpia
             if self.doc_type == "Norma (Leyes/Decretos)":
                 num_limpio = match.group(1).strip().upper()
-                label_final = f"ARTICULO {num_limpio}"
+                label_final = f"[{self.thematic_axis}] ARTICULO {num_limpio}"
             else:
                 label_final = match.group(1).strip() # Para manuales (1.1, 1.2)
 
