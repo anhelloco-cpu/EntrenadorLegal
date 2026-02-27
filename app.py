@@ -273,12 +273,30 @@ class LegalEngineTITAN:
 # --- LA LAVADORA (FASE 1): DESINFECTANTE DE IDENTIDAD ---
     def clean_label(self, text):
         if not text: return ""
+        import re
+        import unicodedata
+        
         # 1. Limpieza básica y Mayúsculas
         clean = str(text).strip().upper()
-        # 2. Corrección de OCR (Letras por Números)
-        clean = clean.replace('6O', '60').replace('1I', '11').replace('3E', '33').replace('5S', '55')
-        # 3. Estandarización de formato [LEY] ARTICULO X
-        clean = re.sub(r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*', 'ARTICULO ', clean)
+        clean = re.sub(r'\s+', ' ', clean)
+        
+        # 2. REPARADOR DE "O" INTRUSA (Ajuste Lowi)
+        # Si termina en 'O' y tiene números (ej: "6O"), eliminamos la 'O' 
+        # para que quede el "6" real y no "60".
+        if clean and clean[-1] == 'O' and any(char.isdigit() for char in clean):
+            clean = clean[:-1].strip()
+        
+        # 3. UNIFICADOR DE NOMBRES (Quitar tildes)
+        # Esto hace que "PRINCIPIOS" y "Principios" sean la misma carpeta
+        clean = ''.join(c for c in unicodedata.normalize('NFD', clean)
+                       if unicodedata.category(c) != 'Mn')
+        
+        # 4. Estandarización de formato "ARTICULO X"
+        clean = re.sub(r'(?:ARTICULO|ART)\.?\s*', 'ARTICULO ', clean)
+        
+        # 5. Quitar puntos finales (ej: "ARTICULO 6." -> "ARTICULO 6")
+        clean = clean.rstrip('.')
+        
         return clean.strip()
 
 # ### --- FIN PARTE 2 ---
