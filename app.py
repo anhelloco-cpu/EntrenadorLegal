@@ -507,7 +507,7 @@ class LegalEngineTITAN:
                 self.manual_text = "" 
 
         # Forzamos mayúsculas desde el inicio para que coincida con la law_library
-        self.thematic_axis = str(axis_name).strip().upper() 
+        self.thematic_axis = self.clean_label(axis_name) 
         self.doc_type = doc_type_input 
 
         # 1. Generamos el mapa exclusivo de ESTA nueva ley
@@ -670,8 +670,11 @@ class LegalEngineTITAN:
                 continue 
         
             # 2. IDENTIDAD LIMPIA (LAVADORA)
+            # REEMPLÁZALO POR ESTE (Garantiza que la llave sea idéntica a la medalla):
             label_limpia = self.clean_label(f"ARTICULO {num_check}")
-            nombre_completo = f"[{self.thematic_axis}] {label_limpia}"
+            # Lavamos el eje temático aquí también para asegurar el match al 100%
+            eje_id = self.clean_label(self.thematic_axis) 
+            nombre_completo = f"[{eje_id}] {label_limpia}"
     
             # 3. EL MURO DE LA CAJA NEGRA
             es_verde = self.mastery_tracker.get(nombre_completo, 0) >= 2
@@ -1665,13 +1668,22 @@ if st.session_state.page == 'game':
                     
                     # --- IDENTIDAD DE MEDALLA SINCRONIZADA ---
                     if match_art:
-                        # Usamos la lavadora para que la medalla se guarde con nombre limpio
-                        key_maestria = engine.clean_label(f"[{engine.thematic_axis}] ARTICULO {match_art.group(2)}")
+                        # 1. Limpiamos el eje (ej: "CONSTITUCIÓN" -> "CONSTITUCION")
+                        eje_id = engine.clean_label(engine.thematic_axis)
+                        # 2. Limpiamos el artículo (ej: "1º" -> "ARTICULO 1")
+                        label_art = engine.clean_label(f"ARTICULO {match_art.group(2)}")
+                        # 3. UNIÓN QUIRÚRGICA: Esta es la "llave" maestra que el Sniper sí reconocerá
+                        key_maestria = f"[{eje_id}] {label_art}"
+
                     elif " - ITEM" in label_raw:
-                        key_maestria = engine.clean_label(label_raw.split(" - ITEM")[0])
+                        # Para los ítems, lavamos solo la base
+                        eje_id = engine.clean_label(engine.thematic_axis)
+                        base_limpia = engine.clean_label(label_raw.split(" - ITEM")[0])
+                        key_maestria = base_limpia 
                     else:
                         key_maestria = engine.clean_label(label_raw)
 
+                    # El resto del filtro de seguridad se mantiene igual
                     if "ARTICULO" not in check_norm and "BLOQUE" not in check_norm and "ITEM" not in check_norm:
                         key_maestria = engine.current_chunk_idx
 
