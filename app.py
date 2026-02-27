@@ -602,7 +602,7 @@ class LegalEngineTITAN:
     # --------------------------------------------------------------------------
     # GENERADOR DE CASOS (MODIFICADO: ANTI-PEREZA + ROL PRIORITARIO + MODO PESADILLA + 9 CAPITANES)
     # --------------------------------------------------------------------------
-    def generate_case(self):
+    def generate_case(self, intentos=0):
         """
         Genera la pregunta. Integra:
         1. Sniper V106 (Precisión).
@@ -690,7 +690,9 @@ class LegalEngineTITAN:
 
 # 1. ¿No hay nada nuevo en este pedazo de PDF? (FUERA DEL BUCLE FOR)
         if not candidatos_validos:
-            return self.generate_case()
+                if intentos > 15:
+                    return {"error": "El Sniper ya no encuentra artículos útiles en esta sección. Cambia a otra sección en el mapa de la izquierda."}
+                return self.generate_case(intentos + 1)
 
         # 2. Sincronizamos la Identidad
         eje_id = self.clean_label(self.thematic_axis)
