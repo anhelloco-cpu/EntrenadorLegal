@@ -280,9 +280,9 @@ class LegalEngineTITAN:
         clean = str(text).strip().upper()
         clean = re.sub(r'\s+', ' ', clean)
         
-        # 2. REPARADOR DE "O" INTRUSA (Ajuste Lowi)
-        # Si termina en 'O' y tiene números (ej: "6O"), eliminamos la 'O' 
-        # para que quede el "6" real y no "60".
+        # 2. REPARADOR DE "O" INTRUSA (Letra, no número)
+        # Solo eliminamos si es la LETRA 'O'. 
+        # Si el PDF tiene un '0' (número), lo respetamos para no dañar el "60" real.
         if clean and clean[-1] == 'O' and any(char.isdigit() for char in clean):
             clean = clean[:-1].strip()
         
@@ -655,26 +655,40 @@ class LegalEngineTITAN:
         self.current_article_label = "General / Sin Estructura Detectada"
         
         if matches:
-            # Filtro Francotirador + Anti-Inexequible Fino
-            candidatos_validos = []
-            for m in matches:
-                num_check = m.group(1).strip()
-                nombre_completo = self.clean_label(f"[{self.thematic_axis}] ARTICULO {num_check}")
+            
+        # 1. El Sniper busca candidatos en el texto sucio del PDF
+        patron = r'ART[IÍ]CULO\s+(\d+)'
+        matches = list(re.finditer(patron, texto_base, re.IGNORECASE))
+        
+        candidatos_validos = []
+        for m in matches:
+            num_check = m.group(1)
+            caracter_siguiente = texto_base[m.end():m.end()+1]
+            
+            # 1. FILTRO DE VERACIDAD (PDF SUCIO)
+            if num_check.endswith('0') and caracter_siguiente == '.':
+                continue 
+                
+            # 2. IDENTIDAD LIMPIA (LAVADORA)
+            # Primero limpiamos para saber quién es realmente el artículo
+            label_limpia = self.clean_label(f"ARTICULO {num_check}")
+            nombre_completo = f"[{self.thematic_axis}] {label_limpia}"
+            
+            # 3. 🛡️ EL MURO DE LA CAJA NEGRA
+            es_verde = self.mastery_tracker.get(nombre_completo, 0) >= 2
+            es_bloqueado = nombre_completo in self.temporary_blacklist
+            es_visto_ahora = nombre_completo in self.seen_articles
 
-                # --- 🛡️ EL MURO DE LA CAJA NEGRA (PASO 5) ---
-                es_verde = self.mastery_tracker.get(nombre_completo, 0) >= 2
-                es_bloqueado = nombre_completo in self.temporary_blacklist
-                es_visto_ahora = nombre_completo in self.seen_articles
+            if es_verde or es_bloqueado or es_visto_ahora:
+                continue # El Sniper lo ignora si ya está dominado o visto
 
-                if es_verde or es_bloqueado or es_visto_ahora:
-                    continue # Si cumple cualquiera, el Sniper lo ignora
+            # 4. FILTRO DE LEYES MUERTAS
+            contexto = texto_base[m.end():m.end()+200].upper()
+            if any(x in contexto for x in ["INEXEQUIBLE", "DEROGADO", "NULO"]):
+                continue
 
-                # Filtro de leyes muertas (Inexequibles/Derogados)
-                contexto = texto_base[m.end():m.end()+200].upper()
-                if any(x in contexto for x in ["INEXEQUIBLE", "DEROGADO", "NULO"]):
-                    continue
-
-                candidatos_validos.append(m)
+            # 5. SOLO AQUÍ SE AGREGA (Al final de todas las pruebas)
+            candidatos_validos.append(m)
 
             if not candidatos_validos:
                 # Si no hay nada nuevo, buscamos en los que NO estén bloqueados por ti
