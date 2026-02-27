@@ -1349,18 +1349,15 @@ with st.sidebar:
                     st.session_state.raw_text_study = d.get('raw_pdf_text', "")
                     engine.thematic_axis = d.get('axis', "General")
                     
-                    # 2. Sincronizador de Identidad Protegido (No mezcla leyes)
+                    # 2. Sincronizador Estricto (Limpia pero no repara nombres viejos)
                     def clean_full_identity(k):
-                        k_str = str(k).upper()
-                        if "[" in k_str and "]" in k_str: return k_str
-                        match_art = re.search(r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', k_str)
-                        return f"ARTICULO {match_art.group(1)}" if match_art else k_str
+                        return str(k).strip().upper()
 
                     # 3. Restauración de Progreso y Estados
-                    engine.mastery_tracker = {clean_full_identity(k): v for k, v in d['mastery'].items()}
-                    engine.seen_articles = set(clean_full_identity(a) for a in d.get('seen_arts', []))
-                    engine.failed_articles = set(clean_full_identity(a) for a in d.get('failed_arts', []))
-                    engine.mastered_articles = set(clean_full_identity(a) for a in d.get('mastered_arts', []))
+                    engine.mastery_tracker = {clean_full_identity(k): int(v) for k, v in d['mastery'].items()}
+                    engine.seen_articles = {clean_full_identity(a) for a in d.get('seen_arts', [])}
+                    engine.failed_articles = {clean_full_identity(a) for a in d.get('failed_arts', [])}
+                    engine.mastered_articles = {clean_full_identity(a) for a in d.get('mastered_arts', [])}
                     
                     st.session_state.wild_mode = d.get('wild_state', False)
                     engine.temporary_blacklist = set(d.get('blacklist', []))
@@ -1465,7 +1462,7 @@ with st.sidebar:
             "doc_type": engine.doc_type,
             "raw_pdf_text": st.session_state.raw_text_study,
             "wild_state": st.session_state.get('wild_mode', False),
-            "mastery": engine.mastery_tracker,
+            "mastery": {str(k).strip().upper(): v for k, v in engine.mastery_tracker.items()},
             "failed": list(engine.failed_indices),
 
             # --- 2. LA ESTANTERÍA (¡ESTO ES LO QUE FALTABA!) ---
@@ -1474,7 +1471,7 @@ with st.sidebar:
             # --- 3. CONFIGURACIÓN DEL USUARIO ---
             "feed": engine.feedback_history,
             "ent": engine.entity,
-            "axis": engine.thematic_axis,
+            "axis": str(engine.thematic_axis).strip().upper(),
             "lvl": engine.level,
             "phase": engine.study_phase,
             "struct_type": engine.structure_type,
@@ -1488,10 +1485,10 @@ with st.sidebar:
             "sections": engine.sections_map,
             "act_sec": engine.active_section_name,
             "ex_q": engine.example_question,
-            "seen_arts": list(engine.seen_articles),
-            "failed_arts": list(engine.failed_articles),
-            "mastered_arts": list(engine.mastered_articles),
-            "blacklist": list(engine.temporary_blacklist)
+            "seen_arts": [str(a).strip().upper() for a in engine.seen_articles],
+            "failed_arts": [str(a).strip().upper() for a in engine.failed_articles],
+            "mastered_arts": [str(a).strip().upper() for a in engine.mastered_articles],
+            "blacklist": [str(b).strip().upper() for b in engine.temporary_blacklist]
         }
         
         st.divider()
