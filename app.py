@@ -484,7 +484,7 @@ class LegalEngineTITAN:
         
         # 2. Creamos la "Estantería" si no existe y guardamos el mapa de esta ley
         if not hasattr(self, 'law_library'): self.law_library = {}
-        self.law_library[axis_name] = nuevo_mapa_ley
+        self.law_library[str(axis_name).strip().upper()] = nuevo_mapa_ley
         
         # 3. El visor actual (sections_map) mostrará solo esta ley recién cargada
         self.sections_map = nuevo_mapa_ley 
@@ -1273,7 +1273,7 @@ with st.sidebar:
         # Buscamos en el historial de aciertos por si acaso
         for k in engine.mastery_tracker.keys():
             match = re.search(r'\[(.*?)\]', str(k))
-            if match: ejes_encontrados.add(match.group(1))
+            if match: ejes_encontrados.add(str(match.group(1)).strip().upper())
 
         opcion_nueva = "[+ Registrar Nuevo Eje Tematico]"
         lista_desplegable = sorted([e for e in ejes_encontrados if e]) + [opcion_nueva]
@@ -1321,7 +1321,7 @@ with st.sidebar:
             else:
                 # IMPORTANTE: Aquí enviamos la señal al motor de que es una CARGA ADICIONAL
                 # Si tu engine.process_law está en la Parte 4, asegúrate que haga .extend()
-                num_bloques, adn_resumen = engine.process_law(contenido_final, axis_input, doc_type_input)
+                num_bloques, adn_resumen = engine.process_law(contenido_final, str(axis_input).strip().upper(), doc_type_input)
                 
                 if num_bloques > 0:
                     st.session_state.page = 'setup' # Nos quedamos aquí para ver el mapa
