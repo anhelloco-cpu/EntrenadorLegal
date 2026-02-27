@@ -669,12 +669,11 @@ class LegalEngineTITAN:
             if num_check.endswith('0') and caracter_siguiente == '.':
                 continue 
         
-            # 2. IDENTIDAD LIMPIA (LAVADORA)
-            # REEMPLÁZALO POR ESTE (Garantiza que la llave sea idéntica a la medalla):
-            label_limpia = self.clean_label(f"ARTICULO {num_check}")
-            # Lavamos el eje temático aquí también para asegurar el match al 100%
-            eje_id = self.clean_label(self.thematic_axis) 
-            nombre_completo = f"[{eje_id}] {label_limpia}"
+            # 2. IDENTIDAD LIMPIA (SINCRONIZADA)
+            eje_id = self.clean_label(self.thematic_axis)
+            label_art = self.clean_label(f"ARTICULO {num_check}")
+            # Esta es la llave maestra: [EJE] ARTICULO X
+            nombre_completo = f"[{eje_id}] {label_art}"
     
             # 3. EL MURO DE LA CAJA NEGRA
             es_verde = self.mastery_tracker.get(nombre_completo, 0) >= 2
@@ -693,36 +692,34 @@ class LegalEngineTITAN:
             candidatos_validos.append(m)
 
 
-            # --- BLOQUE CORREGIDO (ADIÓS AL BUCLE) ---
+
+# 1. ¿No hay nada nuevo en este pedazo de PDF?
             if not candidatos_validos:
-                # Si en este pedazo de texto todo ya es verde o ya se vio:
-                # NO borramos memoria. Simplemente saltamos a OTRO bloque del PDF.
-                return self.generate_case() 
+                # Saltamos a otro bloque aleatorio para buscar más artículos
+                return self.generate_case()
 
-                # --- ELIMINA TODO LO QUE TENÍAS DEBAJO DE 'if not candidatos_validos' ---
-                # (Incluyendo el self.seen_articles.clear() y el segundo if)
+            # 2. Sincronizamos la Identidad (Clave para avanzar)
+            eje_id = self.clean_label(self.thematic_axis)
+        
+            # 3. LÓGICA DE PRIORIDAD (VISIÓN TÉRMICA)
+            # Buscamos si hay algún artículo marcado como fallado (-1)
+            prioridad_roja = [
+                m for m in candidatos_validos 
+                if self.mastery_tracker.get(f"[{eje_id}] {self.clean_label(f'ARTICULO {m.group(1)}')}", 0) == -1
+            ]
+    
+            # 4. LA ELECCIÓN FINAL (Única y definitiva)
+            if prioridad_roja:
+                seleccion = random.choice(prioridad_roja)
+                st.toast("🚨 Reintentando artículo fallido...", icon="🎯")
+            else:
+                seleccion = random.choice(candidatos_validos)
 
+            # --- CONTINÚA EL PROCESO NORMAL (Nota: Borra el 'if candidatos_validos' extra) ---
+            start_pos = seleccion.start()
+            current_match_index = matches.index(seleccion)
 
-            
-            if candidatos_validos:
-                # --- LÓGICA DE PRIORIDAD TITÁN (VISIÓN TÉRMICA) ---
-                # Filtramos para ver si entre los candidatos hay alguno con Nivel -1 (Rojo)
-                prioridad_roja = [
-                    m for m in candidatos_validos 
-                    if self.mastery_tracker.get(self.clean_label(f"[{self.thematic_axis}] ARTICULO {m.group(1)}"), 0) == -1
-                ]
-                
-                if prioridad_roja:
-                    # Si hay "manchas rojas", el Sniper elige una de esas por obligación
-                    seleccion = random.choice(prioridad_roja)
-                else:
-                    # Si no hay fallos pendientes, elige cualquier otro (Gris o Amarillo)
-                    seleccion = random.choice(candidatos_validos)
-                
-                # --- CONTINÚA EL PROCESO NORMAL ---
-                start_pos = seleccion.start()
-                current_match_index = matches.index(seleccion)
-                
+              
                 # AJUSTE LOWI HERRERA: En lugar de cortar en el siguiente artículo, 
                 # le damos una ventana de 8,000 caracteres para que "lea más" y pueda integrar temas.
                 
@@ -738,7 +735,11 @@ class LegalEngineTITAN:
                 # self.current_article_label = f"ARTICULO {num_limpio}"
 
 # Ahora le ponemos la marca de la ley para que el desplegable la reconozca
-                self.current_article_label = self.clean_label(f"[{self.thematic_axis}] ARTICULO {num_limpio}")
+                # Sincronizamos el letrero con la medalla y el buscador
+                eje_id = self.clean_label(self.thematic_axis)
+                self.current_article_label = f"[{eje_id}] ARTICULO {num_limpio}"
+                # ANCLA DE SESIÓN: Evita que el Sniper lo vuelva a ver en esta tarde
+                self.seen_articles.add(self.current_article_label)
 
                 # --- MICRO-SEGMENTACIÓN ---
                 patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
