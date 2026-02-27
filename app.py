@@ -405,7 +405,7 @@ class LegalEngineTITAN:
             p_sec = rf'^\s*(SECCIÓN|SECCION)\s+{p_word_num}\b'
             # Soporte total para artículos: ARTICULO 1º, ARTÍCULO 1o., ARTICULO 1.
 	    # Regex Purificada V106: Grupo 1 solo captura el número limpio
-            p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
+            p_art = r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
             for i in range(len(lineas)):
                 linea_raw = lineas[i]
                 
