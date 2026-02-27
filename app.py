@@ -642,8 +642,8 @@ class LegalEngineTITAN:
         
         if self.doc_type == "Norma (Leyes/Decretos)":
 
-        # Regex Protectora: El Grupo 1 ahora SOLO captura el número o romano puro
-            p_art = r'^\s*(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
+        # Regex Universal: Detecta el artículo aunque el PDF lo ponga a mitad de renglón
+            p_art = r'\b(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
 
             matches = list(re.finditer(p_art, texto_base, re.IGNORECASE | re.MULTILINE))
             
