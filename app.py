@@ -692,15 +692,17 @@ class LegalEngineTITAN:
             # 5. SOLO AQUÍ SE AGREGA (Al final de todas las pruebas)
             candidatos_validos.append(m)
 
+
+            # --- BLOQUE CORREGIDO (ADIÓS AL BUCLE) ---
             if not candidatos_validos:
-                # Si no hay nada nuevo, buscamos en los que NO estén bloqueados por ti
-                candidatos_validos = [m for m in matches if f"[{self.thematic_axis}] ARTICULO {m.group(1).strip().upper()}" not in self.temporary_blacklist]
-                
-                # Si AUN ASÍ no hay nada (porque bloqueaste todo en esta página)
-                if not candidatos_validos:
-                    # Forzamos a la ruleta a buscar OTRO bloque de texto diferente
-                    return self.generate_case() 
-                self.seen_articles.clear()
+                # Si en este pedazo de texto todo ya es verde o ya se vio:
+                # NO borramos memoria. Simplemente saltamos a OTRO bloque del PDF.
+                return self.generate_case() 
+
+                # --- ELIMINA TODO LO QUE TENÍAS DEBAJO DE 'if not candidatos_validos' ---
+                # (Incluyendo el self.seen_articles.clear() y el segundo if)
+
+
             
             if candidatos_validos:
                 # --- LÓGICA DE PRIORIDAD TITÁN (VISIÓN TÉRMICA) ---
