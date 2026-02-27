@@ -720,47 +720,46 @@ class LegalEngineTITAN:
             current_match_index = matches.index(seleccion)
 
               
-                # AJUSTE LOWI HERRERA: En lugar de cortar en el siguiente artículo, 
-                # le damos una ventana de 8,000 caracteres para que "lea más" y pueda integrar temas.
+            # AJUSTE LOWI HERRERA: En lugar de cortar en el siguiente artículo, 
+            # le damos una ventana de 8,000 caracteres para que "lea más" y pueda integrar temas.
                 
-                context_window = 8000 
-                end_pos = min(len(texto_base), start_pos + context_window)
+            context_window = 8000 
+            end_pos = min(len(texto_base), start_pos + context_window)
 
-                # El texto final ahora contiene el artículo seleccionado Y los artículos que le siguen
-                texto_final_ia = texto_base[start_pos:end_pos]
-                # Construimos la etiqueta MANUALMENTE usando solo el número limpio del Grupo 1
-                num_limpio = seleccion.group(1).strip().upper()
+            # El texto final ahora contiene el artículo seleccionado Y los artículos que le siguen
+            texto_final_ia = texto_base[start_pos:end_pos]
+            # Construimos la etiqueta MANUALMENTE usando solo el número limpio del Grupo 1
+            num_limpio = seleccion.group(1).strip().upper()
 
-
-                # self.current_article_label = f"ARTICULO {num_limpio}"
+            # self.current_article_label = f"ARTICULO {num_limpio}"
 
 # Ahora le ponemos la marca de la ley para que el desplegable la reconozca
-                # Sincronizamos el letrero con la medalla y el buscador
-                eje_id = self.clean_label(self.thematic_axis)
-                self.current_article_label = f"[{eje_id}] ARTICULO {num_limpio}"
-                # ANCLA DE SESIÓN: Evita que el Sniper lo vuelva a ver en esta tarde
-                self.seen_articles.add(self.current_article_label)
+            # Sincronizamos el letrero con la medalla y el buscador
+            eje_id = self.clean_label(self.thematic_axis)
+            self.current_article_label = f"[{eje_id}] ARTICULO {num_limpio}"
+            # ANCLA DE SESIÓN: Evita que el Sniper lo vuelva a ver en esta tarde
+            self.seen_articles.add(self.current_article_label)
 
-                # --- MICRO-SEGMENTACIÓN ---
-                patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
-                sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
+            # --- MICRO-SEGMENTACIÓN ---
+            patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
+            sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
                 
-                if len(sub_matches) > 1:
-                    sel_sub = random.choice(sub_matches)
-                    start_sub = sel_sub.start()
-                    idx_sub = sub_matches.index(sel_sub)
-                    end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
+            if len(sub_matches) > 1:
+                sel_sub = random.choice(sub_matches)
+                start_sub = sel_sub.start()
+                idx_sub = sub_matches.index(sel_sub)
+                end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
+                 
+                texto_fragmento = texto_final_ia[start_sub:end_sub]
+                id_sub = sel_sub.group(0).strip()
+                if len(id_sub) > 20: id_sub = id_sub[:20] + "..."
                     
-                    texto_fragmento = texto_final_ia[start_sub:end_sub]
-                    id_sub = sel_sub.group(0).strip()
-                    if len(id_sub) > 20: id_sub = id_sub[:20] + "..."
-                    
-                    encabezado = texto_final_ia[:150].split('\n')[0] 
-                    texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
-                    self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
-        else:
-            self.current_article_label = "General"
-            texto_final_ia = texto_base[:4000]
+                encabezado = texto_final_ia[:150].split('\n')[0] 
+                texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
+                self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
+            else:
+                self.current_article_label = "General"
+                texto_final_ia = texto_base[:4000]
 
    # --- CEREBRO: MODO PESADILLA (NIVEL DIOS - 9 CAPITANES HOSTILES) ---
         # Buscamos la maestría por Nombre (Identidad)
