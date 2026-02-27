@@ -270,6 +270,17 @@ class LegalEngineTITAN:
             "ICBF": "TU ROL: DEFENSOR DE FAMILIA. Enfócate en el restablecimiento de derechos de niños, niñas y adolescentes. Interés superior del menor.",
             "Genérico": "TU ROL: SERVIDOR PÚBLICO INTEGRAL. Enfócate en los principios de la función pública (Art. 209 Constitución): Igualdad, moralidad, eficacia, economía, celeridad, imparcialidad y publicidad."
         }
+# --- LA LAVADORA (FASE 1): DESINFECTANTE DE IDENTIDAD ---
+    def clean_label(self, text):
+        if not text: return ""
+        # 1. Limpieza básica y Mayúsculas
+        clean = str(text).strip().upper()
+        # 2. Corrección de OCR (Letras por Números)
+        clean = clean.replace('6O', '60').replace('1I', '11').replace('3E', '33').replace('5S', '55')
+        # 3. Estandarización de formato [LEY] ARTICULO X
+        clean = re.sub(r'(?:ARTÍCULO|ARTICULO|ART)\.?\s*', 'ARTICULO ', clean)
+        return clean.strip()
+
 # ### --- FIN PARTE 2 ---
 # ### --- INICIO PARTE 3: LÓGICA DE PROCESAMIENTO Y SEGMENTACIÓN ---
     # --------------------------------------------------------------------------
@@ -538,14 +549,13 @@ class LegalEngineTITAN:
             if "INEXEQUIBLE" in ventana_contexto or "DEROGADO" in ventana_contexto or "NULO" in ventana_contexto:
                 continue
                 
-            # --- LIMPIEZA DE ETIQUETA (CRÍTICO) ---
-            # Usamos el Grupo 1 (Número puro) para reconstruir la etiqueta limpia
+# --- LIMPIEZA DE ETIQUETA (FASE 2: SINCRONIZADA) ---
             if self.doc_type == "Norma (Leyes/Decretos)":
-                num_limpio = match.group(1).strip().upper()
-                label_final = f"[{str(self.thematic_axis).strip().upper()}] ARTICULO {num_limpio.strip().upper()}"
+                num_limpio = match.group(1).strip()
+                # Aquí usamos la LAVADORA que pegamos en el paso anterior
+                label_final = self.clean_label(f"[{self.thematic_axis}] ARTICULO {num_limpio}")
             else:
                 label_final = match.group(1).strip() # Para manuales (1.1, 1.2)
-
             items_validos.append(label_final)
 
         items_unicos = set(items_validos)
@@ -627,23 +637,22 @@ class LegalEngineTITAN:
             # Filtro Francotirador + Anti-Inexequible Fino
             candidatos_validos = []
             for m in matches:
-                tag = m.group(0).strip()
+                num_check = m.group(1).strip()
+                nombre_completo = self.clean_label(f"[{self.thematic_axis}] ARTICULO {num_check}")
 
+                # --- 🛡️ EL MURO DE LA CAJA NEGRA (PASO 5) ---
+                es_verde = self.mastery_tracker.get(nombre_completo, 0) >= 2
+                es_bloqueado = nombre_completo in self.temporary_blacklist
+                es_visto_ahora = nombre_completo in self.seen_articles
 
+                if es_verde or es_bloqueado or es_visto_ahora:
+                    continue # Si cumple cualquiera, el Sniper lo ignora
 
-
-
-# --- EL PORTERO CORRECTO ---
-                num_check = m.group(1).strip().upper()
-                nombre_completo = f"[{str(self.thematic_axis).strip().upper()}] ARTICULO {num_check.strip().upper()}"
-                if self.mastery_tracker.get(nombre_completo, 0) >= 2:
-                    continue # ¡Si tiene Nivel 2, lo salta sin piedad!
-                # ---------------------------
-
-                # Miramos 200 chars adelante para ver si dice Inexequible
+                # Filtro de leyes muertas (Inexequibles/Derogados)
                 contexto = texto_base[m.end():m.end()+200].upper()
-                if "INEXEQUIBLE" in contexto or "DEROGADO" in contexto: continue
-                if nombre_completo in self.seen_articles or nombre_completo in self.temporary_blacklist: continue
+                if any(x in contexto for x in ["INEXEQUIBLE", "DEROGADO", "NULO"]):
+                    continue
+
                 candidatos_validos.append(m)
 
             if not candidatos_validos:
@@ -657,7 +666,21 @@ class LegalEngineTITAN:
                 self.seen_articles.clear()
             
             if candidatos_validos:
-                seleccion = random.choice(candidatos_validos)
+                # --- LÓGICA DE PRIORIDAD TITÁN (VISIÓN TÉRMICA) ---
+                # Filtramos para ver si entre los candidatos hay alguno con Nivel -1 (Rojo)
+                prioridad_roja = [
+                    m for m in candidatos_validos 
+                    if self.mastery_tracker.get(self.clean_label(f"[{self.thematic_axis}] ARTICULO {m.group(1)}"), 0) == -1
+                ]
+                
+                if prioridad_roja:
+                    # Si hay "manchas rojas", el Sniper elige una de esas por obligación
+                    seleccion = random.choice(prioridad_roja)
+                else:
+                    # Si no hay fallos pendientes, elige cualquier otro (Gris o Amarillo)
+                    seleccion = random.choice(candidatos_validos)
+                
+                # --- CONTINÚA EL PROCESO NORMAL ---
                 start_pos = seleccion.start()
                 current_match_index = matches.index(seleccion)
                 
@@ -676,7 +699,7 @@ class LegalEngineTITAN:
                 # self.current_article_label = f"ARTICULO {num_limpio}"
 
 # Ahora le ponemos la marca de la ley para que el desplegable la reconozca
-                self.current_article_label = f"[{str(self.thematic_axis).strip().upper()}] ARTICULO {num_limpio.strip().upper()}"
+                self.current_article_label = self.clean_label(f"[{self.thematic_axis}] ARTICULO {num_limpio}")
 
                 # --- MICRO-SEGMENTACIÓN ---
                 patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
@@ -1349,9 +1372,9 @@ with st.sidebar:
                     st.session_state.raw_text_study = d.get('raw_pdf_text', "")
                     engine.thematic_axis = d.get('axis', "General")
                     
-                    # 2. Sincronizador Estricto (Limpia pero no repara nombres viejos)
+                    # 2. Sincronizador Estricto (Ahora usa la Lavadora)
                     def clean_full_identity(k):
-                        return str(k).strip().upper()
+                        return engine.clean_label(k)
 
                     # 3. Restauración de Progreso y Estados
                     engine.mastery_tracker = {clean_full_identity(k): int(v) for k, v in d['mastery'].items()}
@@ -1462,11 +1485,13 @@ with st.sidebar:
             "doc_type": engine.doc_type,
             "raw_pdf_text": st.session_state.raw_text_study,
             "wild_state": st.session_state.get('wild_mode', False),
-            "mastery": {str(k).strip().upper(): v for k, v in engine.mastery_tracker.items()},
+            # LAVADORA: Limpiamos las llaves de maestría al guardar
+            "mastery": {engine.clean_label(k): v for k, v in engine.mastery_tracker.items()},
             "failed": list(engine.failed_indices),
 
-            # --- 2. LA ESTANTERÍA (¡ESTO ES LO QUE FALTABA!) ---
-            "library": getattr(engine, 'law_library', {}), # <--- AQUÍ SE GUARDAN TODAS LAS LEYES
+            # --- 2. LA ESTANTERÍA Y ADN ---
+            "library": getattr(engine, 'law_library', {}),
+            "manual_clean": getattr(engine, 'manual_text', ""),
 
             # --- 3. CONFIGURACIÓN DEL USUARIO ---
             "feed": engine.feedback_history,
@@ -1479,16 +1504,15 @@ with st.sidebar:
 
             # --- 4. CONTEXTO DE ROL ---
             "job": engine.job_functions,
-            "manual_clean": getattr(engine, 'manual_text', ""),
 
-            # --- 5. MAPA DE NAVEGACIÓN Y RASTREO ---
+            # --- 5. MAPA DE NAVEGACIÓN Y RASTREO (TODO POR LA LAVADORA) ---
             "sections": engine.sections_map,
             "act_sec": engine.active_section_name,
             "ex_q": engine.example_question,
-            "seen_arts": [str(a).strip().upper() for a in engine.seen_articles],
-            "failed_arts": [str(a).strip().upper() for a in engine.failed_articles],
-            "mastered_arts": [str(a).strip().upper() for a in engine.mastered_articles],
-            "blacklist": [str(b).strip().upper() for b in engine.temporary_blacklist]
+            "seen_arts": [engine.clean_label(a) for a in engine.seen_articles],
+            "failed_arts": [engine.clean_label(a) for a in engine.failed_articles],
+            "mastered_arts": [engine.clean_label(a) for a in engine.mastered_articles],
+            "blacklist": [engine.clean_label(b) for b in engine.temporary_blacklist]
         }
         
         st.divider()
@@ -1605,17 +1629,22 @@ if st.session_state.page == 'game':
                     check_norm = label_raw.replace("Á","A").replace("É","E").replace("Í","I").replace("Ó","O").replace("Ú","U")
                     match_art = re.search(r'(ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)', check_norm)
                     
+                    # --- IDENTIDAD DE MEDALLA SINCRONIZADA ---
                     if match_art:
-                        key_maestria = f"[{str(engine.thematic_axis).strip().upper()}] ARTICULO {match_art.group(2).strip().upper()}"
+                        # Usamos la lavadora para que la medalla se guarde con nombre limpio
+                        key_maestria = engine.clean_label(f"[{engine.thematic_axis}] ARTICULO {match_art.group(2)}")
                     elif " - ITEM" in label_raw:
-                        key_maestria = label_raw.split(" - ITEM")[0].strip()
+                        key_maestria = engine.clean_label(label_raw.split(" - ITEM")[0])
                     else:
-                        key_maestria = label_raw
+                        key_maestria = engine.clean_label(label_raw)
 
                     if "ARTICULO" not in check_norm and "BLOQUE" not in check_norm and "ITEM" not in check_norm:
                         key_maestria = engine.current_chunk_idx
 
                     # --- SI ACIERTA ---
+                    # --- REGISTRO EN CAJA NEGRA (SESIÓN) ---
+                    # Anotamos el artículo como "visto" para que el Sniper lo ignore el resto de la tarde
+                    engine.seen_articles.add(key_maestria)
                     if letra_sel == q['respuesta']: 
                         st.session_state.was_correct = True
                         st.session_state.recovery_passed = True
@@ -1638,7 +1667,10 @@ if st.session_state.page == 'game':
                                 engine.mastered_articles.add(full_tag)
                     
                     # --- SI FALLA ---
-                    else: 
+                    # --- MARCADO DE PRIORIDAD ROJA (-1) ---
+                        
+                    else:
+                        engine.mastery_tracker[key_maestria] = -1 
                         st.session_state.was_correct = False
                         st.session_state.recovery_passed = False
                         st.session_state.play_error_sound = True
