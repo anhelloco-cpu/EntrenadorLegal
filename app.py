@@ -655,32 +655,34 @@ class LegalEngineTITAN:
         self.current_article_label = "General / Sin Estructura Detectada"
         
         if matches:
-            
+
+
+        # --- BLOQUE CORREGIDO ---
         # 1. El Sniper busca candidatos en el texto sucio del PDF
         patron = r'ART[IÍ]CULO\s+(\d+)'
         matches = list(re.finditer(patron, texto_base, re.IGNORECASE))
-        
+
         candidatos_validos = []
         for m in matches:
             num_check = m.group(1)
+            # Miramos qué hay justo después del número (solo 1 carácter)
             caracter_siguiente = texto_base[m.end():m.end()+1]
-            
+    
             # 1. FILTRO DE VERACIDAD (PDF SUCIO)
             if num_check.endswith('0') and caracter_siguiente == '.':
                 continue 
-                
+        
             # 2. IDENTIDAD LIMPIA (LAVADORA)
-            # Primero limpiamos para saber quién es realmente el artículo
             label_limpia = self.clean_label(f"ARTICULO {num_check}")
             nombre_completo = f"[{self.thematic_axis}] {label_limpia}"
-            
-            # 3. 🛡️ EL MURO DE LA CAJA NEGRA
+    
+            # 3. EL MURO DE LA CAJA NEGRA
             es_verde = self.mastery_tracker.get(nombre_completo, 0) >= 2
             es_bloqueado = nombre_completo in self.temporary_blacklist
             es_visto_ahora = nombre_completo in self.seen_articles
 
             if es_verde or es_bloqueado or es_visto_ahora:
-                continue # El Sniper lo ignora si ya está dominado o visto
+                continue 
 
             # 4. FILTRO DE LEYES MUERTAS
             contexto = texto_base[m.end():m.end()+200].upper()
