@@ -654,11 +654,6 @@ class LegalEngineTITAN:
         texto_final_ia = texto_base
         self.current_article_label = "General / Sin Estructura Detectada"
         
-        # --- BLOQUE CORREGIDO ---
-        # 1. El Sniper busca candidatos en el texto sucio del PDF
-        patron = r'ART[IÍ]CULO\s+(\d+)'
-        matches = list(re.finditer(patron, texto_base, re.IGNORECASE))
-
         candidatos_validos = []
         for m in matches:
             num_check = m.group(1)
@@ -693,73 +688,53 @@ class LegalEngineTITAN:
 
 
 
-# 1. ¿No hay nada nuevo en este pedazo de PDF?
-            if not candidatos_validos:
-                # Saltamos a otro bloque aleatorio para buscar más artículos
-                return self.generate_case()
+# 1. ¿No hay nada nuevo en este pedazo de PDF? (FUERA DEL BUCLE FOR)
+        if not candidatos_validos:
+            return self.generate_case()
 
-            # 2. Sincronizamos la Identidad (Clave para avanzar)
-            eje_id = self.clean_label(self.thematic_axis)
+        # 2. Sincronizamos la Identidad
+        eje_id = self.clean_label(self.thematic_axis)
         
-            # 3. LÓGICA DE PRIORIDAD (VISIÓN TÉRMICA)
-            # Buscamos si hay algún artículo marcado como fallado (-1)
-            prioridad_roja = [
-                m for m in candidatos_validos 
-                if self.mastery_tracker.get(f"[{eje_id}] {self.clean_label(f'ARTICULO {m.group(1)}')}", 0) == -1
-            ]
+        # 3. LÓGICA DE PRIORIDAD
+        prioridad_roja = [
+            m for m in candidatos_validos 
+            if self.mastery_tracker.get(f"[{eje_id}] {self.clean_label(f'ARTICULO {m.group(1)}')}", 0) == -1
+        ]
     
-            # 4. LA ELECCIÓN FINAL (Única y definitiva)
-            if prioridad_roja:
-                seleccion = random.choice(prioridad_roja)
-                st.toast("🚨 Reintentando artículo fallido...", icon="🎯")
-            else:
-                seleccion = random.choice(candidatos_validos)
+        # 4. LA ELECCIÓN FINAL
+        if prioridad_roja:
+            seleccion = random.choice(prioridad_roja)
+        else:
+            seleccion = random.choice(candidatos_validos)
 
-            # --- CONTINÚA EL PROCESO NORMAL (Nota: Borra el 'if candidatos_validos' extra) ---
-            start_pos = seleccion.start()
-            current_match_index = matches.index(seleccion)
+        # --- CONTINÚA EL PROCESO NORMAL ---
+        start_pos = seleccion.start()
+        current_match_index = matches.index(seleccion)
+            
+        context_window = 8000 
+        end_pos = min(len(texto_base), start_pos + context_window)
+        texto_final_ia = texto_base[start_pos:end_pos]
+        
+        num_limpio = seleccion.group(1).strip().upper()
+        self.current_article_label = f"[{eje_id}] ARTICULO {num_limpio}"
+        self.seen_articles.add(self.current_article_label)
 
-              
-            # AJUSTE LOWI HERRERA: En lugar de cortar en el siguiente artículo, 
-            # le damos una ventana de 8,000 caracteres para que "lea más" y pueda integrar temas.
-                
-            context_window = 8000 
-            end_pos = min(len(texto_base), start_pos + context_window)
-
-            # El texto final ahora contiene el artículo seleccionado Y los artículos que le siguen
-            texto_final_ia = texto_base[start_pos:end_pos]
-            # Construimos la etiqueta MANUALMENTE usando solo el número limpio del Grupo 1
-            num_limpio = seleccion.group(1).strip().upper()
-
-            # self.current_article_label = f"ARTICULO {num_limpio}"
-
-# Ahora le ponemos la marca de la ley para que el desplegable la reconozca
-            # Sincronizamos el letrero con la medalla y el buscador
-            eje_id = self.clean_label(self.thematic_axis)
-            self.current_article_label = f"[{eje_id}] ARTICULO {num_limpio}"
-            # ANCLA DE SESIÓN: Evita que el Sniper lo vuelva a ver en esta tarde
-            self.seen_articles.add(self.current_article_label)
-
-            # --- MICRO-SEGMENTACIÓN ---
-            patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
-            sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
-                
-            if len(sub_matches) > 1:
-                sel_sub = random.choice(sub_matches)
-                start_sub = sel_sub.start()
-                idx_sub = sub_matches.index(sel_sub)
-                end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
-                 
-                texto_fragmento = texto_final_ia[start_sub:end_sub]
-                id_sub = sel_sub.group(0).strip()
-                if len(id_sub) > 20: id_sub = id_sub[:20] + "..."
-                    
-                encabezado = texto_final_ia[:150].split('\n')[0] 
-                texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
-                self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
-            else:
-                self.current_article_label = "General"
-                texto_final_ia = texto_base[:4000]
+        # --- MICRO-SEGMENTACIÓN ---
+        patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
+        sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
+        
+        if len(sub_matches) > 1:
+            sel_sub = random.choice(sub_matches)
+            start_sub = sel_sub.start()
+            idx_sub = sub_matches.index(sel_sub)
+            end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
+            
+            texto_fragmento = texto_final_ia[start_sub:end_sub]
+            id_sub = sel_sub.group(0).strip()[:20]
+            
+            encabezado = texto_final_ia[:150].split('\n')[0] 
+            texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
+            self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
 
    # --- CEREBRO: MODO PESADILLA (NIVEL DIOS - 9 CAPITANES HOSTILES) ---
         # Buscamos la maestría por Nombre (Identidad)
@@ -1057,12 +1032,11 @@ class LegalEngineTITAN:
                         if match_ia:
                             # 2. Si la IA extrajo un número válido (ej. el 4), actualizamos el letrero
                             num_ia = match_ia.group(1)
-                            self.current_article_label = f"[{self.thematic_axis}] ARTICULO {num_ia}"
+                            self.current_article_label = f"[{eje_id}] ARTICULO {num_ia}"
                         else:
-                            # 3. Si la IA no mandó número o alucinó, dejamos el original del Sniper
                             match_num = re.search(r'(\d+)', str(self.current_article_label))
                             num_seguro = match_num.group(1) if match_num else "1"
-                            self.current_article_label = f"[{self.thematic_axis}] ARTICULO {num_seguro}"             
+                            self.current_article_label = f"[{eje_id}] ARTICULO {num_seguro}"             
 
                 # --- BARAJADOR AUTOMÁTICO INTELIGENTE ---
                 for q in final_json['preguntas']:
