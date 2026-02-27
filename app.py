@@ -654,9 +654,6 @@ class LegalEngineTITAN:
         texto_final_ia = texto_base
         self.current_article_label = "General / Sin Estructura Detectada"
         
-        if matches:
-
-
         # --- BLOQUE CORREGIDO ---
         # 1. El Sniper busca candidatos en el texto sucio del PDF
         patron = r'ART[IÍ]CULO\s+(\d+)'
