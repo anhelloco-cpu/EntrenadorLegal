@@ -615,17 +615,8 @@ class LegalEngineTITAN:
         if not self.chunks: return {"error": "Falta Norma"}
         
         idx = -1
-        # Lógica de repaso de errores (Embeddings)
-        if self.last_failed_embedding is not None and self.chunk_embeddings is not None and not self.simulacro_mode:
-            sims = cosine_similarity([self.last_failed_embedding], self.chunk_embeddings)[0]
-            # Buscamos candidatos que no estén en Verde (Nivel 2)
-            # Nota: Aquí seguimos usando índices para embeddings, pero la maestría la revisaremos por nombre luego
-            candidatos = [(i, s) for i, s in enumerate(sims) if self.mastery_tracker.get(i, 0) < 2]
-            candidatos.sort(key=lambda x: x[1], reverse=True)
-            # if candidatos: idx = candidatos[0][0] // BORRADO
-
-        
-        if idx == -1: idx = random.choice(range(len(self.chunks)))
+        # --- RADAR DE FALLAS APAGADO (Cero chicharrones, selección libre) ---
+        idx = random.choice(range(len(self.chunks)))
         self.current_chunk_idx = idx
         
         texto_base = self.chunks[idx]
