@@ -629,13 +629,6 @@ class LegalEngineTITAN:
         self.current_chunk_idx = idx
         
         texto_base = self.chunks[idx]
-        
-        # --- FILTRO 1 (CAPITÁN JUSTICIA): ESCUDO ANTI-INEXEQUIBLE (Pre-Sniper) ---
-        # Si el bloque completo está muerto, lo saltamos
-        if "INEXEQUIBLE" in texto_base.upper() or "DEROGADO" in texto_base.upper():
-            idx = random.choice(range(len(self.chunks)))
-            texto_base = self.chunks[idx]
-            self.current_chunk_idx = idx
 
         # --- FRANCOTIRADOR SELECTIVO (SNIPER V106) ---
         matches = []
@@ -659,10 +652,6 @@ class LegalEngineTITAN:
             num_check = m.group(1)
             # Miramos qué hay justo después del número (solo 1 carácter)
             caracter_siguiente = texto_base[m.end():m.end()+1]
-    
-            # 1. FILTRO DE VERACIDAD (PDF SUCIO)
-            if num_check.endswith('0') and caracter_siguiente == '.':
-                continue 
         
             # 2. IDENTIDAD LIMPIA (SINCRONIZADA)
             eje_id = self.clean_label(self.thematic_axis)
