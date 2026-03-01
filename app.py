@@ -1555,7 +1555,7 @@ if st.session_state.page == 'game':
     c1, c2, c3 = st.columns(3)
     c1.metric("📊 Dominio Global", f"{perc}%")
     c2.metric("❌ Preguntas Falladas", f"{fails}")
-    c3.metric("📉 Bloques Vistos", f"{len([x for x in engine.mastery_tracker.values() if x > 0])}/{total}")
+    c3.metric("📉 Bloques Vistos", f"{len([v for k, v in engine.mastery_tracker.items() if v > 0 and f'[{engine.clean_label(engine.thematic_axis)}]' in str(k)])}/{total}")
 
     st.markdown(f"**EJE: {engine.thematic_axis.upper()}** | **{subtitulo}**")
     st.progress(perc/100)
