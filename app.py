@@ -599,13 +599,13 @@ class LegalEngineTITAN:
         return "INSTRUCCIONES: NO REPETIR TEXTO, NO 'CHIVATEAR' NIVELES."
 # ### --- FIN PARTE 3 ---
 # ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER + 9 CAPITANES) ---
+# --------------------------------------------------------------------------
+    # GENERADOR DE CASOS (MODIFICADO: MOTOR SATÉLITE V107 - CERO COLAPSOS)
     # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICADO: ANTI-PEREZA + ROL PRIORITARIO + MODO PESADILLA + 9 CAPITANES)
-    # --------------------------------------------------------------------------
-    def generate_case(self, intentos=0):
+    def generate_case(self):
         """
         Genera la pregunta. Integra:
-        1. Sniper V106 (Precisión).
+        1. Sniper V107 Satélite (Escaneo global instantáneo, cero recursión).
         2. Semáforo (Amarillo -> Pesadilla) por IDENTIDAD.
         3. Los 9 Capitanes (Reglas de Hierro en Prompt).
         4. Filtro Anti-Inexequible.
@@ -613,93 +613,80 @@ class LegalEngineTITAN:
         """
         if not self.api_key: return {"error": "Falta Llave"}
         if not self.chunks: return {"error": "Falta Norma"}
-        
-        idx = -1
-        # --- RADAR DE FALLAS APAGADO (Cero chicharrones, selección libre) ---
-        idx = random.choice(range(len(self.chunks)))
-        self.current_chunk_idx = idx
-        
-        texto_base = self.chunks[idx]
 
-        # --- FRANCOTIRADOR SELECTIVO (SNIPER V106) ---
+        # 1. EL OJO DE DIOS: Unimos todo el texto de la sección para no adivinar a ciegas
+        texto_completo = "\n".join(self.chunks)
+
+        # 2. BUSCAR TODOS LOS ARTÍCULOS EN MILISEGUNDOS
         matches = []
-        
         if self.doc_type == "Norma (Leyes/Decretos)":
-
-        # Regex Universal: Detecta el artículo aunque el PDF lo ponga a mitad de renglón
             p_art = r'\b(?:ARTÍCULO|ARTICULO|ART)\.?\s*([IVXLCDM]+|\d+)(?:[º°\.oOª\s]*)\b'
-
-            matches = list(re.finditer(p_art, texto_base, re.IGNORECASE | re.MULTILINE))
-            
+            matches = list(re.finditer(p_art, texto_completo, re.IGNORECASE | re.MULTILINE))
         elif self.doc_type == "Guía Técnica / Manual":
             p_idx = r'^\s*(\d+(?:[\.\s]\d+)*)\.?\s+(.+)'
-            matches = list(re.finditer(p_idx, texto_base, re.MULTILINE))
+            matches = list(re.finditer(p_idx, texto_completo, re.MULTILINE))
 
-        texto_final_ia = texto_base
-        self.current_article_label = "General / Sin Estructura Detectada"
-        
+        # 3. FILTRAR CANDIDATOS AL INSTANTE
         candidatos_validos = []
+        eje_id = self.clean_label(self.thematic_axis)
+
         for m in matches:
-            num_check = m.group(1)
-            # Miramos qué hay justo después del número (solo 1 carácter)
-            caracter_siguiente = texto_base[m.end():m.end()+1]
-        
-            # 2. IDENTIDAD LIMPIA (SINCRONIZADA)
-            eje_id = self.clean_label(self.thematic_axis)
-            label_art = self.clean_label(f"ARTICULO {num_check}")
-            # Esta es la llave maestra: [EJE] ARTICULO X
-            nombre_completo = f"[{eje_id}] {label_art}"
-    
-            # 3. EL MURO DE LA CAJA NEGRA
+            num_check = m.group(1).strip().upper()
+            if self.doc_type == "Norma (Leyes/Decretos)":
+                nombre_completo = f"[{eje_id}] ARTICULO {num_check}"
+            else:
+                nombre_completo = f"[{eje_id}] ITEM {num_check}"
+
             es_verde = self.mastery_tracker.get(nombre_completo, 0) >= 2
             es_bloqueado = nombre_completo in self.temporary_blacklist
             es_visto_ahora = nombre_completo in self.seen_articles
 
             if es_verde or es_bloqueado or es_visto_ahora:
-                continue 
+                continue
 
-            # 4. FILTRO DE LEYES MUERTAS
-            contexto = texto_base[m.end():m.end()+200].upper()
+            # Escudo de leyes muertas
+            contexto = texto_completo[m.end():m.end()+200].upper()
             if any(x in contexto for x in ["INEXEQUIBLE", "DEROGADO", "NULO"]):
                 continue
 
-            # 5. SOLO AQUÍ SE AGREGA (Al final de todas las pruebas)
-            candidatos_validos.append(m)
+            candidatos_validos.append((m, nombre_completo))
 
-
-
-# 1. ¿No hay nada nuevo en este pedazo de PDF? (FUERA DEL BUCLE FOR)
+        # 4. AUTO-CURA INQUEBRANTABLE
         if not candidatos_validos:
-                if intentos > 15:
-                    return {"error": "El Sniper ya no encuentra artículos útiles en esta sección. Cambia a otra sección en el mapa de la izquierda."}
-                return self.generate_case(intentos + 1)
+            # Si no hay candidatos es porque ya vimos todos. Limpiamos la memoria temporal.
+            if len(self.seen_articles) > 0 or len(self.temporary_blacklist) > 0:
+                self.seen_articles.clear()
+                self.temporary_blacklist.clear()
+                
+                # Segunda revisión: Rescatar los que fallaste (Rojos) o no dominas
+                for m in matches:
+                    num_check = m.group(1).strip().upper()
+                    nombre_c = f"[{eje_id}] ARTICULO {num_check}" if self.doc_type == "Norma (Leyes/Decretos)" else f"[{eje_id}] ITEM {num_check}"
+                    
+                    if self.mastery_tracker.get(nombre_c, 0) < 2:
+                        ctx = texto_completo[m.end():m.end()+200].upper()
+                        if not any(x in ctx for x in ["INEXEQUIBLE", "DEROGADO", "NULO"]):
+                            candidatos_validos.append((m, nombre_c))
 
-        # 2. Sincronizamos la Identidad
-        eje_id = self.clean_label(self.thematic_axis)
-        
-        # 3. LÓGICA DE PRIORIDAD
-        prioridad_roja = [
-            m for m in candidatos_validos 
-            if self.mastery_tracker.get(f"[{eje_id}] {self.clean_label(f'ARTICULO {m.group(1)}')}", 0) == -1
-        ]
-    
-        # 4. LA ELECCIÓN FINAL
+            # Si DESPUÉS de limpiar todo sigue vacío, de verdad terminaste.
+            if not candidatos_validos:
+                return {"error": "¡SECCIÓN DOMINADA! 🏆 Ya arrasaste con todos los artículos de esta sección. Cambia a otra en el mapa de la izquierda."}
+
+        # 5. PRIORIDAD ROJA (El Radar Fijo)
+        prioridad_roja = [(m, n) for m, n in candidatos_validos if self.mastery_tracker.get(n, 0) == -1]
+
         if prioridad_roja:
-            seleccion = random.choice(prioridad_roja)
+            seleccion, nombre_final = random.choice(prioridad_roja)
         else:
-            seleccion = random.choice(candidatos_validos)
+            seleccion, nombre_final = random.choice(candidatos_validos)
 
-        # --- CONTINÚA EL PROCESO NORMAL ---
+        # 6. EXTRACCIÓN QUIRÚRGICA PARA LA IA
         start_pos = seleccion.start()
-        current_match_index = matches.index(seleccion)
-            
-        context_window = 8000 
-        end_pos = min(len(texto_base), start_pos + context_window)
-        texto_final_ia = texto_base[start_pos:end_pos]
-        
-        num_limpio = seleccion.group(1).strip().upper()
-        self.current_article_label = f"[{eje_id}] ARTICULO {num_limpio}"
-        self.seen_articles.add(self.current_article_label)
+        end_pos = min(len(texto_completo), start_pos + 8000)
+        texto_final_ia = texto_completo[start_pos:end_pos]
+
+        self.current_article_label = nombre_final
+        self.seen_articles.add(nombre_final)
 
         # --- MICRO-SEGMENTACIÓN ---
         patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
