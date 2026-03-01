@@ -693,31 +693,11 @@ class LegalEngineTITAN:
                 break
                 
         texto_final_ia = texto_completo[start_pos:end_pos].strip()
-        
-        # Fallback de seguridad por si el artículo es de solo 1 línea
-        if len(texto_final_ia) < 150:
-            end_pos_fallback = min(len(texto_completo), start_pos + 3000)
-            texto_final_ia = texto_completo[start_pos:end_pos_fallback].strip()
+  
 
         self.current_article_label = nombre_final
         self.seen_articles.add(nombre_final)
 
-        # --- MICRO-SEGMENTACIÓN ---
-        patron_item = r'(^\s*\d+\.\s+|^\s*[a-z]\)\s+|^\s*[A-Z][a-zA-Z\s\u00C0-\u00FF]{2,50}[:\.])'
-        sub_matches = list(re.finditer(patron_item, texto_final_ia, re.MULTILINE))
-        
-        if len(sub_matches) > 1:
-            sel_sub = random.choice(sub_matches)
-            start_sub = sel_sub.start()
-            idx_sub = sub_matches.index(sel_sub)
-            end_sub = sub_matches[idx_sub+1].start() if idx_sub + 1 < len(sub_matches) else len(texto_final_ia)
-            
-            texto_fragmento = texto_final_ia[start_sub:end_sub]
-            id_sub = sel_sub.group(0).strip()[:20]
-            
-            encabezado = texto_final_ia[:150].split('\n')[0] 
-            texto_final_ia = f"{encabezado}\n[...]\n{texto_fragmento}"
-            self.current_article_label = f"{self.current_article_label} - ITEM {id_sub}"
 
    # --- CEREBRO: MODO PESADILLA (NIVEL DIOS - 9 CAPITANES HOSTILES) ---
         # Buscamos la maestría por Nombre (Identidad)
