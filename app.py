@@ -600,12 +600,13 @@ class LegalEngineTITAN:
 # ### --- FIN PARTE 3 ---
 # ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER + 9 CAPITANES) ---
 # --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICADO: MOTOR SATÉLITE V107 - CERO COLAPSOS)
+# --------------------------------------------------------------------------
+    # GENERADOR DE CASOS (MODIFICADO: MOTOR SATÉLITE V108 - AISLAMIENTO TOTAL)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
         Genera la pregunta. Integra:
-        1. Sniper V107 Satélite (Escaneo global instantáneo, cero recursión).
+        1. Sniper V108 (Escaneo global instantáneo + Aislamiento de IA).
         2. Semáforo (Amarillo -> Pesadilla) por IDENTIDAD.
         3. Los 9 Capitanes (Reglas de Hierro en Prompt).
         4. Filtro Anti-Inexequible.
@@ -614,7 +615,7 @@ class LegalEngineTITAN:
         if not self.api_key: return {"error": "Falta Llave"}
         if not self.chunks: return {"error": "Falta Norma"}
 
-        # 1. EL OJO DE DIOS: Unimos todo el texto de la sección para no adivinar a ciegas
+        # 1. EL OJO DE DIOS: Unimos todo el texto
         texto_completo = "\n".join(self.chunks)
 
         # 2. BUSCAR TODOS LOS ARTÍCULOS EN MILISEGUNDOS
@@ -626,16 +627,18 @@ class LegalEngineTITAN:
             p_idx = r'^\s*(\d+(?:[\.\s]\d+)*)\.?\s+(.+)'
             matches = list(re.finditer(p_idx, texto_completo, re.MULTILINE))
 
-        # 3. FILTRAR CANDIDATOS AL INSTANTE
+        # 3. FILTRAR CANDIDATOS (IDENTIDAD PURIFICADA)
         candidatos_validos = []
-        eje_id = self.clean_label(self.thematic_axis)
+        # Curamos el Eje Temático para que no repita corchetes
+        eje_limpio = str(self.thematic_axis).replace("[", "").replace("]", "").strip()
 
         for m in matches:
             num_check = m.group(1).strip().upper()
             if self.doc_type == "Norma (Leyes/Decretos)":
-                nombre_completo = f"[{eje_id}] ARTICULO {num_check}"
+                # AHORA SÍ PASAN POR LA LAVADORA EXACTA PARA QUE EL CONTADOR LOS RECONOZCA
+                nombre_completo = self.clean_label(f"[{eje_limpio}] ARTICULO {num_check}")
             else:
-                nombre_completo = f"[{eje_id}] ITEM {num_check}"
+                nombre_completo = self.clean_label(f"[{eje_limpio}] ITEM {num_check}")
 
             es_verde = self.mastery_tracker.get(nombre_completo, 0) >= 2
             es_bloqueado = nombre_completo in self.temporary_blacklist
@@ -653,26 +656,27 @@ class LegalEngineTITAN:
 
         # 4. AUTO-CURA INQUEBRANTABLE
         if not candidatos_validos:
-            # Si no hay candidatos es porque ya vimos todos. Limpiamos la memoria temporal.
             if len(self.seen_articles) > 0 or len(self.temporary_blacklist) > 0:
                 self.seen_articles.clear()
                 self.temporary_blacklist.clear()
                 
-                # Segunda revisión: Rescatar los que fallaste (Rojos) o no dominas
+                # Segunda vuelta: Rescatar lo que NO está verde (Especialmente los Mal Contestados -1)
                 for m in matches:
                     num_check = m.group(1).strip().upper()
-                    nombre_c = f"[{eje_id}] ARTICULO {num_check}" if self.doc_type == "Norma (Leyes/Decretos)" else f"[{eje_id}] ITEM {num_check}"
-                    
+                    if self.doc_type == "Norma (Leyes/Decretos)":
+                        nombre_c = self.clean_label(f"[{eje_limpio}] ARTICULO {num_check}")
+                    else:
+                        nombre_c = self.clean_label(f"[{eje_limpio}] ITEM {num_check}")
+                        
                     if self.mastery_tracker.get(nombre_c, 0) < 2:
                         ctx = texto_completo[m.end():m.end()+200].upper()
                         if not any(x in ctx for x in ["INEXEQUIBLE", "DEROGADO", "NULO"]):
                             candidatos_validos.append((m, nombre_c))
 
-            # Si DESPUÉS de limpiar todo sigue vacío, de verdad terminaste.
             if not candidatos_validos:
-                return {"error": "¡SECCIÓN DOMINADA! 🏆 Ya arrasaste con todos los artículos de esta sección. Cambia a otra en el mapa de la izquierda."}
+                return {"error": "¡SECCIÓN DOMINADA! 🏆 Ya arrasaste con todos los artículos aquí."}
 
-        # 5. PRIORIDAD ROJA (El Radar Fijo)
+        # 5. PRIORIDAD ROJA (El Radar Fijo que ahora sí funciona)
         prioridad_roja = [(m, n) for m, n in candidatos_validos if self.mastery_tracker.get(n, 0) == -1]
 
         if prioridad_roja:
@@ -680,10 +684,22 @@ class LegalEngineTITAN:
         else:
             seleccion, nombre_final = random.choice(candidatos_validos)
 
-        # 6. EXTRACCIÓN QUIRÚRGICA PARA LA IA
+        # 6. EXTRACCIÓN QUIRÚRGICA (BLINDAJE CONTRA DESVÍOS DE LA IA)
         start_pos = seleccion.start()
-        end_pos = min(len(texto_completo), start_pos + 8000)
-        texto_final_ia = texto_completo[start_pos:end_pos]
+        end_pos = len(texto_completo)
+        
+        # EL TRUCO MAGISTRAL: Cortar EXACTAMENTE antes de que empiece el siguiente artículo
+        for m_next in matches:
+            if m_next.start() > start_pos:
+                end_pos = m_next.start()
+                break
+                
+        texto_final_ia = texto_completo[start_pos:end_pos].strip()
+        
+        # Fallback de seguridad por si el artículo es de solo 1 línea
+        if len(texto_final_ia) < 150:
+            end_pos_fallback = min(len(texto_completo), start_pos + 3000)
+            texto_final_ia = texto_completo[start_pos:end_pos_fallback].strip()
 
         self.current_article_label = nombre_final
         self.seen_articles.add(nombre_final)
