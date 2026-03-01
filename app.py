@@ -600,8 +600,7 @@ class LegalEngineTITAN:
 # ### --- FIN PARTE 3 ---
 # ### --- INICIO PARTE 4: EL GENERADOR DE CASOS (IA SNIPER + 9 CAPITANES) ---
 # --------------------------------------------------------------------------
-# --------------------------------------------------------------------------
-    # GENERADOR DE CASOS (MODIFICADO: MOTOR SATÉLITE V108 - AISLAMIENTO TOTAL)
+    # GENERADOR DE CASOS (MODIFICADO: MOTOR SATÉLITE V108.1 - AISLAMIENTO TOTAL)
     # --------------------------------------------------------------------------
     def generate_case(self):
         """
@@ -629,16 +628,15 @@ class LegalEngineTITAN:
 
         # 3. FILTRAR CANDIDATOS (IDENTIDAD PURIFICADA)
         candidatos_validos = []
-        # Curamos el Eje Temático para que no repita corchetes
-        eje_limpio = str(self.thematic_axis).replace("[", "").replace("]", "").strip()
+        # CORRECCIÓN: Curamos los corchetes pero MANTENEMOS el nombre eje_id
+        eje_id = self.clean_label(str(self.thematic_axis).replace("[", "").replace("]", "").strip())
 
         for m in matches:
             num_check = m.group(1).strip().upper()
             if self.doc_type == "Norma (Leyes/Decretos)":
-                # AHORA SÍ PASAN POR LA LAVADORA EXACTA PARA QUE EL CONTADOR LOS RECONOZCA
-                nombre_completo = self.clean_label(f"[{eje_limpio}] ARTICULO {num_check}")
+                nombre_completo = self.clean_label(f"[{eje_id}] ARTICULO {num_check}")
             else:
-                nombre_completo = self.clean_label(f"[{eje_limpio}] ITEM {num_check}")
+                nombre_completo = self.clean_label(f"[{eje_id}] ITEM {num_check}")
 
             es_verde = self.mastery_tracker.get(nombre_completo, 0) >= 2
             es_bloqueado = nombre_completo in self.temporary_blacklist
@@ -660,13 +658,13 @@ class LegalEngineTITAN:
                 self.seen_articles.clear()
                 self.temporary_blacklist.clear()
                 
-                # Segunda vuelta: Rescatar lo que NO está verde (Especialmente los Mal Contestados -1)
+                # Segunda vuelta: Rescatar lo que NO está verde (Fallados -1)
                 for m in matches:
                     num_check = m.group(1).strip().upper()
                     if self.doc_type == "Norma (Leyes/Decretos)":
-                        nombre_c = self.clean_label(f"[{eje_limpio}] ARTICULO {num_check}")
+                        nombre_c = self.clean_label(f"[{eje_id}] ARTICULO {num_check}")
                     else:
-                        nombre_c = self.clean_label(f"[{eje_limpio}] ITEM {num_check}")
+                        nombre_c = self.clean_label(f"[{eje_id}] ITEM {num_check}")
                         
                     if self.mastery_tracker.get(nombre_c, 0) < 2:
                         ctx = texto_completo[m.end():m.end()+200].upper()
@@ -676,7 +674,7 @@ class LegalEngineTITAN:
             if not candidatos_validos:
                 return {"error": "¡SECCIÓN DOMINADA! 🏆 Ya arrasaste con todos los artículos aquí."}
 
-        # 5. PRIORIDAD ROJA (El Radar Fijo que ahora sí funciona)
+        # 5. PRIORIDAD ROJA (El Radar Fijo)
         prioridad_roja = [(m, n) for m, n in candidatos_validos if self.mastery_tracker.get(n, 0) == -1]
 
         if prioridad_roja:
@@ -688,7 +686,7 @@ class LegalEngineTITAN:
         start_pos = seleccion.start()
         end_pos = len(texto_completo)
         
-        # EL TRUCO MAGISTRAL: Cortar EXACTAMENTE antes de que empiece el siguiente artículo
+        # Cortar EXACTAMENTE antes de que empiece el siguiente artículo
         for m_next in matches:
             if m_next.start() > start_pos:
                 end_pos = m_next.start()
