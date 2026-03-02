@@ -926,10 +926,10 @@ class LegalEngineTITAN:
 
         IMPORTANTE - FORMATO DE EXPLICACIÓN (MAGISTERIO Y PROFUNDIDAD EXTREMA):
         ¡ATENCIÓN! Las opciones (A, B, C, D) deben ser cortas y simétricas, pero el campo "explicaciones" DEBE SER EXTENSO, PROFUNDO Y ALTAMENTE PEDAGÓGICO. 
+        REGLA DE ORO ANTI-CONFUSIÓN: Tienes ESTRICTAMENTE PROHIBIDO mencionar las letras "A", "B", "C" o "D" dentro de tu redacción (Ej: NO digas "La opción A es incorrecta porque..."). Las opciones serán barajadas aleatoriamente por el sistema después. Refiérete a ellas genéricamente como "Esta opción", "Este distractor" o "La opción correcta".
         No me des la explicación en un solo texto corrido. Dame un OBJETO JSON llamado "explicaciones" donde cada letra tenga su propia justificación detallada:
         - Para la opción CORRECTA: Explica exhaustivamente el fundamento jurídico, el porqué de la trampa del caso y cómo se resuelve la colisión normativa. ¡No escatimes en palabras aquí, quiero un análisis profundo de Nivel 4!
         - Para las opciones FALSAS: Explica paso a paso por qué el distractor es inaplicable o en qué detalle técnico falla.
-        
         EJEMPLO A IMITAR (ESTILO Y FORMATO):
         '''{self.example_question}'''
         
