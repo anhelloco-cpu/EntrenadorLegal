@@ -924,9 +924,11 @@ class LegalEngineTITAN:
         - Si el texto es una definición teórica, TRANSFÓRMALA en un procedimiento técnico práctico basado en el ADN del cargo.
         - SI ESTÁS EN 'POST-GUÍA': Replica la estructura del ejemplo abajo (Concepto -> Restricción -> Nudo Técnico).
 
-        IMPORTANTE - FORMATO DE EXPLICACIÓN (ESTRUCTURADO):
-        No me des la explicación en un solo texto corrido.
-        Dame un OBJETO JSON llamado "explicaciones" donde cada letra (A, B, C, D) tenga su propia explicación individual.
+        IMPORTANTE - FORMATO DE EXPLICACIÓN (MAGISTERIO Y PROFUNDIDAD EXTREMA):
+        ¡ATENCIÓN! Las opciones (A, B, C, D) deben ser cortas y simétricas, pero el campo "explicaciones" DEBE SER EXTENSO, PROFUNDO Y ALTAMENTE PEDAGÓGICO. 
+        No me des la explicación en un solo texto corrido. Dame un OBJETO JSON llamado "explicaciones" donde cada letra tenga su propia justificación detallada:
+        - Para la opción CORRECTA: Explica exhaustivamente el fundamento jurídico, el porqué de la trampa del caso y cómo se resuelve la colisión normativa. ¡No escatimes en palabras aquí, quiero un análisis profundo de Nivel 4!
+        - Para las opciones FALSAS: Explica paso a paso por qué el distractor es inaplicable o en qué detalle técnico falla.
         
         EJEMPLO A IMITAR (ESTILO Y FORMATO):
         '''{self.example_question}'''
