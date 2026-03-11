@@ -1675,20 +1675,20 @@ if st.session_state.page == 'lobby':
             elif hasattr(engine, 'chunks') and engine.chunks:
                 texto_contexto = str(engine.chunks[0])[:15000]
 
-            # 2. EL PROMPT ACTUALIZADO (Más largo, abarcando todo y exigiendo detalles)
+            # 2. EL PROMPT ACTUALIZADO (Recorre todo el texto pero 100% película)
             prompt_historia = f"""
             Redacta un caso práctico inmersivo y EXTENSO de 5 a 7 párrafos.
             
             TEMA TÉCNICO OBLIGATORIO: {engine.thematic_axis} - {engine.active_section_name}
             
-            TEXTO DE REFERENCIA (Aplica los conceptos de aquí al caso):
+            TEXTO DE REFERENCIA (Inspiración para la trama):
             '''{texto_contexto}'''
             
             REGLAS DE ORO:
-            1. El protagonista absoluto de esta historia debe ser un funcionario cuyo perfil y funciones (ADN del cargo) son estas: '{engine.job_functions}'. 
-            2. El protagonista debe usar esas funciones para resolver la situación.
-            3. ¡CRÍTICO! NO te quedes solo con el primer artículo del texto. DEBES integrar y mencionar a lo largo de la historia VARIOS conceptos, principios y reglas que aparecen en todo el TEXTO DE REFERENCIA proporcionado. Haz un recorrido por el documento.
-            4. El tono y la narrativa deben ser OBLIGATORIAMENTE del género: {genero}.
+            1. El protagonista de esta historia es un funcionario con este ADN técnico: '{engine.job_functions}'. 
+            2. 🚫 PROHIBICIÓN ABSOLUTA: Tienes ESTRICTAMENTE PROHIBIDO usar palabras como "Artículo", "Ley", "Numeral", "Inciso" o "Decreto". 
+            3. ¡CRÍTICO! NO te quedes solo en el primer párrafo del texto. Toma VARIOS conceptos, requisitos y principios de TODO el TEXTO DE REFERENCIA y conviértelos orgánicamente en acciones, obstáculos, diálogos o problemas de la trama. Haz un recorrido por toda la teoría pero camuflada en la historia.
+            4. El tono y la narrativa deben ser OBLIGATORIAMENTE del género: {genero}. ¡Hazlo emocionante y 100% película de principio a fin!
             """
             
             # Llamamos a Gemini
