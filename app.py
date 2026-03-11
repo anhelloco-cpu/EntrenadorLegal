@@ -1675,7 +1675,7 @@ if st.session_state.page == 'lobby':
             elif hasattr(engine, 'chunks') and engine.chunks:
                 texto_contexto = str(engine.chunks[0])[:15000]
 
-            # 2. EL PROMPT ACTUALIZADO (Recorre todo el texto pero 100% película)
+            # 2. EL PROMPT ACTUALIZADO (Cero citas, cero paréntesis, 100% novela)
             prompt_historia = f"""
             Redacta un caso práctico inmersivo y EXTENSO de 5 a 7 párrafos.
             
@@ -1686,9 +1686,9 @@ if st.session_state.page == 'lobby':
             
             REGLAS DE ORO:
             1. El protagonista de esta historia es un funcionario con este ADN técnico: '{engine.job_functions}'. 
-            2. 🚫 PROHIBICIÓN ABSOLUTA: Tienes ESTRICTAMENTE PROHIBIDO usar palabras como "Artículo", "Ley", "Numeral", "Inciso" o "Decreto". 
-            3. ¡CRÍTICO! NO te quedes solo en el primer párrafo del texto. Toma VARIOS conceptos, requisitos y principios de TODO el TEXTO DE REFERENCIA y conviértelos orgánicamente en acciones, obstáculos, diálogos o problemas de la trama. Haz un recorrido por toda la teoría pero camuflada en la historia.
-            4. El tono y la narrativa deben ser OBLIGATORIAMENTE del género: {genero}. ¡Hazlo emocionante y 100% película de principio a fin!
+            2. 🚫 PROHIBICIÓN DE CITAS (ALERTA ROJA): Tienes ESTRICTAMENTE PROHIBIDO citar artículos, leyes, numerales o decretos. NO uses la palabra "Artículo" y NUNCA pongas referencias jurídicas entre paréntesis como "(Artículo 4º)". Cero lenguaje de abogado, esto es una película.
+            3. CAMUFLAJE TOTAL: Toma VARIOS conceptos, principios y reglas de todo el TEXTO DE REFERENCIA y conviértelos orgánicamente en acciones físicas, problemas de la trama, pistas o diálogos. Que el protagonista "viva" la teoría sin que el lector se dé cuenta de que está estudiando una norma.
+            4. El tono y la narrativa deben ser OBLIGATORIAMENTE del género: {genero}. ¡Hazlo emocionante y orgánico!
             """
             
             # Llamamos a Gemini
