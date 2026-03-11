@@ -11,6 +11,32 @@ import os
 import sys
 import subprocess
 from collections import Counter
+import edge_tts
+import asyncio
+import io
+
+if "historia_generada" not in st.session_state:
+    st.session_state.historia_generada = ""
+
+def generar_audio_texto(texto):
+    # Puedes cambiar "es-CO-SalomeNeural" (Mujer) por "es-CO-GonzaloNeural" (Hombre)
+    voz = "es-CO-SalomeNeural" 
+    
+    async def _generar_async():
+        comunicacion = edge_tts.Communicate(texto, voz)
+        audio_data = b""
+        async for chunk in comunicacion.stream():
+            if chunk["type"] == "audio":
+                audio_data += chunk["data"]
+        return audio_data
+
+    # Ejecuta el motor asíncrono para descargar el audio neuronal
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    audio_bytes = loop.run_until_complete(_generar_async())
+    
+    fp = io.BytesIO(audio_bytes)
+    return fp
 
 # ==============================================================================
 # ==============================================================================
@@ -1055,6 +1081,97 @@ class LegalEngineTITAN:
                 time.sleep(1); attempts += 1
                 if attempts == max_retries: return {"error": f"Fallo Crítico: {str(e)}"}
         return {"error": "Saturado."}
+
+# --- 🚀 FUNCIÓN ACTUALIZADA: EL DUO DINÁMICO (JORDY & DORIS) ---
+    def generar_chisme_ia(self, label_articulo, tipo="cronica"):
+        """Genera una pausa activa..."""
+        import random
+        
+        # 1. Le quitamos los corchetes al nombre que mandan los botones
+        llave_articulo = label_articulo.replace("[", "").replace("]", "")
+        
+        # 2. Obligamos a TITÁN a leer el texto del NUEVO artículo, no del viejo
+        contexto = self.sections_map.get(llave_articulo, "Normativa General")
+        
+        if tipo == "cronica":
+            # 🏛️ PERFIL 1: OFICINA (CASOS POLÍTICOS REALES + SÁTIRA)
+            temas = ["un político colombiano", "un Alcalde o Gobernador", "un Ministro o exministro", "un escándalo de contratación pública", "un congresista"]
+            tema_elegido = random.choice(temas)
+            
+            prompt_chismosa = f"""
+            ACTÚA COMO UN COMPAÑERO DE OFICINA SÚPER CHISMOSO Y EXAGERADO.
+            Misión: Contar un caso REAL de Colombia sobre {tema_elegido} relacionado EXCLUSIVAMENTE con el {label_articulo}.
+            
+            REGLAS INQUEBRANTABLES:
+            1. 🎭 NOMBRES REALES Y SÁTIRA: Usa NOMBRES REALES de figuras públicas y noticias conocidas. Aplica sátira política, sarcasmo y humor hiperbólico estilo caricatura. 
+            2. 💣 EXAGERACIÓN DE PASILLO: Toma el caso real y exagéralo. Usa frases como "yo esto lo digo pero no lo sostengo", "dicen las malas lenguas", "yo no estaba ahí pero...".
+            3. 🔄 CERO REPETICIÓN: NUNCA uses un caso que sea un ejemplo genérico. Busca en tu base de datos un escándalo real distinto cada vez.
+            4. 🧩 ESTRUCTURA DE 3 PARTES (Usa EXACTAMENTE el separador ||| entre partes):
+               - PARTE 1: Empieza EXACTAMENTE con "Imagínate tú..." y suelta la bomba en 1 párrafo.
+               |||
+               - PARTE 2: Cuenta los detalles jugosos y absurdos en 1 párrafo.
+               |||
+               - PARTE 3: Termina SÓLO con "📌 Para que no te pase:" y una moraleja que conecte la locura con el {label_articulo}.
+               
+            🚫 PROHIBIDO: Usar la palabra "chisme", "veredicto", o saludar.
+            TEXTO: {contexto[:800]}
+            """
+            
+        elif tipo == "farandula":
+            # 💅 PERFIL 2: FARÁNDULA (CASOS REALES DE FAMOSOS COLOMBIANOS)
+            temas = ["un cantante colombiano famoso", "un influencer colombiano", "un actor o actriz de TV", "un escándalo de reality show"]
+            tema_elegido = random.choice(temas)
+            
+            prompt_chismosa = f"""
+            ACTÚA COMO UNA AMIGA RELAJADA, AMANTE DE LA FARÁNDULA Y MUY EXAGERADA.
+            Misión: Contar un bololó REAL sobre {tema_elegido} relacionado EXCLUSIVAMENTE con el {label_articulo}.
+
+            REGLAS INQUEBRANTABLES:
+            1. 🎭 NOMBRES REALES: Usa NOMBRES REALES de famosos colombianos y polémicas que hayan sido públicas. 
+            2. 💣 SÁTIRA Y CHAPULÍN: Exagera la realidad con humor. Cruza dichos populares ("ahí te dejé el baño en el agua") y usa frases de "no me creas a mí pero...".
+            3. 🔄 CERO REPETICIÓN: NUNCA repitas el mismo famoso o caso. Busca siempre uno nuevo.
+            4. 🧩 ESTRUCTURA DE 3 PARTES (Usa EXACTAMENTE el separador ||| entre partes):
+               - PARTE 1: Empieza EXACTAMENTE con "📱 El bololó del día: [Nombre del Famoso]" y suelta el rumor.
+               |||
+               - PARTE 2: Cuenta los detalles locos en 1 párrafo.
+               |||
+               - PARTE 3: Termina SÓLO con "💡 Pa' que te quede claro:" y una moraleja sobre el {label_articulo}.
+
+            🚫 PROHIBIDO: Usar la palabra "chisme", o saludar.
+            TEXTO: {contexto[:800]}
+            """
+            
+        else:
+            # 🚀 PERFIL 3: HISTORIAS DE ÉXITO Y MOTIVACIÓN (NOMBRES REALES)
+            temas = ["una empresa colombiana histórica", "un líder mundial revolucionario", "una marca global reconocida", "un emprendedor que superó la quiebra"]
+            tema_elegido = random.choice(temas)
+            
+            prompt_chismosa = f"""
+            ACTÚA COMO UN MENTOR INSPIRADOR Y MOTIVACIONAL.
+            Misión: Contar una historia REAL Y CORTA de éxito sobre {tema_elegido}.
+
+            REGLAS INQUEBRANTABLES:
+            1. 🎯 NOMBRES REALES Y VARIEDAD: Usa el NOMBRE REAL de la empresa o persona (ej. Arturo Calle, Crepes & Waffles, Steve Jobs). 
+            2. 🔄 CERO REPETICIÓN: Busca un caso histórico diferente cada vez. La historia debe conectar sutilmente con el {label_articulo}.
+            3. 🧩 ESTRUCTURA DE 3 PARTES (Usa EXACTAMENTE el separador ||| entre partes):
+               - PARTE 1: Empieza EXACTAMENTE con "🚀 ¿Sabías que..." y cuenta el inicio difícil en 1 párrafo.
+               |||
+               - PARTE 2: Cuenta cómo lograron el éxito.
+               |||
+               - PARTE 3: Termina SÓLO con "🌟 La lección del éxito:" seguida de una frase motivacional conectada con el {label_articulo}.
+
+            🚫 PROHIBIDO: Usar lenguaje de chisme o juzgado.
+            TEXTO: {contexto[:800]}
+            """
+
+        try:
+            if self.provider == "Google":
+                res = self.model.generate_content(prompt_chismosa)
+                return res.text.replace("*", "").replace("#", "")
+            return "☕ ¡Se acabó el café!"
+        except Exception as e:
+            return "La historia está en secreto por orden del juez."
+
 # ### --- FIN PARTE 4 ---
 # ### --- INICIO PARTE 5: BARRA LATERAL (SIDEBAR Y SETUP) ---
 # ==========================================
@@ -1065,6 +1182,11 @@ if 'case_id' not in st.session_state: st.session_state.case_id = 0 # ID Único p
 if 'page' not in st.session_state: st.session_state.page = 'setup'
 if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
 if 'answered' not in st.session_state: st.session_state.answered = False
+
+# --- 🛠️ ADICIÓN: VARIABLES DE PAUSA ACTIVA ---
+if 'hitos_vistos' not in st.session_state: st.session_state.hitos_vistos = set()
+if 'estado_pausa' not in st.session_state: st.session_state.estado_pausa = "none" # none, checkpoint, chisme
+if 'chisme_actual' not in st.session_state: st.session_state.chisme_actual = ""
 
 # NUEVO: ANCLA DE MEMORIA PARA EL MANUAL (EVITA BUCLE DE PURIFICACIÓN)
 if 'manual_hash' not in st.session_state: st.session_state.manual_hash = None
@@ -1393,7 +1515,7 @@ with st.sidebar:
                 if sel_actual != engine.active_section_name:
                     engine.update_chunks_by_section(sel_actual)
             
-            st.session_state.page = 'game'
+            st.session_state.page = 'lobby'
             st.session_state.current_data = None
             st.rerun()
 
@@ -1452,7 +1574,7 @@ with st.sidebar:
         
         engine.simulacro_mode = True
         st.session_state.current_data = None
-        st.session_state.page = 'game'
+        st.session_state.page = 'lobby'
         st.rerun()
     
 # Al final de la barra lateral (Sidebar)
@@ -1528,8 +1650,243 @@ def generar_sopa_letras(palabra):
     sopa_md += "</div>"
     return sopa_md
 
+
+# ==========================================
+# EL LOBBY NARRATIVO (ANTES DEL JUEGO)
+# ==========================================
+if st.session_state.page == 'lobby':
+    st.title("🕵️‍♂️ Sala de Instrucción: El Gran Caso")
+    st.write("Antes de entrar a la auditoría técnica, prepárate con un caso de estudio.")
+    
+    genero = st.selectbox("🎬 Elige el género de tu expediente:", [
+        "Acción Exagerada (Un auditor resolviendo todo de un solo golpe maestro)", 
+        "Terror Slasher (Un asesino enmascarado acecha en el archivo municipal)", 
+        "Misterio/Crimen (Resolviendo pistas en callejones oscuros)", 
+        "Comedia (Un desastre total y absoluto en la alcaldía)"
+    ])
+
+    if st.button("Generar Caso de Estudio", use_container_width=True):
+        with st.spinner("Titan está redactando un expediente largo y detallado..."):
+            
+            # 1. AMPLIAMOS LA LECTURA: Ahora lee hasta 15,000 caracteres para abarcar casi todo el documento/sección
+            texto_contexto = ""
+            if hasattr(engine, 'sections_map') and engine.sections_map:
+                texto_contexto = str(engine.sections_map.get(engine.active_section_name, ""))[:15000]
+            elif hasattr(engine, 'chunks') and engine.chunks:
+                texto_contexto = str(engine.chunks[0])[:15000]
+
+            # 2. EL PROMPT ACTUALIZADO (Más largo, abarcando todo y exigiendo detalles)
+            prompt_historia = f"""
+            Redacta un caso práctico inmersivo y EXTENSO de 5 a 7 párrafos.
+            
+            TEMA TÉCNICO OBLIGATORIO: {engine.thematic_axis} - {engine.active_section_name}
+            
+            TEXTO DE REFERENCIA (Aplica los conceptos de aquí al caso):
+            '''{texto_contexto}'''
+            
+            REGLAS DE ORO:
+            1. El protagonista absoluto de esta historia debe ser un funcionario cuyo perfil y funciones (ADN del cargo) son estas: '{engine.job_functions}'. 
+            2. El protagonista debe usar esas funciones para resolver la situación.
+            3. ¡CRÍTICO! NO te quedes solo con el primer artículo del texto. DEBES integrar y mencionar a lo largo de la historia VARIOS conceptos, principios y reglas que aparecen en todo el TEXTO DE REFERENCIA proporcionado. Haz un recorrido por el documento.
+            4. El tono y la narrativa deben ser OBLIGATORIAMENTE del género: {genero}.
+            """
+            
+            # Llamamos a Gemini
+            res = engine.model.generate_content(prompt_historia)
+            st.session_state.historia_generada = res.text.replace("*", "").replace("#", "")
+
+    if st.session_state.historia_generada:
+        st.markdown("---")
+        st.markdown("### 📜 Tu Expediente:")
+        
+        # 3. LETRA GIGANTE Y CÓMODA PARA NO CANSAR LA VISTA
+        st.markdown(f"""
+            <div style="font-size: 30px; line-height: 1.6; font-family: 'Georgia', serif; color: #1E1E1E; background-color: #fdf5e6; padding: 35px; border-radius: 12px; border-left: 8px solid #d35400; box-shadow: 2px 2px 10px rgba(0,0,0,0.1);">
+                {st.session_state.historia_generada.replace(chr(10), '<br><br>')}
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("")
+        st.write("🎧 **Escuchar la historia:**")
+        audio_fp = generar_audio_texto(st.session_state.historia_generada)
+        st.audio(audio_fp, format='audio/mp3')
+        
+        st.markdown("---")
+        if st.button("🔥 Entendido, ¡A las preguntas!", type="primary", use_container_width=True):
+            st.session_state.page = 'game'
+            st.rerun()
+
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
+
+# --- 🕵️‍♂️ SENSOR DE HITOS (PAUSA ACTIVA) ---
+    hitos_objetivo = [10, 20, 30, 40, 50, 60, 70, 80]
+    for hito in hitos_objetivo:
+        if perc >= hito and hito not in st.session_state.hitos_vistos:
+            st.session_state.hitos_vistos.add(hito)
+            st.session_state.estado_pausa = "checkpoint"
+            st.rerun()
+
+    # A. Interfaz del Checkpoint
+    if st.session_state.estado_pausa == "checkpoint":
+        st.markdown(f"<h1 style='text-align: center;'>🏁 ¡Hito alcanzado: {perc}%!</h1>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center;'>Te has ganado un descanso. ¿Quieres ir a la sala de pausas o sigues en racha?</h3>", unsafe_allow_html=True)
+        
+        c_ch, c_ra = st.columns(2)
+        
+        if c_ch.button("☕ Ir a la Sala de Pausas", use_container_width=True):
+            # LA MAGIA ESTÁ AQUÍ: Entramos a la pausa con la variable vacía para que salte el Menú
+            st.session_state.chisme_actual = "" 
+            st.session_state.estado_pausa = "chisme"
+            st.rerun()
+            
+        if c_ra.button("🔥 Seguir en Racha", use_container_width=True):
+            st.session_state.estado_pausa = "none"
+            st.rerun()
+            
+        st.stop() # Bloqueo para que no cargue la pregunta debajo
+
+    # B. Interfaz de Lectura del Chisme
+    if st.session_state.estado_pausa == "chisme":
+        
+        # --- 🧠 SELECTOR INTELIGENTE EN CASCADA ---
+        def obtener_siguiente_articulo():
+            import random
+            todos = list(engine.sections_map.keys())
+            
+            # 🚨 AQUÍ ESTÁ EL CAMBIO CLAVE: Leer los fallos reales de TITÁN
+            rojos = list(engine.failed_articles) if hasattr(engine, 'failed_articles') and engine.failed_articles else []
+            
+            # Si tienes una lista de aciertos en el engine, úsala, si no, déjala vacía
+            verdes = list(engine.passed_articles) if hasattr(engine, 'passed_articles') and engine.passed_articles else [] 
+            
+            no_vistos = [art for art in todos if art not in rojos and art not in verdes]
+            
+            # Memoria de la sesión para no repetir en la misma pausa
+            if "chismes_vistos_pausa" not in st.session_state:
+                st.session_state.chismes_vistos_pausa = []
+                
+            rojos_libres = [a for a in rojos if a not in st.session_state.chismes_vistos_pausa]
+            no_vistos_libres = [a for a in no_vistos if a not in st.session_state.chismes_vistos_pausa]
+            verdes_libres = [a for a in verdes if a not in st.session_state.chismes_vistos_pausa]
+            
+            # CASCADA: Prioridad 1 (Rojos/Fallados), Prioridad 2 (No vistos), Prioridad 3 (Verdes/Acertados)
+            if rojos_libres: 
+                elegido = random.choice(rojos_libres)
+            elif no_vistos_libres: 
+                elegido = random.choice(no_vistos_libres)
+            elif verdes_libres: 
+                elegido = random.choice(verdes_libres)
+            else:
+                # Si ya te mostramos todo, reiniciamos la memoria y empezamos de nuevo por los rojos
+                st.session_state.chismes_vistos_pausa = []
+                elegido = random.choice(rojos if rojos else todos)
+                
+            st.session_state.chismes_vistos_pausa.append(elegido)
+            return elegido
+
+        # =========================================================
+        # 📍 FASE 1: LA ANTESALA (EL MENÚ DE ELECCIÓN)
+        # =========================================================
+        if "chisme_actual" not in st.session_state or st.session_state.chisme_actual == "":
+            st.markdown("""
+                <div style="text-align: center; padding: 40px; background-color: #fdf5e6; border-radius: 15px; border: 4px dashed #d35400; margin-bottom: 20px;">
+                    <h2 style="color: #d35400; font-family: 'Georgia', serif;">🛑 ¡TIEMPO FUERA! TE GANASTE UNA PAUSA</h2>
+                    <p style="font-size: 22px; color: #2c3e50;">Tu cerebro necesita un respiro. ¿Qué quieres hacer hoy?</p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            col_m1, col_m2, col_m3 = st.columns(3)
+            with col_m1:
+                if st.button("☕ CHISME DE PASILLO", use_container_width=True):
+                    st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="cronica")
+                    st.rerun()
+            with col_m2:
+                if st.button("💅 DAME FARÁNDULA", use_container_width=True):
+                    st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="farandula")
+                    st.rerun()
+            with col_m3:
+                if st.button("💡 HISTORIA DE ÉXITO", use_container_width=True):
+                    st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="motivacion")
+                    st.rerun()
+                    
+            st.write("")
+            if st.button("🚀 SALTAR PAUSA Y VOLVER AL COMBATE", use_container_width=True):
+                st.session_state.estado_pausa = "none"
+                st.rerun()
+                
+            st.stop() # Detenemos aquí para esperar tu decisión
+
+        # =========================================================
+        # 📍 FASE 2 y 3: EL CONSUMO Y EL BUFFET LIBRE
+        # =========================================================
+        partes = st.session_state.chisme_actual.split("|||")
+        texto_principal = partes[0].strip() if len(partes) > 0 else "Hubo un error de comunicación..."
+        texto_ampliado = partes[1].strip() if len(partes) > 1 else ""
+        texto_cierre = partes[2].strip() if len(partes) > 2 else ""
+
+        # Colorear Moralejas
+        texto_cierre = texto_cierre.replace("📌 Para que no te pase:", "<strong style='color: #d35400;'>📌 Para que no te pase:</strong>")
+        texto_cierre = texto_cierre.replace("💡 Pa' que te quede claro:", "<strong style='color: #d35400;'>💡 Pa' que te quede claro:</strong>")
+        texto_cierre = texto_cierre.replace("🌟 La lección del éxito:", "<strong style='color: #27ae60;'>🌟 La lección del éxito:</strong>")
+
+        # Pintar Texto Principal
+        st.markdown(f"""
+            <div style="font-size: 30px; line-height: 1.3; font-family: 'Georgia', serif; color: #2c3e50; 
+                        background-color: #fdf5e6; padding: 30px; border-radius: 15px; 
+                        border-left: 10px solid #d35400; box-shadow: 3px 3px 10px rgba(0,0,0,0.05);">
+                {texto_principal}
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Botón dinámico para ampliar
+        if texto_ampliado:
+            texto_boton = "📖 Conoce cómo lo lograron..." if "Sabías que" in texto_principal else "🔥 Échame el cuento completo..."
+            with st.expander(texto_boton):
+                st.markdown(f"""
+                    <div style="font-size: 24px; color: #444; background-color: #f9f9f9; padding: 20px; border-radius: 10px;">
+                        {texto_ampliado}
+                    </div>
+                """, unsafe_allow_html=True)
+
+        # Pintar Cierre
+        if texto_cierre:
+            color_borde = "#27ae60" if "La lección del éxito" in texto_cierre else "#d35400"
+            st.markdown(f"""
+            <div style="font-size: 26px; line-height: 1.3; font-family: 'Georgia', serif; color: #2c3e50; 
+                        background-color: #fff3e0; padding: 20px; border-radius: 10px; margin-top: 15px;
+                        border: 2px dashed {color_borde};">
+                {texto_cierre}
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.write("") 
+        
+        # 🎛️ LOS 4 BOTONES DE ALTERNANCIA (EL BUFFET)
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            if st.button("🔄 DE PASILLO", use_container_width=True):
+                st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="cronica")
+                st.rerun()
+        with col2:
+            if st.button("💅 FARÁNDULA", use_container_width=True):
+                st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="farandula")
+                st.rerun()
+        with col3:
+            if st.button("💡 MOTIVACIÓN", use_container_width=True):
+                st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="motivacion")
+                st.rerun()
+        with col4:
+            if st.button("🚀 AL COMBATE", use_container_width=True):
+                st.session_state.estado_pausa = "none"
+                # Vaciamos la variable para que la próxima vez inicie en la ANTESALA
+                st.session_state.chisme_actual = "" 
+                if "chismes_vistos_pausa" in st.session_state:
+                    del st.session_state["chismes_vistos_pausa"]
+                st.rerun()
+        
+        st.stop()
+
     subtitulo = f"SECCIÓN: {engine.active_section_name}" if engine.active_section_name != "Todo el Documento" else "MODO: GENERAL"
     
     st.info(f"🎯 ENFOQUE CONFIRMADO: **{engine.current_article_label}**")
@@ -1570,11 +1927,27 @@ if st.session_state.page == 'game':
     if q_list:
         q = q_list[st.session_state.q_idx]
         st.write(f"### Pregunta {st.session_state.q_idx + 1}")
+
+        # --- NUEVO: AUDIO NEURONAL DE LA PREGUNTA ---
+        opciones_validas = {k: v for k, v in q['opciones'].items() if v}
+        audio_key_q = f"audio_q_{st.session_state.case_id}_{st.session_state.q_idx}"
+        
+        if audio_key_q not in st.session_state:
+            texto_p = f"Pregunta: {q['enunciado']} ... "
+            for k, v in opciones_validas.items():
+                texto_p += f"Opción {k}: {v}. ... "
+            with st.spinner("🎙️ Generando audio neuronal de la pregunta..."):
+                st.session_state[audio_key_q] = generar_audio_texto(texto_p).getvalue()
+        
+        st.write("🎧 **Escuchar la pregunta y opciones:**")
+        st.audio(st.session_state[audio_key_q], format='audio/mp3')
+        st.write("")
+        # ---------------------------------------------
         
         form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
         
         with st.form(key=form_key):
-            opciones_validas = {k: v for k, v in q['opciones'].items() if v}
+            # Opciones válidas ya está calculado arriba
             sel = st.radio(q['enunciado'], [f"{k}) {v}" for k,v in opciones_validas.items()], index=None)
             
             col_val, col_skip = st.columns([1, 1])
@@ -1715,7 +2088,24 @@ if st.session_state.page == 'game':
             # --- FLUJO: RESPONDIÓ CORRECTAMENTE DESDE EL INICIO ---
             if st.session_state.was_correct:
                 st.success("✅ ¡Correcto!")
-                st.info(f"**Explicación:**\n\n{q['explicacion']}")
+                
+                # --- NUEVO: EXPLICACIÓN Y AUDIO ---
+                audio_key_exp = f"audio_exp_{st.session_state.case_id}_{st.session_state.q_idx}"
+                if audio_key_exp not in st.session_state:
+                    texto_exp = q['explicacion'].replace('*', '').replace('_', '')
+                    with st.spinner("🎙️ Generando audio de la explicación..."):
+                        st.session_state[audio_key_exp] = generar_audio_texto(f"Explicación: {texto_exp}").getvalue()
+                
+                st.write("🎧 **Escuchar la explicación:**")
+                st.audio(st.session_state[audio_key_exp], format='audio/mp3')
+                
+                st.markdown(f"""
+                    <div style="font-size: 19px; line-height: 1.5; background-color: #e8f4f8; padding: 20px; border-radius: 10px; border-left: 6px solid #2980b9; color: #2c3e50; margin-bottom: 15px;">
+                        <b>Explicación:</b><br><br>{q['explicacion'].replace(chr(10), '<br>')}
+                    </div>
+                """, unsafe_allow_html=True)
+                # ----------------------------------
+
                 if 'tip_final' in q and q['tip_final']:
                     st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
                 
@@ -1769,7 +2159,24 @@ if st.session_state.page == 'game':
                 # ETAPA 2: CANDADO SUPERADO (Se revela el secreto)
                 else:
                     st.success(f"✨ ¡Memoria muscular activada! La palabra clave era: **{st.session_state.recovery_word}**")
-                    st.info(f"**Explicación Completa:**\n\n{q['explicacion']}")
+                    
+                    # --- NUEVO: EXPLICACIÓN Y AUDIO TRAS RECUPERAR ---
+                    audio_key_exp = f"audio_exp_{st.session_state.case_id}_{st.session_state.q_idx}"
+                    if audio_key_exp not in st.session_state:
+                        texto_exp = q['explicacion'].replace('*', '').replace('_', '')
+                        with st.spinner("🎙️ Generando audio de la explicación..."):
+                            st.session_state[audio_key_exp] = generar_audio_texto(f"Explicación completa: {texto_exp}").getvalue()
+                    
+                    st.write("🎧 **Escuchar la explicación:**")
+                    st.audio(st.session_state[audio_key_exp], format='audio/mp3')
+                    
+                    st.markdown(f"""
+                        <div style="font-size: 19px; line-height: 1.5; background-color: #e8f4f8; padding: 20px; border-radius: 10px; border-left: 6px solid #2980b9; color: #2c3e50; margin-bottom: 15px;">
+                            <b>Explicación Completa:</b><br><br>{q['explicacion'].replace(chr(10), '<br>')}
+                        </div>
+                    """, unsafe_allow_html=True)
+                    # -------------------------------------------------
+
                     if 'tip_final' in q and q['tip_final']:
                         st.warning(f"💡 **TIP DE MAESTRO:** {q['tip_final']}")
                     
