@@ -1675,7 +1675,7 @@ if st.session_state.page == 'lobby':
             elif hasattr(engine, 'chunks') and engine.chunks:
                 texto_contexto = str(engine.chunks[0])[:15000]
 
-            # 2. EL PROMPT ACTUALIZADO (Tus reglas intactas + Filtro Anti-Citas)
+            # 2. EL PROMPT ACTUALIZADO (Cero citas, puro cine)
             prompt_historia = f"""
             Actúa como un aclamado guionista de cine. Escribe una historia INMERSIVA y EXTENSA de 5 a 7 párrafos.
             
@@ -1687,20 +1687,21 @@ if st.session_state.page == 'lobby':
             REGLAS DE ORO:
             1. El protagonista absoluto de esta historia debe ser un funcionario cuyo perfil y funciones (ADN del cargo) son estas: '{engine.job_functions}'. 
             2. El protagonista debe usar esas funciones para resolver la situación.
-            3. CAMUFLAJE TOTAL: Toma VARIOS conceptos, principios y reglas de todo el TEXTO DE REFERENCIA y conviértelos orgánicamente en acciones físicas, problemas de la trama, pistas o diálogos. 
-            4. VETO TOTAL A LENGUAJE LEGAL: Jamás menciones la fuente de la regla. Cero palabras como "Artículo", "Inciso", "Numeral" o "Ley". Cero referencias entre paréntesis. Si el personaje aplica una regla, narra la acción, no cites el texto.
-            5. El tono y la narrativa deben ser OBLIGATORIAMENTE del género: {genero}. ¡Hazlo emocionante y orgánico!
+            3. CAMUFLAJE TOTAL: Toma VARIOS conceptos, principios y reglas de todo el TEXTO DE REFERENCIA y conviértelos orgánicamente en acciones físicas, problemas de la trama, pistas o diálogos.
+            4. VETO DE ABOGADO: Tienes PROHIBIDO usar la palabra "Artículo", "Ley" o "Decreto". Tienes PROHIBIDO hacer aclaraciones entre paréntesis. Escribe pura narrativa de ficción.
+            5. El tono y la narrativa deben ser OBLIGATORIAMENTE del género: {genero}. ¡Hazlo emocionante!
             """
             
             # Llamamos a Gemini
             res = engine.model.generate_content(prompt_historia)
             historia_bruta = res.text.replace("*", "").replace("#", "")
             
-            # 🛡️ EL BISTURÍ DE EMERGENCIA (Filtro Python Anti-Rebeldía)
-            # Si la IA ignora la orden, Python borra automáticamente cualquier rastro de artículos
+            # 🛡️ EL BISTURÍ DEFINITIVO (Borra CUALQUIER texto entre paréntesis)
             import re
-            historia_limpia = re.sub(r'\s*\([Aa]rt[íi]culos?\s*.*?\)', '', historia_bruta) # Borra cosas como "(Artículo 5º.3)"
-            historia_limpia = re.sub(r'\b[Aa]rt[íi]culos?\s*\d+[º°\.\w]*\b', 'la norma', historia_limpia) # Reemplaza "Artículo 3" por "la norma"
+            # Esta línea aniquila cualquier cosa que esté entre ( )
+            historia_limpia = re.sub(r'\s*\([^)]*\)', '', historia_bruta) 
+            # Y por si acaso escribe la palabra sin paréntesis, la cambiamos
+            historia_limpia = re.sub(r'\b(?i)art[íi]culos?\s*\d+[º°\.\w]*\b', 'la norma', historia_limpia) 
             
             st.session_state.historia_generada = historia_limpia
 
