@@ -1291,7 +1291,7 @@ class LegalEngineTITAN:
             - PROHIBIDO escribir más de 1 párrafo.
             - PROHIBIDO saludar, poner títulos o usar viñetas.
             - PROHIBIDO usar las frases "Congelación temporal", "Recuerdo técnico" o "El tiempo se detiene".
-            - PROHIBIDO usar comillas (« ») o símbolos al inicio o al final del texto.
+            - PROHIBIDO: Usar comillas, empezar con "Espera un momento..." o usar la frase "Recuerdo técnico"
             - PROHIBIDO decir "Según el Artículo" o "La Ley dice". 
             - OBLIGATORIO: Empieza directamente con la deducción (Ej: "Si analizo la cadena de custodia...", "La clave está en la interconexión de los datos...").
             """
@@ -2358,40 +2358,43 @@ if st.session_state.page == 'game':
 
         with col4:
             if st.button("🎬 MI HISTORIA", use_container_width=True):
+                # 1. Limpieza de audios previos
                 for k in list(st.session_state.keys()):
                     if k.startswith("aud_"): del st.session_state[k]
                 
                 st.session_state.voz_chisme = "es-CO-SalomeNeural"
                 
+                # 2. Identificar capítulo por progreso
                 progreso_actual = engine.get_stats()[0] 
                 idx_capitulo = min(9, int(progreso_actual / 10))
                 
                 if 'capitulos_historia' in st.session_state and len(st.session_state.capitulos_historia) > idx_capitulo:
                     texto_capitulo = st.session_state.capitulos_historia[idx_capitulo]
                 else:
-                    texto_capitulo = "Los archivos se han corrompido...\n[ESPACIO_PARA_RECUERDO]"
+                    texto_capitulo = "Los archivos se han corrompido. El analista debe improvisar...\n[ESPACIO_PARA_RECUERDO]"
                 
-                # --- 🎯 CIRUGÍA DE MEMORIA (RECUERDO ALEATORIO DE FALLADOS) ---
-                # 1. Prioridad: Artículos que tienes en ROJO (fallados)
+                # 3. Selección de artículo (Prioridad: Fallados para reforzar)
                 pool_recuerdos = list(engine.failed_articles)
-                
-                # 2. Si no hay fallados aún, tomamos de los que ya has visto
                 if not pool_recuerdos:
                     pool_recuerdos = list(engine.seen_articles)
                 
-                # 3. Si hay algo que recordar, elegimos uno al azar que no sea siempre el mismo
-                if pool_recuerdos:
-                    articulo_objetivo = random.choice(pool_recuerdos)
-                else:
-                    articulo_objetivo = engine.current_article_label 
+                articulo_objetivo = random.choice(pool_recuerdos) if pool_recuerdos else engine.current_article_label 
 
-                # Generamos el monólogo con ese artículo del pasado
+                # 4. Generación del monólogo técnico
                 texto_recuerdo = engine.generar_chisme_ia(articulo_objetivo, tipo="historia_seguida")
                 
-                # Ensamblamos sin etiquetas, como pediste
+                # --- 🛠️ FILTRO ANTIBOT (LIMPIEZA DE ETIQUETAS) ---
+                # Borramos cualquier rastro de formato que la IA intente colar
+                basura = ["Recuerdo Técnico:", "💭", "«", "»", "Espera un momento...", "Congelación temporal"]
+                for b in basura:
+                    texto_recuerdo = texto_recuerdo.replace(b, "")
+                texto_recuerdo = texto_recuerdo.strip()
+
+                # 5. Ensamble tipo Novela (Sin negritas, sin emojis, solo texto fluido)
                 texto_ensamblado = texto_capitulo.replace("[ESPACIO_PARA_RECUERDO]", f"\n\n{texto_recuerdo}")
                 
-                st.session_state.chisme_actual = f"{texto_ensamblado} |||  ||| "
+                # 6. Bloque único: Mandamos todo antes del primer ||| para que NO salga el expander
+                st.session_state.chisme_actual = f"{texto_ensamblado}||| |||"
                 st.rerun()
         with col5:
             if st.button("🚀 AL COMBATE", use_container_width=True):
