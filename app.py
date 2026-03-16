@@ -1967,7 +1967,7 @@ if st.session_state.page == 'lobby':
             "Comedia (Un desastre total y absoluto en la alcaldía)"
         ])
 
-        if st.button("Generar Caso de Estudio", use_container_width=True):
+    if st.button("Generar Caso de Estudio", use_container_width=True):
         with st.spinner("Titan está redactando un expediente largo y detallado..."):
             
             # 1. LECTURA INTELIGENTE TOTAL (El contexto real de lo que estás estudiando)
