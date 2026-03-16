@@ -935,8 +935,10 @@ class LegalEngineTITAN:
             }}
             """
         
-        # 1. TRAMPAS Y DIFICULTAD (ACTIVO PARA TODOS LOS NIVELES)
-        instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias o de sentido común. Sin importar el nivel jerárquico del cargo, las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES y basarse estrictamente en las reglas de los 11 CAPITANES descritas abajo."
+        # 1. TRAMPAS Y DIFICULTAD
+        instruccion_trampas = ""
+        if self.level in ["Profesional", "Asesor"]:
+            instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES."
 
         # 2. LÓGICA DE ROL (JERARQUÍA ESTRICTA: ADN TÉCNICO > ROL PREDEFINIDO)
         # Se inyecta el ADN purificado en la Parte 3
