@@ -1992,43 +1992,67 @@ if st.session_state.page == 'lobby':
             "Comedia (Un desastre total y absoluto en la alcaldía)"
         ])
 
-    if st.button("Generar Caso de Estudio", use_container_width=True):
-    # Fíjate en los 4 espacios de aquí abajo. Son VITALES.
-    with st.spinner("Titan está redactando un expediente largo y detallado..."):
-        
-        # 1. LECTURA INTELIGENTE
-        texto_contexto = ""
-        if engine.active_section_name != "Todo el Documento" and engine.active_section_name in engine.sections_map:
-            texto_contexto = str(engine.sections_map[engine.active_section_name])
-        else:
-            texto_contexto = "\n".join(engine.chunks)
-
-        texto_contexto = texto_contexto[:60000]
-
-        # 2. PROMPT DE 11 CAPÍTULOS
-        prompt_historia = f"""
-        Escribe una historia de 11 capítulos. 
-        Género: {genero}. Protagonista: {engine.job_functions}.
-        Capítulo 11: El Agente gana el concurso y es nombrado.
-        Separador: |||
-        Último párrafo de cada capítulo: [ESPACIO_PARA_RECUERDO]
-        """
-        
-        res = engine.model.generate_content(prompt_historia)
-        historia_bruta = res.text.strip().replace("*", "").replace("#", "")
-        
-        capitulos_crudos = historia_bruta.split("|||")
-        capitulos_limpios = [c.strip() for c in capitulos_crudos if len(c.strip()) > 50]
-        
-        # 💾 GUARDADO EN MEMORIA
-        if len(capitulos_limpios) >= 1:
-            st.session_state.capitulos_historia = capitulos_limpios
-            st.session_state.historia_generada = capitulos_limpios[0].replace("[ESPACIO_PARA_RECUERDO]", "").strip()
-            st.session_state.historia_base = st.session_state.historia_generada 
-            st.session_state.ultimo_suceso = "Misión iniciada."
+if st.button("Generar Caso de Estudio", use_container_width=True):
+        # 4 espacios de sangría para que Python sea feliz
+        with st.spinner("Titan está redactando un expediente largo y detallado..."):
             
-            # 🔥 REFRESRCO TOTAL PARA EL SIDEBAR
-            st.rerun()
+            # 1. LECTURA INTELIGENTE
+            texto_contexto = ""
+            if engine.active_section_name != "Todo el Documento" and engine.active_section_name in engine.sections_map:
+                texto_contexto = str(engine.sections_map[engine.active_section_name])
+            else:
+                texto_contexto = "\n".join(engine.chunks)
+
+            texto_contexto = texto_contexto[:60000]
+
+            # 2. TU SÚPER-PROMPT (RECUPERADO Y AMPLIADO A 11)
+            prompt_historia = f"""
+            Actúa como un aclamado guionista de cine y novelista de Thriller. 
+            Escribe una historia INMERSIVA, CONTINUA Y MUY DETALLADA dividida EXACTAMENTE en 11 capítulos.
+            
+            MAPA INSTITUCIONAL (EL ESCENARIO OBLIGATORIO):
+            '''{getattr(engine, 'institucion_text', engine.entity)}'''
+
+            TEMA TÉCNICO INICIAL: {engine.thematic_axis}
+            TEXTO DE REFERENCIA (Inspiración):
+            '''{texto_contexto}'''
+            
+            REGLAS DE ORO Y FORMATO ESTRICTO:
+            1. ADN DEL PROTAGONISTA: Usa este perfil: '{engine.job_functions}'. Dale un nombre propio (Ej. Elara, Carlos) y úsalo siempre.
+            2. 📈 ESTRUCTURA NARRATIVA (CURVA DE TENSIÓN):
+               - CAPÍTULO 1 (Introducción): ¡REGLA DE CÁMARA! Ubica físicamente al protagonista en una oficina real del MAPA INSTITUCIONAL. Aquí se lanza el "Incidente Incitador".
+               - CAPÍTULOS 2 al 9 (Desarrollo): El protagonista investiga, enfrenta obstáculos intermedios y descubre pistas.
+               - CAPÍTULO 10 (Clímax): El momento de máxima tensión técnica antes del cierre.
+               - CAPÍTULO 11 (Final Victoria): El protagonista resuelve el caso magistralmente y es nombrado oficialmente por su excelencia.
+            3. 🏛️ EXPLORACIÓN TOTAL: En cada capítulo, el personaje DEBE desplazarse a una oficina DIFERENTE del MAPA.
+            4. VETO DE JERGA BÁSICA: PROHIBIDO usar "Artículo", "Ley" o "Decreto". 
+            5. 🎙️ NARRATIVA PURA (CERO DIÁLOGOS): Sin guiones ni comillas. Todo es acción y monólogo interno.
+            6. 🖋️ ESTRUCTURA DE PÁRRAFOS: Cada capítulo DEBE tener entre 3 y 5 párrafos bien definidos.
+            7. GÉNERO: {genero}.
+            
+            FORMATO TÉCNICO:
+            - Separador exacto entre capítulos: |||
+            - El último párrafo de CADA capítulo debe ser SOLAMENTE: [ESPACIO_PARA_RECUERDO]
+            """
+            
+            res = engine.model.generate_content(prompt_historia)
+            historia_bruta = res.text.strip().replace("*", "").replace("#", "")
+            
+            capitulos_crudos = historia_bruta.split("|||")
+            capitulos_limpios = [c.strip() for c in capitulos_crudos if len(c.strip()) > 50]
+            
+            # 💾 GUARDADO EN MEMORIA
+            if len(capitulos_limpios) >= 1:
+                st.session_state.capitulos_historia = capitulos_limpios
+                st.session_state.historia_generada = capitulos_limpios[0].replace("[ESPACIO_PARA_RECUERDO]", "").strip()
+                st.session_state.historia_base = st.session_state.historia_generada 
+                
+                # 🔗 CONEXIÓN CINEMATOGRÁFICA
+                st.session_state.genero_pelicula = genero 
+                st.session_state.ultimo_suceso = "Misión iniciada. El expediente está en tus manos."
+                
+                # 🔥 EL REFRESRCO FINAL (Para que el Sidebar despierte)
+                st.rerun()
                 
             # 🔗 CONEXIÓN CINEMATOGRÁFICA
             st.session_state.genero_pelicula = genero 
