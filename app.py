@@ -1753,6 +1753,7 @@ with st.sidebar:
 
                     # --- 4. MEMORIA CINEMATOGRÁFICA (Restaurar el Guion) ---
                     st.session_state.historia_base = d.get('historia_base', '')
+                    st.session_state.capitulos_historia = d.get('capitulos_historia', []) # 🟢 RESTAURAMOS LOS 10 CAPÍTULOS
                     st.session_state.ultimo_suceso = d.get('ultimo_suceso', '')
                     st.session_state.genero_pelicula = d.get('genero_pelicula', 'Misterio y Suspenso')
                     st.session_state.memoria_historias = d.get('memoria_historias', [])
@@ -1895,6 +1896,7 @@ with st.sidebar:
 
             # --- 6. MEMORIA CINEMATOGRÁFICA (EL GUION DE HOLLYWOOD) ---
             "historia_base": st.session_state.get('historia_base', ''),
+            "capitulos_historia": st.session_state.get('capitulos_historia', []), # 🟢 AQUÍ GUARDAMOS LOS 10 CAPÍTULOS
             "ultimo_suceso": st.session_state.get('ultimo_suceso', ''),
             "genero_pelicula": st.session_state.get('genero_pelicula', 'Misterio y Suspenso'),
             "memoria_historias": st.session_state.get('memoria_historias', []),
