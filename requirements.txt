@@ -4,3 +4,4 @@ pypdf
 sentence-transformers
 scikit-learn
 numpy
+edge-tts
