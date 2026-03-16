@@ -1970,9 +1970,10 @@ if st.session_state.page == 'lobby':
             # Garantiza que el guionista tenga el panorama completo del Título que elegiste.
             texto_contexto = texto_contexto[:60000]
 
-            # 2. EL SÚPER-PROMPT DE 10 CAPÍTULOS (LA NOVELA COMPLETA)
+            # 2. EL SÚPER-PROMPT DE 10 CAPÍTULOS (VERSIÓN EXTENSA Y MULTI-PÁRRAFO)
             prompt_historia = f"""
-            Actúa como un aclamado guionista de cine. Escribe una historia INMERSIVA, CONTINUA Y COMPLETA dividida EXACTAMENTE en 10 capítulos cortos.
+            Actúa como un aclamado guionista de cine y novelista de Thriller. 
+            Escribe una historia INMERSIVA, CONTINUA Y MUY DETALLADA dividida EXACTAMENTE en 10 capítulos.
             
             MAPA INSTITUCIONAL (EL ESCENARIO OBLIGATORIO):
             '''{getattr(engine, 'institucion_text', engine.entity)}'''
@@ -1983,28 +1984,35 @@ if st.session_state.page == 'lobby':
             
             REGLAS DE ORO Y FORMATO ESTRICTO:
             1. ADN DEL PROTAGONISTA: Usa este perfil: '{engine.job_functions}'. Dale un nombre propio (Ej. Elara, Carlos) y úsalo siempre.
-            2. 📈 ESTRUCTURA NARRATIVA ESTRICTA (CURVA DE TENSIÓN):
-               - CAPÍTULO 1 (Introducción): ¡REGLA DE CÁMARA OBLIGATORIA! La primera oración debe ubicar físicamente al protagonista realizando una acción en una oficina real del MAPA INSTITUCIONAL (debes nombrarla de inmediato). Aquí se lanza el "Incidente Incitador" y se descubre el PROBLEMA PRINCIPAL (la gran amenaza o fraude), pero NO se resuelve.
-               - CAPÍTULOS 2 al 9 (Desarrollo y Laberinto): El protagonista investiga el problema principal. En cada capítulo enfrenta problemas intermedios, descubre pistas, sufre contratiempos y encuentra puertas cerradas. La tensión debe subir en cada capítulo sin llegar a la solución final.
-               - CAPÍTULO 10 (El Clímax y Desenlace): Ocurre el enfrentamiento final. El protagonista usa su experticia técnica para resolver definitivamente el problema principal planteado en el capítulo 1. Cierre épico y satisfactorio.
-            3. 🏛️ EXPLORACIÓN TOTAL DEL EDIFICIO: A lo largo de los 10 capítulos, los personajes DEBEN moverse físicamente y utilizar la MAYOR CANTIDAD POSIBLE de las dependencias, direcciones y oficinas del MAPA INSTITUCIONAL.
+            2. 📈 ESTRUCTURA NARRATIVA (CURVA DE TENSIÓN):
+               - CAPÍTULO 1 (Introducción): ¡REGLA DE CÁMARA! La primera oración debe ubicar físicamente al protagonista en una oficina real del MAPA INSTITUCIONAL. Aquí se lanza el "Incidente Incitador" (el gran fraude o amenaza).
+               - CAPÍTULOS 2 al 9 (Desarrollo): El protagonista investiga, enfrenta obstáculos intermedios y descubre pistas moviéndose por el edificio. La tensión sube.
+               - CAPÍTULO 10 (Clímax): Resolución técnica magistral y cierre épico.
+            3. 🏛️ EXPLORACIÓN TOTAL: En cada capítulo, el personaje DEBE desplazarse a una oficina DIFERENTE del MAPA INSTITUCIONAL. Nómbralas con su nombre oficial.
             4. VETO DE JERGA BÁSICA: PROHIBIDO usar "Artículo", "Ley" o "Decreto". 
-            5. 🎙️ NARRATIVA PURA (CERO DIÁLOGOS): Esta historia será leída por un narrador (voz en off). Tienes ESTRICTAMENTE PROHIBIDO incluir diálogos directos (ni guiones, ni comillas). Todo debe ser acción, descripción y monólogo interno indirecto. 
-            6. GÉNERO: {genero}.
+            5. 🎙️ NARRATIVA PURA (CERO DIÁLOGOS): Sin guiones ni comillas. Todo es acción, descripción de la atmósfera y monólogo interno.
+            6. 🖋️ ESTRUCTURA DE PÁRRAFOS (OBLIGATORIO): Tienes PROHIBIDO entregar un solo bloque de texto por capítulo. Cada capítulo DEBE tener entre 3 y 5 párrafos bien definidos. Usa descripciones sensoriales (sonidos, olores, ambiente) para darle cuerpo a la narración.
+            7. GÉNERO: {genero}.
             
             FORMATO TÉCNICO INQUEBRANTABLE (CERO FALLOS):
-            - Tienes ESTRICTAMENTE PROHIBIDO usar títulos como "Capítulo 1" o "Escena 1". 
-            - Tienes ESTRICTAMENTE PROHIBIDO usar intros o saludos como "Aquí tienes la historia".
-            - Debes separar cada uno de los 10 capítulos ÚNICAMENTE con el separador exacto: |||
-            - El último párrafo de CADA UNO de los 10 capítulos DEBE SER EXACTAMENTE ESTE TEXTO LITERAL: [ESPACIO_PARA_RECUERDO]
+            - Prohibido usar títulos como "Capítulo 1". 
+            - Prohibido usar intros o saludos.
+            - Separador exacto entre capítulos: |||
+            - El último párrafo de CADA capítulo debe ser SOLAMENTE: [ESPACIO_PARA_RECUERDO]
             
-            Ejemplo de cómo debe verse tu salida técnica (Cero subtítulos, solo texto, el separador y la etiqueta):
-            [Párrafo narrativo 1 del cap 1]
-            [Párrafo narrativo 2 del cap 1]
+            Ejemplo de cómo debe verse tu salida técnica (Fíjate en los saltos de línea):
+            Párrafo 1 (La ambientación)...
+            
+            Párrafo 2 (La acción)...
+            
+            Párrafo 3 (La duda interna)...
+            
             [ESPACIO_PARA_RECUERDO]
             |||
-            [Párrafo narrativo 1 del cap 2]
-            [Párrafo narrativo 2 del cap 2]
+            Párrafo 1 del siguiente capítulo...
+            
+            Párrafo 2...
+            
             [ESPACIO_PARA_RECUERDO]
             |||
             (Y así hasta el 10)
