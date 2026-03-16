@@ -1984,7 +1984,7 @@ if st.session_state.page == 'lobby':
             REGLAS DE ORO Y FORMATO ESTRICTO:
             1. ADN DEL PROTAGONISTA: Usa este perfil: '{engine.job_functions}'. Dale un nombre propio (Ej. Elara, Carlos) y úsalo siempre.
             2. 📈 ESTRUCTURA NARRATIVA ESTRICTA (CURVA DE TENSIÓN):
-               - CAPÍTULO 1 (Introducción): Presenta al protagonista en su entorno y lanza el "Incidente Incitador". Se descubre el PROBLEMA PRINCIPAL (la gran amenaza, el fraude oculto, el colapso). NO lo resuelvas aquí.
+               - CAPÍTULO 1 (Introducción): ¡REGLA DE CÁMARA OBLIGATORIA! La primera oración debe ubicar físicamente al protagonista realizando una acción en una oficina real del MAPA INSTITUCIONAL (debes nombrarla de inmediato). Aquí se lanza el "Incidente Incitador" y se descubre el PROBLEMA PRINCIPAL (la gran amenaza o fraude), pero NO se resuelve.
                - CAPÍTULOS 2 al 9 (Desarrollo y Laberinto): El protagonista investiga el problema principal. En cada capítulo enfrenta problemas intermedios, descubre pistas, sufre contratiempos y encuentra puertas cerradas. La tensión debe subir en cada capítulo sin llegar a la solución final.
                - CAPÍTULO 10 (El Clímax y Desenlace): Ocurre el enfrentamiento final. El protagonista usa su experticia técnica para resolver definitivamente el problema principal planteado en el capítulo 1. Cierre épico y satisfactorio.
             3. 🏛️ EXPLORACIÓN TOTAL DEL EDIFICIO: A lo largo de los 10 capítulos, los personajes DEBEN moverse físicamente y utilizar la MAYOR CANTIDAD POSIBLE de las dependencias, direcciones y oficinas del MAPA INSTITUCIONAL.
