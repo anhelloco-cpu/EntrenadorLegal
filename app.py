@@ -1287,10 +1287,13 @@ class LegalEngineTITAN:
             Debes "recordar" o "analizar mentalmente" la esencia de esta regla técnica aplicándola a tu misión.
             Hazlo con un tono de revelación o descubrimiento (Ej: "Espera un momento... si cruzo la información, la norma exige que...").
             
-            PROHIBICIONES:
+            PROHIBICIONES ESTRICTAS:
             - PROHIBIDO escribir más de 1 párrafo.
             - PROHIBIDO saludar, poner títulos o usar viñetas.
-            - PROHIBIDO decir "Según el Artículo" o "La Ley dice". Camufla el concepto técnico como una deducción profesional tuya.
+            - PROHIBIDO usar las frases "Congelación temporal", "Recuerdo técnico" o "El tiempo se detiene".
+            - PROHIBIDO usar comillas (« ») o símbolos al inicio o al final del texto.
+            - PROHIBIDO decir "Según el Artículo" o "La Ley dice". 
+            - OBLIGATORIO: Empieza directamente con la deducción (Ej: "Si analizo la cadena de custodia...", "La clave está en la interconexión de los datos...").
             """
 
         else:
