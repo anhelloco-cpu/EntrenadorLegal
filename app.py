@@ -14,23 +14,25 @@ from collections import Counter
 import edge_tts
 import asyncio
 import io
+import streamlit as st
+import random
 
 if "historia_generada" not in st.session_state:
     st.session_state.historia_generada = ""
+# NUEVO: Lista para guardar los 10 capítulos precargados de la historia
+if "capitulos_historia" not in st.session_state:
+    st.session_state.capitulos_historia = []
 
-def generar_audio_texto(texto):
-    # Puedes cambiar "es-CO-SalomeNeural" (Mujer) por "es-CO-GonzaloNeural" (Hombre)
-    voz = "es-CO-SalomeNeural" 
-    
+def generar_audio_texto(texto, voz="es-CO-SalomeNeural", rate="+0%", pitch="+0Hz"):
+    # Si la llamas sin parámetros, sigue siendo Salomé a velocidad normal.
     async def _generar_async():
-        comunicacion = edge_tts.Communicate(texto, voz)
+        comunicacion = edge_tts.Communicate(texto, voz, rate=rate, pitch=pitch)
         audio_data = b""
         async for chunk in comunicacion.stream():
             if chunk["type"] == "audio":
                 audio_data += chunk["data"]
         return audio_data
 
-    # Ejecuta el motor asíncrono para descargar el audio neuronal
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     audio_bytes = loop.run_until_complete(_generar_async())
@@ -280,6 +282,9 @@ class LegalEngineTITAN:
         # --- NUEVO: VARIABLE PARA MANUAL DE FUNCIONES ---
         self.manual_text = ""
 
+        # --- NUEVO: VARIABLE PARA ADN INSTITUCIONAL ---
+        self.institucion_text = ""
+
         # --- ESTE ES EL CAMBIO (EL ARCHIVADOR DE LEYES) ---
         self.law_library = {}
 
@@ -373,7 +378,8 @@ class LegalEngineTITAN:
         1. IDENTIFICA EL ROL: Extrae el Nombre del Empleo (ej: Profesional 03, Inspector IV, Procurador Judicial) y su Propósito Principal.
         2. EXTRAE EL ADN TÉCNICO: Lista solo las funciones esenciales usando VERBOS RECTORES (ej: Sustanciar, Auditar, Intervenir, Proyectar, Evaluar).
         3. VETO ABSOLUTO (ELIMINA): Prohibido incluir fechas (2024, 2025), salarios, códigos de convocatoria (ej: 232-25), número de vacantes, sedes o requisitos de experiencia/educación.
-        4. SALIDA OBLIGATORIA (FORMATO PROFESIONAL): 
+        4. REGLA DE FORMATO ESTRICTO (CERO CHARLA): Tienes ESTRICTAMENTE PROHIBIDO usar frases introductorias, saludos o preámbulos. Tu respuesta DEBE empezar directamente con la palabra "CARGO:". Nada de "Aquí tienes...", "A continuación...", etc.
+        5. SALIDA OBLIGATORIA (FORMATO PROFESIONAL): 
            CARGO: [Nombre del empleo]
            PROPÓSITO: [Resumen técnico del impacto del cargo]
            ADN TÉCNICO (FUNCIONES): [Lista corta de verbos rectores y su objeto jurídico]
@@ -394,6 +400,44 @@ class LegalEngineTITAN:
         except:
             return raw_text # Fallback si falla la API
         return raw_text
+
+
+    def _clean_institucion_text(self, raw_text):
+        """
+        FILTRO DE ARQUITECTURA: Extrae dependencias, jefe supremo y jerga de un Decreto Orgánico.
+        """
+        prompt = f"""
+        ACTÚA COMO UN ANALISTA DE ARQUITECTURA INSTITUCIONAL.
+        TU MISIÓN: Extraer el "ADN INSTITUCIONAL" de este decreto o ley orgánica, eliminando artículos de transición o ruido legal.
+        
+        TEXTO DEL DECRETO (FUENTE):
+        '''{raw_text[:25000]}'''
+        
+        INSTRUCCIONES DE EXTRACCIÓN ESTRICTA:
+        Extrae la información EXACTAMENTE en esta estructura, sin saludos ni preámbulos:
+        
+        🏛️ ENTIDAD: [Nombre oficial completo]
+        👑 MÁXIMA AUTORIDAD: [Cargo que lidera toda la entidad]
+        🏢 DEPENDENCIAS CLAVE: [Menciona 3 o 4 Direcciones, Unidades o Gerencias operativas]
+        ⚙️ PROCESOS Y JERGA: [Nombra los procesos y documentos principales que manejan]
+        ⚔️ ENEMIGO MISIONAL: [¿Qué es lo que la entidad busca combatir o prevenir?]
+        """
+        try:
+            if self.provider == "OpenAI":
+                headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+                data = {"model": "gpt-4o", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}
+                resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+                return resp.json()['choices'][0]['message']['content']
+            elif self.provider == "Google":
+                return self.model.generate_content(prompt).text
+            elif self.provider == "Groq":
+                 headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+                 data = {"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}
+                 resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
+                 return resp.json()['choices'][0]['message']['content']
+        except:
+            return "Error al extraer ADN Institucional."
+        return "Error al extraer ADN Institucional."
 
     # --------------------------------------------------------------------------
     # SEGMENTACIÓN INTELIGENTE (TITÁN V105: ARQUITECTURA HÍBRIDA + HERENCIA)
@@ -719,6 +763,64 @@ class LegalEngineTITAN:
                 break
                 
         texto_final_ia = texto_completo[start_pos:end_pos].strip()
+# --- NUEVO: EL CIRUJANO (FILTRO DE VARIEDAD PARA TEXTOS LARGOS) ---
+        instruccion_enfoque = ""
+        
+        # 1. Escaneo de "Puntos de Anclaje" (Romanos, literales, números o temas en mayúscula)
+        # Busca: "i)", "a)", "1.", "1)", viñetas "-" o "*" y TÍTULOS EN MAYÚSCULA:
+        patron_corte = r'(?:\n\s*(?:[IVXLCDMivxlcdm]+\)|[a-zA-Z]\)|\d+\.|\d+\)|\*[^\n]+|[-][^\n]+|[A-ZÁÉÍÓÚÑ\s]{5,}:))'
+        
+        # Le añadimos un salto de línea invisible al inicio para que atrape si el primer tema empieza de golpe
+        texto_analizar = "\n" + texto_final_ia 
+        anclas = list(re.finditer(patron_corte, texto_analizar))
+        
+        if len(anclas) > 1:
+            # 2. Partimos el artículo en sus diferentes subtemas
+            fragmentos_disponibles = []
+            for i in range(len(anclas)):
+                inicio = anclas[i].start()
+                fin = anclas[i+1].start() if i + 1 < len(anclas) else len(texto_analizar)
+                texto_pedazo = texto_analizar[inicio:fin].strip()
+                
+                # Ignoramos pedazos muy cortitos que sean solo ruido
+                if len(texto_pedazo) > 15:
+                    fragmentos_disponibles.append(texto_pedazo)
+            
+            # 3. El "Portero" cruza los pedazos con la lista negra de 20
+            candidatos_limpios = []
+            for pedazo in fragmentos_disponibles:
+                # Creamos un ID único usando el artículo + las primeras 30 letras del pedazo
+                id_pedazo = f"{self.current_article_label}__{pedazo[:30].strip()}"
+                
+                # Si no está en la memoria reciente, es un candidato limpio
+                if id_pedazo not in st.session_state.memoria_subtemas:
+                    candidatos_limpios.append((id_pedazo, pedazo))
+            
+            # 4. Si ya gastamos todos los pedazos de este artículo, reiniciamos la memoria solo para él
+            if not candidatos_limpios:
+                candidatos_limpios = [(f"{self.current_article_label}__{p[:30].strip()}", p) for p in fragmentos_disponibles]
+                
+            # 5. Elegimos el ganador y actualizamos la memoria
+            if candidatos_limpios:
+                id_ganador, texto_ganador = random.choice(candidatos_limpios)
+                
+                # Lo metemos a la lista negra
+                st.session_state.memoria_subtemas.append(id_ganador)
+                # Si la lista pasa de 20, borramos el más viejo
+                if len(st.session_state.memoria_subtemas) > 20:
+                    st.session_state.memoria_subtemas.pop(0) 
+                    
+                # 6. LA INSTRUCCIÓN LETAL PARA LA IA
+                instruccion_enfoque = f"""
+        🎯 ORDEN ESTRICTA DE ENFOQUE (MODO CIRUJANO): 
+        El artículo seleccionado es muy extenso. Tienes PROHIBIDO hacer una pregunta general sobre todo el artículo. 
+        Tu caso y pregunta DEBEN basarse ÚNICA Y EXCLUSIVAMENTE en este fragmento/numeral en particular:
+        
+        >> "{texto_ganador}" <<
+        
+        Ignora el resto de las materias del artículo para esta pregunta específica.
+        """
+        # --- FIN DEL CIRUJANO ---
   
 
         self.current_article_label = nombre_final
@@ -740,8 +842,9 @@ class LegalEngineTITAN:
             
             1. 🎯 OBJETIVO (CAPITÁN SNIPER): IGNORA la regla general del artículo. Busca el PARÁGRAFO, la EXCEPCIÓN o la nota de vigencia más oscura. Pregunta por lo que "NO" se puede hacer o la excepción a la regla.
             2. 👯 TRAMPAS (CAPITÁN GEMELOS): Las opciones incorrectas NO pueden ser errores obvios. Tienen que ser 'Gemelos Legales': frases que son CORRECTAS en otros contextos o artículos vecinos, pero que NO aplican a este caso específico por un detalle técnico.
-            3. 💥 LÓGICA (CAPITÁN COLISIÓN): Plantea un "Caso de Frontera": una situación donde dos normas parecen chocar. La respuesta correcta es la que aplica el principio de especialidad o jerarquía.
-            4. 🚫 PROHIBIDO: Preguntas de memoria literal. La pregunta debe obligar a DESCOMPONER el caso para encontrar el error de procedimiento.
+            3. ⚖️ LA REINA INDISCUTIBLE: Sin que lo digas en la pregunta, la respuesta correcta debe ser la "más exacta". Mientras los distractores resuelven el problema a medias o asumen cosas, la respuesta correcta es la única que aplica la excepción o el detalle técnico con precisión quirúrgica.
+            4. 💥 LÓGICA (CAPITÁN COLISIÓN): Plantea un "Caso de Frontera": una situación donde dos normas parecen chocar. La respuesta correcta es la que aplica el principio de especialidad o jerarquía.
+            5. 🚫 PROHIBIDO: Preguntas de memoria literal. La pregunta debe obligar a DESCOMPONER el caso para encontrar el error de procedimiento.
             
             DIFICULTAD: 11/10 (Rompe-Ranking). Si la respuesta es obvia, has fallado. El usuario debe dudar entre dos opciones hasta el final.
             """
@@ -832,10 +935,8 @@ class LegalEngineTITAN:
             }}
             """
         
-        # 1. TRAMPAS Y DIFICULTAD
-        instruccion_trampas = ""
-        if self.level in ["Profesional", "Asesor"]:
-            instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias. Las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES."
+        # 1. TRAMPAS Y DIFICULTAD (ACTIVO PARA TODOS LOS NIVELES)
+        instruccion_trampas = "MODO AVANZADO (TRAMPAS): PROHIBIDO hacer preguntas obvias o de sentido común. Sin importar el nivel jerárquico del cargo, las opciones incorrectas (distractores) deben ser ALTAMENTE PLAUSIBLES y basarse estrictamente en las reglas de los 11 CAPITANES descritas abajo."
 
         # 2. LÓGICA DE ROL (JERARQUÍA ESTRICTA: ADN TÉCNICO > ROL PREDEFINIDO)
         # Se inyecta el ADN purificado en la Parte 3
@@ -923,6 +1024,7 @@ class LegalEngineTITAN:
         {instruccion_estilo}
         {instruccion_trampas}
         {feedback_instr}
+        {instruccion_enfoque}
         
         MISION: Genera {self.questions_per_case} preguntas de NIVEL ELITE (ROMPE-RANKING) basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
         
@@ -942,6 +1044,12 @@ class LegalEngineTITAN:
             - OBLIGATORIO: Usa esas palabras clave ÚNICAMENTE en las opciones INCORRECTAS (B, C o D) para atraer al usuario que intenta adivinar por parecido visual.
             - La respuesta CORRECTA debe escribirse usando PARÁFRASIS o CONSECUENCIAS (Ej: en lugar de 'Patrimonio', usa 'integridad del erario' o 'activos de la nación'). 
             - SI EL USUARIO ELIGE LA OPCIÓN QUE "RIMA" CON LA PREGUNTA, DEBE ESTAR EQUIVOCADO.
+        12. 🚫 CAPITÁN ANTI-FANTASMA (CERO REFERENCIAS): Tienes ESTRICTAMENTE PROHIBIDO generar preguntas sobre artículos, leyes o incisos que solo se mencionan como referencia dentro de un párrafo (Ej: "según lo dispuesto en el art. 267 de la Constitución"). Enfócate ÚNICAMENTE en el mandato directo del artículo principal que rige el fragmento.
+        13. 🛟 CAPITÁN SALVAVIDAS (REGLA DE RESCATE): Si el texto proporcionado es pura introducción ("Considerandos") y no contiene ningún artículo normativo propio, ¡NO ENTRES EN PÁNICO NI INVENTES PREGUNTAS SOBRE OTRAS LEYES! Genera una pregunta sobre el OBJETIVO GENERAL, propósito o motivación del documento basándote en esa introducción.
+        14. 🎬 CAPITÁN CONTINUIDAD (INMERSIÓN NARRATIVA TOTAL): ¡ESTRICTAMENTE PROHIBIDO hacer "preguntas de examen" al final del caso! NO uses signos de interrogación ni hagas preguntas separadas (Ej: JAMÁS pongas "¿Cómo debe proceder...?" ni "¿Qué acción tomaría...?"). 
+    - OBLIGATORIO: El caso debe terminar de forma fluida en un "cliffhanger" o frase incompleta (terminada en dos puntos) que conecte directamente con las opciones de respuesta.
+    - EJEMPLO DE CIERRE CORRECTO: "...Ante este inminente vencimiento de términos, la única actuación procesal válida que el auditor puede ejecutar es:"
+    - Las opciones (A, B, C, D) deben redactarse como la CONTINUACIÓN LÓGICA Y DIRECTA de esa última frase, siendo todas acciones técnicas precisas para resolver el caso.
 
         
         REGLA DE ESTANQUEIDAD Y MIMESIS (CRÍTICA):
@@ -1082,10 +1190,12 @@ class LegalEngineTITAN:
                 if attempts == max_retries: return {"error": f"Fallo Crítico: {str(e)}"}
         return {"error": "Saturado."}
 
+
 # --- 🚀 FUNCIÓN ACTUALIZADA: EL DUO DINÁMICO (JORDY & DORIS) ---
     def generar_chisme_ia(self, label_articulo, tipo="cronica"):
         """Genera una pausa activa..."""
         import random
+        import streamlit as st
         
         # 1. Le quitamos los corchetes al nombre que mandan los botones
         llave_articulo = label_articulo.replace("[", "").replace("]", "")
@@ -1140,9 +1250,43 @@ class LegalEngineTITAN:
             🚫 PROHIBIDO: Usar la palabra "chisme", o saludar.
             TEXTO: {contexto[:800]}
             """
+
+        elif tipo == "historia_seguida":
+            # --- NUEVA ARQUITECTURA (FASE 2): EL FRANCOTIRADOR DE MEMORIA ---
+            # La IA ya no escribe el capítulo, solo inyecta el "Recuerdo" del error técnico.
+
+            # 1. Recuperar contexto básico
+            funciones_reales = getattr(self, 'job_functions', "Funcionario público")
+            genero_cine = st.session_state.get('genero_pelicula', "Misterio y Suspenso")
             
+            # 2. Seleccionar el obstáculo (El error del usuario)
+            fallidos = st.session_state.get('articulos_fallidos', [])
+            tema_final = random.choice(fallidos) if fallidos else label_articulo
+            llave_f = tema_final.replace("[", "").replace("]", "")
+            articulo_especifico = str(self.sections_map.get(llave_f, ""))
+
+            # 3. EL MICRO-PROMPT MAESTRO
+            prompt_chismosa = f"""
+            Actúa como el protagonista de una historia de {genero_cine}. Tu perfil técnico es: {funciones_reales}.
+            
+            ESTÁS EN MEDIO DE UNA MISIÓN Y CONGELAS EL TIEMPO PARA RECORDAR UNA REGLA VITAL.
+            
+            REGLA TÉCNICA A RECORDAR:
+            '''{articulo_especifico[:3000]}'''
+
+            MISIÓN ESTRICTA:
+            Escribe UN SOLO PÁRRAFO CORTO narrando tu monólogo interno. 
+            Debes "recordar" o "analizar mentalmente" la esencia de esta regla técnica aplicándola a tu misión.
+            Hazlo con un tono de revelación o descubrimiento (Ej: "Espera un momento... si cruzo la información, la norma exige que...").
+            
+            PROHIBICIONES:
+            - PROHIBIDO escribir más de 1 párrafo.
+            - PROHIBIDO saludar, poner títulos o usar viñetas.
+            - PROHIBIDO decir "Según el Artículo" o "La Ley dice". Camufla el concepto técnico como una deducción profesional tuya.
+            """
+
         else:
-            # 🚀 PERFIL 3: HISTORIAS DE ÉXITO Y MOTIVACIÓN (NOMBRES REALES)
+            # 🚀 PERFIL 3: HISTORIAS DE ÉXITO Y MOTIVACIÓN (INTACTO)
             temas = ["una empresa colombiana histórica", "un líder mundial revolucionario", "una marca global reconocida", "un emprendedor que superó la quiebra"]
             tema_elegido = random.choice(temas)
             
@@ -1151,8 +1295,8 @@ class LegalEngineTITAN:
             Misión: Contar una historia REAL Y CORTA de éxito sobre {tema_elegido}.
 
             REGLAS INQUEBRANTABLES:
-            1. 🎯 NOMBRES REALES Y VARIEDAD: Usa el NOMBRE REAL de la empresa o persona (ej. Arturo Calle, Crepes & Waffles, Steve Jobs). 
-            2. 🔄 CERO REPETICIÓN: Busca un caso histórico diferente cada vez. La historia debe conectar sutilmente con el {label_articulo}.
+            1. 🎯 NOMBRES REALES Y VARIEDAD: Usa el NOMBRE REAL de la empresa o persona. 
+            2. 🔄 CERO REPETICIÓN: Busca un caso histórico diferente cada vez.
             3. 🧩 ESTRUCTURA DE 3 PARTES (Usa EXACTAMENTE el separador ||| entre partes):
                - PARTE 1: Empieza EXACTAMENTE con "🚀 ¿Sabías que..." y cuenta el inicio difícil en 1 párrafo.
                |||
@@ -1164,13 +1308,63 @@ class LegalEngineTITAN:
             TEXTO: {contexto[:800]}
             """
 
+        # --- FILTRO ANTI-REPETICIÓN PARA CHISMES/FARÁNDULA/ÉXITO (INTACTO) ---
+        historial_reciente = st.session_state.memoria_historias[-6:] if 'memoria_historias' in st.session_state else []
+        if historial_reciente and tipo != "historia_seguida":
+            temas_prohibidos = " | ".join(historial_reciente)
+            prompt_chismosa += f"\n\n⚠️ ALERTA: PROHIBIDO repetir estos casos o personajes: [ {temas_prohibidos} ]. INVENTA ALGO TOTALMENTE NUEVO."
+        # ---------------------------------------------------------------
+
         try:
             if self.provider == "Google":
                 res = self.model.generate_content(prompt_chismosa)
-                return res.text.replace("*", "").replace("#", "")
-            return "☕ ¡Se acabó el café!"
+                texto_final = res.text.replace("*", "").replace("#", "")
+                
+                # Limpieza total de etiquetas intrusivas
+                basura = ["Parte 1", "Parte 2", "Parte 3", "Gancho", "Desarrollo", "Cierre", "Narrador:", "Voz:"]
+                for b in basura:
+                    texto_final = texto_final.replace(b, "")
+                
+                texto_limpio = texto_final.strip()
+                
+                # --- MEMORIA DINÁMICA: EL CEREBRO DE LA IA ---
+                if texto_limpio:
+                    # Si es Chisme/Motivación: Lo metemos a la lista negra
+                    if tipo != "historia_seguida":
+                        if 'memoria_historias' in st.session_state:
+                            st.session_state.memoria_historias.append(texto_limpio[:80].replace('\n', ' '))
+                            if len(st.session_state.memoria_historias) > 10:
+                                st.session_state.memoria_historias.pop(0)
+                # ----------------------------------------------------------------
+                
+                return texto_limpio
+            return "☕ ¡El café se enfrió!"
         except Exception as e:
-            return "La historia está en secreto por orden del juez."
+            print(f"Error detectado: {e}")
+            return "La frecuencia está interceptada. Intenta reconectar el enlace neuronal."
+
+# ### --- PALACIO DE LA MEMORIA ---
+
+
+PROMPT_PALACIO = """
+Eres un maestro de la deducción y la "Analogía Cotidiana" operando en la Costa Caribe Colombiana. Tu objetivo es que el usuario jamás olvide un concepto legal enredado, explicándoselo a través de los pensamientos del protagonista usando una situación de la vida diaria costeña, pero MANTENIENDO LA TRAMA Y EL GÉNERO ACTUAL.
+
+CONTEXTO ACTUAL DE LA HISTORIA:
+{historia_actual}
+
+GÉNERO Y TONO DE LA HISTORIA:
+{genero_narrativo}
+
+CONCEPTO LEGAL A MEMORIZAR:
+{concepto_legal}
+
+INSTRUCCIONES ESTRICTAS:
+1. INMERSIÓN NARRATIVA: Congela el tiempo un instante. El protagonista de la historia (sea quien sea según el contexto) cierra los ojos en medio de la situación exacta en la que se encuentra.
+2. EL TRADUCTOR DE BARRIO COSTEÑO: Transforma el concepto legal abstracto en una situación cotidiana típica de la Costa Caribe colombiana que el protagonista recuerda para entender el problema legal (Ej: pedirle permiso a la mamá y que no responda, un trato de palabra con un mototaxi, jugar dominó, comprar un frito).
+3. COHERENCIA DE TRAMA Y GÉNERO: Adapta la analogía al tono de la historia ({genero_narrativo}). Si es comedia, el recuerdo costeño debe ser ridículo y gracioso; si es terror, el recuerdo tiene un tinte oscuro o de supervivencia; si es acción, es rápido y contundente.
+4. CERO ESPACIOS BIZARROS: No lo pongas a recorrer habitaciones mágicas. Es un recuerdo rápido, de barrio o familiar, que conecta la ley con el sentido común.
+5. FORMATO: Redacta máximo 2 párrafos cortos. Empieza directamente con el protagonista cerrando los ojos frente a su obstáculo actual, plantea la analogía costeña en su mente adaptada al género, y termina cuando abre los ojos con la respuesta clara para avanzar en su caso. NO uses nombres predefinidos, usa el nombre o rol que tenga en la historia actual.
+"""
 
 # ### --- FIN PARTE 4 ---
 # ### --- INICIO PARTE 5: BARRA LATERAL (SIDEBAR Y SETUP) ---
@@ -1182,11 +1376,32 @@ if 'case_id' not in st.session_state: st.session_state.case_id = 0 # ID Único p
 if 'page' not in st.session_state: st.session_state.page = 'setup'
 if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
 if 'answered' not in st.session_state: st.session_state.answered = False
+if 'memoria_subtemas' not in st.session_state: st.session_state.memoria_subtemas = [] # NUEVO: La lista negra de los 20 pasos
+if 'memoria_historias' not in st.session_state: st.session_state.memoria_historias = [] # NUEVO: Lista negra de tramas y chismes
+# 🎬 --- BLOQUE DE MEMORIA CINEMATOGRÁFICA ---
+if 'genero_pelicula' not in st.session_state: st.session_state.genero_pelicula = "Misterio/Crimen"
+if 'historia_base' not in st.session_state: st.session_state.historia_base = "" 
+if 'ultimo_suceso' not in st.session_state: st.session_state.ultimo_suceso = "El protagonista ha sido asignado al caso."
+if 'momento_pelicula' not in st.session_state: st.session_state.momento_pelicula = "inicio"
+if 'historia_generada' not in st.session_state: st.session_state.historia_generada = ""
+# --------------------------------------------
+
+# --- BOTÓN DE SALVAVIDAS NARRATIVO ---
+if st.session_state.get('historia_base'):
+    with st.sidebar.expander("🎬 Escuchar el inicio de la historia"):
+        st.markdown(st.session_state.historia_base)
+        
+        # Reproductor mágico en la barra lateral
+        if 'audio_base_guardado' in st.session_state:
+            st.audio(st.session_state.audio_base_guardado, format='audio/mp3')
 
 # --- 🛠️ ADICIÓN: VARIABLES DE PAUSA ACTIVA ---
 if 'hitos_vistos' not in st.session_state: st.session_state.hitos_vistos = set()
 if 'estado_pausa' not in st.session_state: st.session_state.estado_pausa = "none" # none, checkpoint, chisme
 if 'chisme_actual' not in st.session_state: st.session_state.chisme_actual = ""
+# 🎬 MEMORIA DE LA PELÍCULA (Para que la historia sea una sola)
+if 'historia_base' not in st.session_state: st.session_state.historia_base = "" 
+if 'ultimo_suceso' not in st.session_state: st.session_state.ultimo_suceso = "El protagonista acaba de recibir el expediente."
 
 # NUEVO: ANCLA DE MEMORIA PARA EL MANUAL (EVITA BUCLE DE PURIFICACIÓN)
 if 'manual_hash' not in st.session_state: st.session_state.manual_hash = None
@@ -1324,6 +1539,45 @@ with st.sidebar:
                 st.warning("Instala pypdf para cargar manuales.")
         
         st.divider()
+
+        # =========================================================
+        # 2. CARGADOR NUEVO: ADN INSTITUCIONAL (El Edificio)
+        # =========================================================
+        st.divider()
+        is_locked_inst = True if (hasattr(engine, 'institucion_text') and len(engine.institucion_text) > 50) else False
+        
+        engine.institucion_text = st.text_area(
+            "ADN Institucional (Estructura de la Entidad):", 
+            value=getattr(engine, 'institucion_text', ''), 
+            height=150, 
+            placeholder="Carga el Decreto Orgánico para extraer las dependencias...", 
+            disabled=is_locked_inst
+        )
+        
+        upl_institucion = st.file_uploader("🏢 Cargar Decreto/Organigrama (PDF):", type=['pdf'])
+        if 'inst_hash' not in st.session_state: st.session_state.inst_hash = None
+        
+        if upl_institucion and upl_institucion.name != st.session_state.inst_hash:
+            if PDF_AVAILABLE:
+                try:
+                    if not engine.api_key:
+                        st.warning("⚠️ Configura la LLAVE MAESTRA para extraer el ADN.")
+                    else:
+                        with st.spinner("🏛️ Mapeando edificio y dependencias..."):
+                            reader = pypdf.PdfReader(upl_institucion)
+                            inst_text = ""
+                            for page in reader.pages:
+                                inst_text += page.extract_text() + "\n"
+                            
+                            adn_inst_limpio = engine._clean_institucion_text(inst_text)
+                            engine.institucion_text = adn_inst_limpio
+                            st.session_state.inst_hash = upl_institucion.name 
+                            
+                            st.success("✅ Estructura Institucional Extraída.")
+                            time.sleep(1)
+                            st.rerun()
+                except Exception as e:
+                    st.error(f"Error leyendo decreto: {e}")
         
         # 2. SIEMPRE DISPONIBLE: EJEMPLO DE ESTILO + BOTÓN DE PROCESAMIENTO (MODIFICADO)
         engine.example_question = st.text_area(
@@ -1461,12 +1715,14 @@ with st.sidebar:
         
         if upl is not None:
             if 'last_loaded' not in st.session_state or st.session_state.last_loaded != upl.name:
+               
                 try:
                     d = json.load(upl)
 
                     # 1. Recuperación de la Estantería y el ADN (Memoria Total)
                     engine.law_library = d.get('library', {}) 
                     engine.manual_text = d.get('manual_clean', "")
+                    engine.institucion_text = d.get('institucion_text', "")
                     engine.chunks = d['chunks']
                     engine.doc_type = d.get('doc_type', "Norma (Leyes/Decretos)")
                     st.session_state.raw_text_study = d.get('raw_pdf_text', "")
@@ -1495,13 +1751,20 @@ with st.sidebar:
                     engine.sections_map = d.get('sections', {})
                     engine.active_section_name = d.get('act_sec', "Todo el Documento")
 
+                    # --- 4. MEMORIA CINEMATOGRÁFICA (Restaurar el Guion) ---
+                    st.session_state.historia_base = d.get('historia_base', '')
+                    st.session_state.ultimo_suceso = d.get('ultimo_suceso', '')
+                    st.session_state.genero_pelicula = d.get('genero_pelicula', 'Misterio y Suspenso')
+                    st.session_state.memoria_historias = d.get('memoria_historias', [])
+                    st.session_state.momento_pelicula = d.get('momento_pelicula', 'desarrollo')
+
                     if DL_AVAILABLE:
                          with st.spinner("🧠 Reconstruyendo mapa neuronal..."): 
                              engine.chunk_embeddings = dl_model.encode(engine.chunks)
 
                     st.session_state.last_loaded = upl.name
-                    st.success("✅ ¡TITÁN v105 Restaurado al 100%!")
-                    time.sleep(1); st.session_state.page = 'game'; st.session_state.current_data = None; st.rerun()
+                    st.success("✅ ¡TITÁN v105 Restaurado al 100% y listo para la acción!")
+                    time.sleep(1); st.session_state.page = 'lobby'; st.session_state.current_data = None; st.rerun()
 
                 except Exception as e: 
                     st.error(f"Error al procesar el archivo: {e}")
@@ -1579,6 +1842,21 @@ with st.sidebar:
     
 # Al final de la barra lateral (Sidebar)
     if engine.chunks:
+        # 🏁 DETECTOR DE FINAL DE PELÍCULA (¡Calculamos antes de guardar!)
+        progreso = 0
+        if engine.chunks:
+            total = len(engine.chunks)
+            vistos = len(engine.seen_articles)
+            progreso = (vistos / total) * 100 if total > 0 else 0
+
+        if progreso >= 100:
+            st.session_state.momento_pelicula = "final"
+        elif progreso <= 1:
+            st.session_state.momento_pelicula = "inicio"
+        else:
+            st.session_state.momento_pelicula = "desarrollo"
+
+        # 🎒 EMPAQUE TOTAL
         full_save_data = {
             # --- 1. MEMORIA CENTRAL (TEXTO Y PROGRESO) ---
             "chunks": engine.chunks,
@@ -1592,6 +1870,7 @@ with st.sidebar:
             # --- 2. LA ESTANTERÍA Y ADN ---
             "library": getattr(engine, 'law_library', {}),
             "manual_clean": getattr(engine, 'manual_text', ""),
+            "institucion_text": getattr(engine, 'institucion_text', ""),
 
             # --- 3. CONFIGURACIÓN DEL USUARIO ---
             "feed": engine.feedback_history,
@@ -1612,7 +1891,14 @@ with st.sidebar:
             "seen_arts": [engine.clean_label(a) for a in engine.seen_articles],
             "failed_arts": [engine.clean_label(a) for a in engine.failed_articles],
             "mastered_arts": [engine.clean_label(a) for a in engine.mastered_articles],
-            "blacklist": [engine.clean_label(b) for b in engine.temporary_blacklist]
+            "blacklist": [engine.clean_label(b) for b in engine.temporary_blacklist],
+
+            # --- 6. MEMORIA CINEMATOGRÁFICA (EL GUION DE HOLLYWOOD) ---
+            "historia_base": st.session_state.get('historia_base', ''),
+            "ultimo_suceso": st.session_state.get('ultimo_suceso', ''),
+            "genero_pelicula": st.session_state.get('genero_pelicula', 'Misterio y Suspenso'),
+            "memoria_historias": st.session_state.get('memoria_historias', []),
+            "momento_pelicula": st.session_state.get('momento_pelicula', 'desarrollo')
         }
         
         st.divider()
@@ -1668,42 +1954,96 @@ if st.session_state.page == 'lobby':
     if st.button("Generar Caso de Estudio", use_container_width=True):
         with st.spinner("Titan está redactando un expediente largo y detallado..."):
             
-            # 1. AMPLIAMOS LA LECTURA: Ahora lee hasta 15,000 caracteres para abarcar casi todo el documento/sección
+            # 1. LECTURA INTELIGENTE TOTAL (El contexto real de lo que estás estudiando)
             texto_contexto = ""
-            if hasattr(engine, 'sections_map') and engine.sections_map:
-                texto_contexto = str(engine.sections_map.get(engine.active_section_name, ""))[:15000]
-            elif hasattr(engine, 'chunks') and engine.chunks:
-                texto_contexto = str(engine.chunks[0])[:15000]
+            
+            # Si elegiste un Título, Capítulo o Artículo específico del menú:
+            if engine.active_section_name != "Todo el Documento" and engine.active_section_name in engine.sections_map:
+                texto_contexto = str(engine.sections_map[engine.active_section_name])
+            else:
+                # Si estás en modo global, mandamos los bloques principales
+                texto_contexto = "\n".join(engine.chunks)
 
-            # 2. EL PROMPT ACTUALIZADO (Cero citas, puro cine)
+            # Subimos el límite a 60,000 caracteres. Gemini puede leer esto sin problema.
+            # Garantiza que el guionista tenga el panorama completo del Título que elegiste.
+            texto_contexto = texto_contexto[:60000]
+
+            # 2. EL SÚPER-PROMPT DE 10 CAPÍTULOS (LA NOVELA COMPLETA)
             prompt_historia = f"""
-            Actúa como un aclamado guionista de cine. Escribe una historia INMERSIVA y EXTENSA de 5 a 7 párrafos.
+            Actúa como un aclamado guionista de cine. Escribe una historia INMERSIVA, CONTINUA Y COMPLETA dividida EXACTAMENTE en 10 capítulos cortos.
             
-            TEMA TÉCNICO OBLIGATORIO: {engine.thematic_axis} - {engine.active_section_name}
-            
-            TEXTO DE REFERENCIA (Inspiración para la trama):
+            MAPA INSTITUCIONAL (EL ESCENARIO OBLIGATORIO):
+            '''{getattr(engine, 'institucion_text', engine.entity)}'''
+
+            TEMA TÉCNICO INICIAL: {engine.thematic_axis}
+            TEXTO DE REFERENCIA (Inspiración):
             '''{texto_contexto}'''
             
-            REGLAS DE ORO:
-            1. El protagonista absoluto de esta historia debe ser un funcionario cuyo perfil y funciones (ADN del cargo) son estas: '{engine.job_functions}'. 
-            2. El protagonista debe usar esas funciones para resolver la situación.
-            3. CAMUFLAJE TOTAL: Toma VARIOS conceptos, principios y reglas de todo el TEXTO DE REFERENCIA y conviértelos orgánicamente en acciones físicas, problemas de la trama, pistas o diálogos.
-            4. VETO DE ABOGADO: Tienes PROHIBIDO usar la palabra "Artículo", "Ley" o "Decreto". Tienes PROHIBIDO hacer aclaraciones entre paréntesis. Escribe pura narrativa de ficción.
-            5. El tono y la narrativa deben ser OBLIGATORIAMENTE del género: {genero}. ¡Hazlo emocionante!
+            REGLAS DE ORO Y FORMATO ESTRICTO:
+            1. ADN DEL PROTAGONISTA: Usa este perfil: '{engine.job_functions}'. Dale un nombre propio (Ej. Elara, Carlos) y úsalo siempre.
+            2. 📈 ESTRUCTURA NARRATIVA ESTRICTA (CURVA DE TENSIÓN):
+               - CAPÍTULO 1 (Introducción): Presenta al protagonista en su entorno y lanza el "Incidente Incitador". Se descubre el PROBLEMA PRINCIPAL (la gran amenaza, el fraude oculto, el colapso). NO lo resuelvas aquí.
+               - CAPÍTULOS 2 al 9 (Desarrollo y Laberinto): El protagonista investiga el problema principal. En cada capítulo enfrenta problemas intermedios, descubre pistas, sufre contratiempos y encuentra puertas cerradas. La tensión debe subir en cada capítulo sin llegar a la solución final.
+               - CAPÍTULO 10 (El Clímax y Desenlace): Ocurre el enfrentamiento final. El protagonista usa su experticia técnica para resolver definitivamente el problema principal planteado en el capítulo 1. Cierre épico y satisfactorio.
+            3. 🏛️ EXPLORACIÓN TOTAL DEL EDIFICIO: A lo largo de los 10 capítulos, los personajes DEBEN moverse físicamente y utilizar la MAYOR CANTIDAD POSIBLE de las dependencias, direcciones y oficinas del MAPA INSTITUCIONAL.
+            4. VETO DE JERGA BÁSICA: PROHIBIDO usar "Artículo", "Ley" o "Decreto". 
+            5. 🎙️ NARRATIVA PURA (CERO DIÁLOGOS): Esta historia será leída por un narrador (voz en off). Tienes ESTRICTAMENTE PROHIBIDO incluir diálogos directos (ni guiones, ni comillas). Todo debe ser acción, descripción y monólogo interno indirecto. 
+            6. GÉNERO: {genero}.
+            
+            FORMATO TÉCNICO INQUEBRANTABLE (CERO FALLOS):
+            - Tienes ESTRICTAMENTE PROHIBIDO usar títulos como "Capítulo 1" o "Escena 1". 
+            - Tienes ESTRICTAMENTE PROHIBIDO usar intros o saludos como "Aquí tienes la historia".
+            - Debes separar cada uno de los 10 capítulos ÚNICAMENTE con el separador exacto: |||
+            - El último párrafo de CADA UNO de los 10 capítulos DEBE SER EXACTAMENTE ESTE TEXTO LITERAL: [ESPACIO_PARA_RECUERDO]
+            
+            Ejemplo de cómo debe verse tu salida técnica (Cero subtítulos, solo texto, el separador y la etiqueta):
+            [Párrafo narrativo 1 del cap 1]
+            [Párrafo narrativo 2 del cap 1]
+            [ESPACIO_PARA_RECUERDO]
+            |||
+            [Párrafo narrativo 1 del cap 2]
+            [Párrafo narrativo 2 del cap 2]
+            [ESPACIO_PARA_RECUERDO]
+            |||
+            (Y así hasta el 10)
             """
             
-            # Llamamos a Gemini
+            # Llamamos a Gemini con el súper-prompt
             res = engine.model.generate_content(prompt_historia)
-            historia_bruta = res.text.replace("*", "").replace("#", "")
+            historia_bruta = res.text.strip().replace("*", "").replace("#", "")
             
-            # 🛡️ EL BISTURÍ DEFINITIVO (Borra CUALQUIER texto entre paréntesis)
-            import re
-            # Esta línea aniquila cualquier cosa que esté entre ( )
-            historia_limpia = re.sub(r'\s*\([^)]*\)', '', historia_bruta) 
-            # Y por si acaso escribe la palabra sin paréntesis, la cambiamos
-            historia_limpia = re.sub(r'\b(?i)art[íi]culos?\s*\d+[º°\.\w]*\b', 'la norma', historia_limpia) 
+            # 🛡️ EL BISTURÍ (Corta los 10 capítulos)
+            # Primero quitamos preámbulos de la IA si los puso (como "Aquí tienes la historia...")
+            if "|||" in historia_bruta:
+                if not historia_bruta.startswith("[") and not historia_bruta[0].isalnum():
+                    historia_bruta = historia_bruta[historia_bruta.find("|||")-50:]
+                    
+            capitulos_crudos = historia_bruta.split("|||")
             
-            st.session_state.historia_generada = historia_limpia
+            # Limpieza de cada capítulo
+            capitulos_limpios = []
+            for cap in capitulos_crudos:
+                cap_limpio = cap.strip()
+                if len(cap_limpio) > 50: # Ignorar cortes vacíos si la IA puso "|||" de más
+                    import re
+                    cap_limpio = re.sub(r'\s*\([^)]*\)', '', cap_limpio) 
+                    cap_limpio = re.sub(r'(?i)\bart[íi]culos?\s*\d+[º°\.\w]*\b', 'la norma', cap_limpio)
+                    capitulos_limpios.append(cap_limpio)
+            
+            # 💾 GUARDADO EN MEMORIA
+            if len(capitulos_limpios) > 0:
+                st.session_state.capitulos_historia = capitulos_limpios
+                # El capítulo 1 será la "historia base" que se muestra en el lobby y se lee en voz alta
+                # Le quitamos la etiqueta de recuerdo para que no salga en el texto del Lobby
+                st.session_state.historia_generada = capitulos_limpios[0].replace("[ESPACIO_PARA_RECUERDO]", "").strip() 
+            else:
+                st.session_state.historia_generada = "Error de descompresión narrativa. Por favor, regenera el caso."
+                
+            # 🔗 CONEXIÓN CINEMATOGRÁFICA
+            st.session_state.genero_pelicula = genero 
+            st.session_state.historia_base = st.session_state.historia_generada 
+            st.session_state.ultimo_suceso = "El caso ha sido planteado y el desafío comienza."
+
 
     if st.session_state.historia_generada:
         st.markdown("---")
@@ -1718,9 +2058,26 @@ if st.session_state.page == 'lobby':
         
         st.write("")
         st.write("🎧 **Escuchar la historia:**")
-        audio_fp = generar_audio_texto(st.session_state.historia_generada)
-        st.audio(audio_fp, format='audio/mp3')
         
+        # 1. Generamos el audio
+        audio_fp = generar_audio_texto(st.session_state.historia_generada)
+        
+        # 2. EL TRUCO ANTIFALLOS: Extraer los bytes puros
+        try:
+            if hasattr(audio_fp, 'read'):
+                audio_fp.seek(0) # ¡Rebobinamos el casete!
+                audio_bytes = audio_fp.read()
+            else:
+                with open(audio_fp, 'rb') as f:
+                    audio_bytes = f.read()
+            
+            # 3. Reproducimos y guardamos la música pura, no el archivo
+            st.audio(audio_bytes, format='audio/mp3')
+            st.session_state.audio_base_guardado = audio_bytes
+            
+        except Exception as e:
+            st.error(f"Error interno con el audio: {e}")        
+
         st.markdown("---")
         if st.button("🔥 Entendido, ¡A las preguntas!", type="primary", use_container_width=True):
             st.session_state.page = 'game'
@@ -1729,8 +2086,9 @@ if st.session_state.page == 'lobby':
 if st.session_state.page == 'game':
     perc, fails, total = engine.get_stats()
 
+
 # --- 🕵️‍♂️ SENSOR DE HITOS (PAUSA ACTIVA) ---
-    hitos_objetivo = [10, 20, 30, 40, 50, 60, 70, 80]
+    hitos_objetivo = [10, 20, 30, 40, 50, 60, 70, 80, 90]
     for hito in hitos_objetivo:
         if perc >= hito and hito not in st.session_state.hitos_vistos:
             st.session_state.hitos_vistos.add(hito)
@@ -1806,18 +2164,56 @@ if st.session_state.page == 'game':
                 </div>
             """, unsafe_allow_html=True)
             
-            col_m1, col_m2, col_m3 = st.columns(3)
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
             with col_m1:
                 if st.button("☕ CHISME DE PASILLO", use_container_width=True):
+                    st.session_state.voz_chisme = "es-ES-ElviraNeural" # España
                     st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="cronica")
                     st.rerun()
             with col_m2:
                 if st.button("💅 DAME FARÁNDULA", use_container_width=True):
+                    st.session_state.voz_chisme = "es-MX-DaliaNeural" # México
                     st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="farandula")
                     st.rerun()
             with col_m3:
                 if st.button("💡 HISTORIA DE ÉXITO", use_container_width=True):
+                    st.session_state.voz_chisme = "es-CO-GonzaloNeural" # Colombia (Mentor)
                     st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="motivacion")
+                    st.rerun()
+            with col_m4:
+                if st.button("🎬 SEGUIR LA HISTORIA", use_container_width=True):
+                    for k in list(st.session_state.keys()):
+                        if k.startswith("aud_"): del st.session_state[k]
+                    
+                    st.session_state.voz_chisme = "es-CO-SalomeNeural"
+                    
+                    # 1. Calcular el índice del capítulo (10% = Cap 2, 20% = Cap 3... 100% = Cap 10)
+                    progreso_actual = engine.get_stats()[0] 
+                    idx_capitulo = min(9, int(progreso_actual / 10))
+                    
+                    # 2. Extraer el capítulo guardado en el Lobby
+                    if 'capitulos_historia' in st.session_state and len(st.session_state.capitulos_historia) > idx_capitulo:
+                        texto_capitulo = st.session_state.capitulos_historia[idx_capitulo]
+                    else:
+                        texto_capitulo = "Los archivos se han corrompido. El protagonista debe improvisar...\n[ESPACIO_PARA_RECUERDO]"
+                    
+                    # 3. El Francotirador (Pide solo 1 párrafo recordando el error)
+                    articulo_objetivo = engine.current_article_label 
+                    texto_recuerdo = engine.generar_chisme_ia(articulo_objetivo, tipo="historia_seguida")
+                    
+                    # 4. El Ensamblaje Perfecto (Pega el recuerdo en el hueco)
+                    texto_ensamblado = texto_capitulo.replace("[ESPACIO_PARA_RECUERDO]", f"\n\n**💭 Recuerdo Técnico:** *«{texto_recuerdo}»*")
+                    
+                    # 5. Formato para la Pantalla (Gancho ||| Desarrollo)
+                    parrafos = texto_ensamblado.split('\n', 1)
+                    if len(parrafos) > 1:
+                        gancho = parrafos[0].strip()
+                        desarrollo = parrafos[1].strip()
+                    else:
+                        gancho = texto_ensamblado
+                        desarrollo = ""
+                        
+                    st.session_state.chisme_actual = f"{gancho} ||| {desarrollo} ||| "
                     st.rerun()
                     
             st.write("")
@@ -1849,44 +2245,112 @@ if st.session_state.page == 'game':
             </div>
         """, unsafe_allow_html=True)
         
-        # Botón dinámico para ampliar
+        # --- AUDIO PARTE 1: EL GANCHO (Antes del botón) ---
+        voz_chisme = st.session_state.get("voz_chisme", "es-CO-SalomeNeural")
+        velocidad = "+5%" if "Gonzalo" in voz_chisme else "+15%"
+
+        def limpiar_v(t):
+            for c in ["*", "📱", "💡", "🚀", "🌟", "📌"]: t = t.replace(c, "")
+            return t
+
+        audio_k1 = f"aud_g_{hash(texto_principal)}"
+        if audio_k1 not in st.session_state:
+            st.session_state[audio_k1] = generar_audio_texto(limpiar_v(texto_principal), voz=voz_chisme, rate=velocidad).getvalue()
+        
+        st.write("🎧 **Escucha la bomba (Introducción):**")
+        st.audio(st.session_state[audio_k1], format='audio/mp3')
+
+        # --- EL SUSPENSO: AQUÍ SE DETIENE EL CUENTO ---
         if texto_ampliado:
             texto_boton = "📖 Conoce cómo lo lograron..." if "Sabías que" in texto_principal else "🔥 Échame el cuento completo..."
+            
             with st.expander(texto_boton):
+                # 1. Mostramos el resto del texto adentro
                 st.markdown(f"""
                     <div style="font-size: 24px; color: #444; background-color: #f9f9f9; padding: 20px; border-radius: 10px;">
                         {texto_ampliado}
                     </div>
                 """, unsafe_allow_html=True)
 
-        # Pintar Cierre
-        if texto_cierre:
-            color_borde = "#27ae60" if "La lección del éxito" in texto_cierre else "#d35400"
-            st.markdown(f"""
-            <div style="font-size: 26px; line-height: 1.3; font-family: 'Georgia', serif; color: #2c3e50; 
-                        background-color: #fff3e0; padding: 20px; border-radius: 10px; margin-top: 15px;
-                        border: 2px dashed {color_borde};">
-                {texto_cierre}
-            </div>
-            """, unsafe_allow_html=True)
+                # 2. Metemos el cierre TAMBIÉN adentro del botón
+                if texto_cierre:
+                    color_borde = "#27ae60" if "La lección del éxito" in texto_cierre else "#d35400"
+                    st.markdown(f"""
+                    <div style="font-size: 26px; line-height: 1.3; font-family: 'Georgia', serif; color: #2c3e50; 
+                                background-color: #fff3e0; padding: 20px; border-radius: 10px; margin-top: 15px;
+                                border: 2px dashed {color_borde};">
+                        {texto_cierre}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # 3. AUDIO PARTE 2: EL DESENLACE (Solo suena si abren el botón)
+                st.write("---")
+                st.write("🎧 **Escucha el final del cuento:**")
+                audio_k2 = f"aud_f_{hash(texto_ampliado)}"
+                if audio_k2 not in st.session_state:
+                    final_texto = f"{texto_ampliado} ... {texto_cierre}"
+                    st.session_state[audio_k2] = generar_audio_texto(limpiar_v(final_texto), voz=voz_chisme, rate=velocidad).getvalue()
+                
+                st.audio(st.session_state[audio_k2], format='audio/mp3')
 
         st.write("") 
         
         # 🎛️ LOS 4 BOTONES DE ALTERNANCIA (EL BUFFET)
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5) # Subimos a 5 columnas
+        # ... (Mantén col1, col2 y col3 como los tienes con la limpieza de audios) ...
         with col1:
             if st.button("🔄 DE PASILLO", use_container_width=True):
+                for k in list(st.session_state.keys()):
+                    if k.startswith("aud_"): del st.session_state[k]
+                st.session_state.voz_chisme = "es-ES-ElviraNeural"
                 st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="cronica")
                 st.rerun()
         with col2:
             if st.button("💅 FARÁNDULA", use_container_width=True):
+                for k in list(st.session_state.keys()):
+                    if k.startswith("aud_"): del st.session_state[k]
+                st.session_state.voz_chisme = "es-MX-DaliaNeural"
                 st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="farandula")
                 st.rerun()
         with col3:
             if st.button("💡 MOTIVACIÓN", use_container_width=True):
+                for k in list(st.session_state.keys()):
+                    if k.startswith("aud_"): del st.session_state[k]
+                st.session_state.voz_chisme = "es-CO-GonzaloNeural"
                 st.session_state.chisme_actual = engine.generar_chisme_ia(f"[{obtener_siguiente_articulo()}]", tipo="motivacion")
                 st.rerun()
+
         with col4:
+            if st.button("🎬 MI HISTORIA", use_container_width=True):
+                for k in list(st.session_state.keys()):
+                    if k.startswith("aud_"): del st.session_state[k]
+                
+                st.session_state.voz_chisme = "es-CO-SalomeNeural"
+                
+                progreso_actual = engine.get_stats()[0] 
+                idx_capitulo = min(9, int(progreso_actual / 10))
+                
+                if 'capitulos_historia' in st.session_state and len(st.session_state.capitulos_historia) > idx_capitulo:
+                    texto_capitulo = st.session_state.capitulos_historia[idx_capitulo]
+                else:
+                    texto_capitulo = "Los archivos se han corrompido. El protagonista debe improvisar...\n[ESPACIO_PARA_RECUERDO]"
+                
+                articulo_objetivo = engine.current_article_label 
+                texto_recuerdo = engine.generar_chisme_ia(articulo_objetivo, tipo="historia_seguida")
+                
+                texto_ensamblado = texto_capitulo.replace("[ESPACIO_PARA_RECUERDO]", f"\n\n**💭 Recuerdo Técnico:** *«{texto_recuerdo}»*")
+                
+                parrafos = texto_ensamblado.split('\n', 1)
+                if len(parrafos) > 1:
+                    gancho = parrafos[0].strip()
+                    desarrollo = parrafos[1].strip()
+                else:
+                    gancho = texto_ensamblado
+                    desarrollo = ""
+                    
+                st.session_state.chisme_actual = f"{gancho} ||| {desarrollo} ||| "
+                st.rerun()
+        with col5:
             if st.button("🚀 AL COMBATE", use_container_width=True):
                 st.session_state.estado_pausa = "none"
                 # Vaciamos la variable para que la próxima vez inicie en la ANTESALA
@@ -1938,20 +2402,18 @@ if st.session_state.page == 'game':
         q = q_list[st.session_state.q_idx]
         st.write(f"### Pregunta {st.session_state.q_idx + 1}")
 
-        # --- NUEVO: AUDIO NEURONAL DE LA PREGUNTA ---
+# --- AUDIO BAJO DEMANDA (Solo si lo pides) ---
         opciones_validas = {k: v for k, v in q['opciones'].items() if v}
-        audio_key_q = f"audio_q_{st.session_state.case_id}_{st.session_state.q_idx}"
         
-        if audio_key_q not in st.session_state:
+        if st.button("🎧 Leer pregunta y opciones"):
+            # Solo se construye el texto y se genera el audio al hacer CLIC
             texto_p = f"Pregunta: {q['enunciado']} ... "
             for k, v in opciones_validas.items():
                 texto_p += f"Opción {k}: {v}. ... "
-            with st.spinner("🎙️ Generando audio neuronal de la pregunta..."):
-                st.session_state[audio_key_q] = generar_audio_texto(texto_p).getvalue()
-        
-        st.write("🎧 **Escuchar la pregunta y opciones:**")
-        st.audio(st.session_state[audio_key_q], format='audio/mp3')
-        st.write("")
+            
+            with st.spinner("🎙️ Salomé está leyendo..."):
+                audio_data = generar_audio_texto(texto_p)
+                st.audio(audio_data, format='audio/mp3', autoplay=True)
         # ---------------------------------------------
         
         form_key = f"q_{st.session_state.case_id}_{st.session_state.q_idx}"
@@ -2099,15 +2561,14 @@ if st.session_state.page == 'game':
             if st.session_state.was_correct:
                 st.success("✅ ¡Correcto!")
                 
-                # --- NUEVO: EXPLICACIÓN Y AUDIO ---
-                audio_key_exp = f"audio_exp_{st.session_state.case_id}_{st.session_state.q_idx}"
-                if audio_key_exp not in st.session_state:
+                # --- EXPLICACIÓN BAJO DEMANDA (Súper Rápido) ---
+                if st.button("🧐 Escuchar explicación de Salomé"):
                     texto_exp = q['explicacion'].replace('*', '').replace('_', '')
-                    with st.spinner("🎙️ Generando audio de la explicación..."):
-                        st.session_state[audio_key_exp] = generar_audio_texto(f"Explicación: {texto_exp}").getvalue()
-                
-                st.write("🎧 **Escuchar la explicación:**")
-                st.audio(st.session_state[audio_key_exp], format='audio/mp3')
+                    
+                    with st.spinner("🎙️ Salomé está hablando..."):
+                        # Generamos y reproducimos de una vez sin guardar basura en memoria
+                        audio_ex = generar_audio_texto(f"Atiende: {texto_exp}")
+                        st.audio(audio_ex, format='audio/mp3', autoplay=True)
                 
                 st.markdown(f"""
                     <div style="font-size: 19px; line-height: 1.5; background-color: #e8f4f8; padding: 20px; border-radius: 10px; border-left: 6px solid #2980b9; color: #2c3e50; margin-bottom: 15px;">
@@ -2130,8 +2591,59 @@ if st.session_state.page == 'game':
                         st.session_state.answered = False
                         st.rerun()
 
+# --- 🏰 BOTÓN DEL PALACIO MENTAL ---
+                    with st.expander("👁️ Entrar al Palacio Mental (Anclar recuerdo)"):
+                        st.write("¿Quieres grabar este artículo en tu mente para siempre usando mnemotecnia avanzada?")
+                        
+                        # Usamos un key único para el botón para que Streamlit no se confunda
+                        if st.button("🏰 Construir Palacio Mental", key=f"btn_palacio_{st.session_state.q_idx}"):
+                            with st.spinner("El Halcón cierra los ojos... construyendo el palacio..."):
+                                
+                                prompt_listo = PROMPT_PALACIO.format(
+                                    historia_actual=st.session_state.historia_generada,
+                                    genero_narrativo=st.session_state.get('genero_pelicula', 'Misterio'), # 🟢 ¡Esta es la pieza que faltaba!
+                                    concepto_legal=q['explicacion']
+                                )
+                                
+                                # 1. Llamamos a Gemini usando tu propio motor
+                                res_palacio = engine.model.generate_content(prompt_listo)
+                                texto_palacio = res_palacio.text.replace("*", "").replace("#", "")
+                                
+                                # 2. Mostramos el texto mágico
+                                st.markdown(f"""
+                                    <div style="font-size: 20px; font-style: italic; color: #ecf0f1; background-color: #2c3e50; padding: 25px; border-radius: 10px; border-left: 5px solid #9b59b6;">
+                                        {texto_palacio.replace(chr(10), '<br>')}
+                                    </div>
+                                """, unsafe_allow_html=True)
+                                
+                                # 3. 🎙️ GENERAMOS EL AUDIO (Con el escudo anti-nube)
+                                st.write("🎧 **Cierra los ojos y escucha la deducción:**")
+                                try:
+                                    audio_fp_palacio = generar_audio_texto(texto_palacio)
+                                    
+                                    if hasattr(audio_fp_palacio, 'read'):
+                                        audio_fp_palacio.seek(0)
+                                        audio_bytes_p = audio_fp_palacio.read()
+                                    else:
+                                        with open(audio_fp_palacio, 'rb') as f:
+                                            audio_bytes_p = f.read()
+                                    
+                                    st.audio(audio_bytes_p, format='audio/mp3', autoplay=True)
+                                except Exception as e:
+                                    st.error(f"Error al conectar con la voz mental: {e}")
+                    # -----------------------------------
+
             # --- FLUJO: FALLÓ LA PREGUNTA ---
             else:
+
+            # 1. PEGA AQUÍ EL APUNTADOR (Dentro del else, antes del if del candado)
+                if 'articulos_fallidos' not in st.session_state:
+                    st.session_state.articulos_fallidos = []
+            
+                tema_fallado = q.get('articulo', engine.active_section_name)
+                if tema_fallado not in st.session_state.articulos_fallidos:
+                    st.session_state.articulos_fallidos.append(tema_fallado)
+
                 # ETAPA 1: CANDADO ACTIVO (La explicación está oculta)
                 if not st.session_state.get('recovery_passed', False):
                     st.error("❌ Respuesta Incorrecta. ¡Resuelve este reto para desbloquear la explicación y avanzar!")
@@ -2202,6 +2714,47 @@ if st.session_state.page == 'game':
                             st.session_state.answered = False
                             st.session_state.recovery_passed = False
                             st.rerun()
+# --- 🏰 BOTÓN DEL PALACIO MENTAL ---
+                    with st.expander("👁️ Entrar al Palacio Mental (Anclar recuerdo)"):
+                        st.write("¿Quieres grabar este artículo en tu mente para siempre usando mnemotecnia avanzada?")
+                        
+                        # Usamos un key único para el botón para que Streamlit no se confunda
+                        if st.button("🏰 Construir Palacio Mental", key=f"btn_palacio_{st.session_state.q_idx}"):
+                            with st.spinner("El Halcón cierra los ojos... construyendo el palacio..."):
+                                
+                                prompt_listo = PROMPT_PALACIO.format(
+                                    historia_actual=st.session_state.historia_generada,
+                                    genero_narrativo=st.session_state.get('genero_pelicula', 'Misterio'), # 🟢 ¡Esta es la pieza que faltaba!
+                                    concepto_legal=q['explicacion']
+                                )
+                                
+                                # 1. Llamamos a Gemini usando tu propio motor
+                                res_palacio = engine.model.generate_content(prompt_listo)
+                                texto_palacio = res_palacio.text.replace("*", "").replace("#", "")
+                                
+                                # 2. Mostramos el texto mágico
+                                st.markdown(f"""
+                                    <div style="font-size: 20px; font-style: italic; color: #ecf0f1; background-color: #2c3e50; padding: 25px; border-radius: 10px; border-left: 5px solid #9b59b6;">
+                                        {texto_palacio.replace(chr(10), '<br>')}
+                                    </div>
+                                """, unsafe_allow_html=True)
+                                
+                                # 3. 🎙️ GENERAMOS EL AUDIO (Con el escudo anti-nube)
+                                st.write("🎧 **Cierra los ojos y escucha la deducción:**")
+                                try:
+                                    audio_fp_palacio = generar_audio_texto(texto_palacio)
+                                    
+                                    if hasattr(audio_fp_palacio, 'read'):
+                                        audio_fp_palacio.seek(0)
+                                        audio_bytes_p = audio_fp_palacio.read()
+                                    else:
+                                        with open(audio_fp_palacio, 'rb') as f:
+                                            audio_bytes_p = f.read()
+                                    
+                                    st.audio(audio_bytes_p, format='audio/mp3', autoplay=True)
+                                except Exception as e:
+                                    st.error(f"Error al conectar con la voz mental: {e}")
+                    # -----------------------------------
         
         st.divider()
         if st.button("⬅️ VOLVER AL MENÚ"):
@@ -2224,3 +2777,4 @@ if st.session_state.page == 'game':
                 st.toast(f"Feedback enviado. IA Ajustada: {len(errores_sel)} correcciones.", icon="🛡️")
 
 # ### --- FIN PARTE 6 ---
+
