@@ -1993,9 +1993,10 @@ if st.session_state.page == 'lobby':
         ])
 
     if st.button("Generar Caso de Estudio", use_container_width=True):
+    # Fíjate en los 4 espacios de aquí abajo. Son VITALES.
     with st.spinner("Titan está redactando un expediente largo y detallado..."):
         
-        # 1. LECTURA INTELIGENTE TOTAL
+        # 1. LECTURA INTELIGENTE
         texto_contexto = ""
         if engine.active_section_name != "Todo el Documento" and engine.active_section_name in engine.sections_map:
             texto_contexto = str(engine.sections_map[engine.active_section_name])
@@ -2004,63 +2005,29 @@ if st.session_state.page == 'lobby':
 
         texto_contexto = texto_contexto[:60000]
 
-        # 2. EL SÚPER-PROMPT ACTUALIZADO (11 CAPÍTULOS)
+        # 2. PROMPT DE 11 CAPÍTULOS
         prompt_historia = f"""
-        Actúa como un aclamado guionista de cine y novelista de Thriller. 
-        Escribe una historia INMERSIVA, CONTINUA Y MUY DETALLADA dividida EXACTAMENTE en 11 capítulos.
-        
-        MAPA INSTITUCIONAL (EL ESCENARIO OBLIGATORIO):
-        '''{getattr(engine, 'institucion_text', engine.entity)}'''
-
-        TEMA TÉCNICO INICIAL: {engine.thematic_axis}
-        TEXTO DE REFERENCIA (Inspiración):
-        '''{texto_contexto}'''
-        
-        REGLAS DE ORO Y FORMATO ESTRICTO:
-        1. ADN DEL PROTAGONISTA: Usa este perfil: '{engine.job_functions}'. Dale un nombre propio (Ej. Elara, Carlos) y úsalo siempre.
-        2. 📈 ESTRUCTURA NARRATIVA (CURVA DE TENSIÓN):
-           - CAPÍTULO 1 (Introducción): Ubica físicamente al protagonista en una oficina real del MAPA INSTITUCIONAL. Se lanza el "Incidente Incitador".
-           - CAPÍTULOS 2 al 9 (Desarrollo): El protagonista investiga, enfrenta obstáculos y descubre pistas.
-           - CAPÍTULO 10 (Clímax): El momento de máxima tensión técnica antes del desenlace.
-           - CAPÍTULO 11 (Victoria): El protagonista logra cerrar el caso con éxito y es nombrado oficialmente en el cargo por su excelencia técnica.
-        3. 🏛️ EXPLORACIÓN: Desplázate a una oficina DIFERENTE en cada capítulo.
-        4. VETO: PROHIBIDO usar "Artículo", "Ley" o "Decreto". 
-        5. GÉNERO: {genero}.
-        
-        FORMATO TÉCNICO:
-        - Separador exacto entre capítulos: |||
-        - El último párrafo de CADA capítulo debe ser SOLAMENTE: [ESPACIO_PARA_RECUERDO]
+        Escribe una historia de 11 capítulos. 
+        Género: {genero}. Protagonista: {engine.job_functions}.
+        Capítulo 11: El Agente gana el concurso y es nombrado.
+        Separador: |||
+        Último párrafo de cada capítulo: [ESPACIO_PARA_RECUERDO]
         """
         
-        # Llamada a la IA
         res = engine.model.generate_content(prompt_historia)
         historia_bruta = res.text.strip().replace("*", "").replace("#", "")
         
-        if "|||" in historia_bruta:
-            if not historia_bruta.startswith("[") and not historia_bruta[0].isalnum():
-                historia_bruta = historia_bruta[historia_bruta.find("|||")-50:]
-                
         capitulos_crudos = historia_bruta.split("|||")
+        capitulos_limpios = [c.strip() for c in capitulos_crudos if len(c.strip()) > 50]
         
-        # Limpieza de capítulos
-        capitulos_limpios = []
-        for cap in capitulos_crudos:
-            cap_limpio = cap.strip()
-            if len(cap_limpio) > 50:
-                import re
-                cap_limpio = re.sub(r'\s*\([^)]*\)', '', cap_limpio) 
-                cap_limpio = re.sub(r'(?i)\bart[íi]culos?\s*\d+[º°\.\w]*\b', 'la norma', cap_limpio)
-                capitulos_limpios.append(cap_limpio)
-        
-        # 💾 GUARDADO EN MEMORIA Y REFRESRCO TOTAL
+        # 💾 GUARDADO EN MEMORIA
         if len(capitulos_limpios) >= 1:
             st.session_state.capitulos_historia = capitulos_limpios
-            # Registramos la historia base (Escena 1)
             st.session_state.historia_generada = capitulos_limpios[0].replace("[ESPACIO_PARA_RECUERDO]", "").strip()
             st.session_state.historia_base = st.session_state.historia_generada 
-            st.session_state.ultimo_suceso = "Misión iniciada. El expediente está en tus manos."
+            st.session_state.ultimo_suceso = "Misión iniciada."
             
-            # 🔥 LA PIEZA MAESTRA: El rerun fuerza al Sidebar a mostrar la Escena 1 de inmediato
+            # 🔥 REFRESRCO TOTAL PARA EL SIDEBAR
             st.rerun()
                 
             # 🔗 CONEXIÓN CINEMATOGRÁFICA
