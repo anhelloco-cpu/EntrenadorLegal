@@ -845,9 +845,15 @@ class LegalEngineTITAN:
             3. ⚖️ LA REINA INDISCUTIBLE: Sin que lo digas en la pregunta, la respuesta correcta debe ser la "más exacta". Mientras los distractores resuelven el problema a medias o asumen cosas, la respuesta correcta es la única que aplica la excepción o el detalle técnico con precisión quirúrgica.
             4. 💥 LÓGICA (CAPITÁN COLISIÓN): Plantea un "Caso de Frontera": una situación donde dos normas parecen chocar. La respuesta correcta es la que aplica el principio de especialidad o jerarquía.
             5. 🚫 PROHIBIDO: Preguntas de memoria literal. La pregunta debe obligar a DESCOMPONER el caso para encontrar el error de procedimiento.
+            6. 🔄 CAPITÁN CONTRAPUNTO (LÓGICA INVERSA): 
+            Si planteas una actuación administrativa mediocre o insuficiente (Ej: 'el funcionario solo dijo que no es conducente'), 
+            la respuesta correcta TIENE PROHIBIDO ser un eco de ese error. 
+            La respuesta correcta DEBE redactarse como el DEBER SER o el MANDATO SUPERIOR que fue ignorado. 
+            El usuario debe marcar la LEY, no lo que narra el desastre del cuento.
             
             DIFICULTAD: 11/10 (Rompe-Ranking). Si la respuesta es obvia, has fallado. El usuario debe dudar entre dos opciones hasta el final.
             """
+            
 
 # --- CONFIGURACIÓN TÉCNICA (ANDERSON & KRATHWOHL - GUÍA CGR) ---
         config_nivel = {
