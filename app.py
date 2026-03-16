@@ -1397,24 +1397,26 @@ if 'momento_pelicula' not in st.session_state: st.session_state.momento_pelicula
 if 'historia_generada' not in st.session_state: st.session_state.historia_generada = ""
 # --------------------------------------------
 
-# --- 📖 BITÁCORA EVOLUTIVA (NUEVO SIDEBAR) ---
-if st.session_state.get('capitulos_historia'):
+# --- 📖 BITÁCORA EVOLUTIVA (CON ESCUDO DE SEGURIDAD) ---
+# Solo se ejecuta si existe la historia Y si el motor 'engine' ya fue definido
+if st.session_state.get('capitulos_historia') and 'engine' in locals():
     with st.sidebar.expander("📖 Bitácora del Expediente (Historia Completa)"):
-        # Calculamos cuántas escenas mostrar según tu avance (10%, 20%, etc.)
-        p_actual = engine.get_stats()[0]
-        limite = min(9, int(p_actual / 10))
-        
-        texto_completo = ""
-        for i in range(limite + 1):
-            # Limpiamos etiquetas técnicas para que el sidebar sea pura novela
-            c_limpio = st.session_state.capitulos_historia[i].replace("[ESPACIO_PARA_RECUERDO]", "").strip()
-            texto_completo += f"**Escena {i+1}**\n\n{c_limpio}\n\n---\n\n"
-        
-        st.markdown(texto_completo)
-        
-        # Mantenemos tu audio original del Lobby
-        if 'audio_base_guardado' in st.session_state:
-            st.audio(st.session_state.audio_base_guardado, format='audio/mp3')
+        try:
+            # Obtenemos el progreso desde el motor
+            p_actual = engine.get_stats()[0]
+            limite = min(9, int(p_actual / 10))
+            
+            texto_completo = ""
+            for i in range(limite + 1):
+                c_limpio = st.session_state.capitulos_historia[i].replace("[ESPACIO_PARA_RECUERDO]", "").strip()
+                texto_completo += f"**Escena {i+1}**\n\n{c_limpio}\n\n---\n\n"
+            
+            st.markdown(texto_completo)
+            
+            if 'audio_base_guardado' in st.session_state:
+                st.audio(st.session_state.audio_base_guardado, format='audio/mp3')
+        except Exception:
+            st.info("Cargando bitácora... (Inicia una pregunta para activar)")
 
 # --- 🛠️ ADICIÓN: VARIABLES DE PAUSA ACTIVA ---
 if 'hitos_vistos' not in st.session_state: st.session_state.hitos_vistos = set()
