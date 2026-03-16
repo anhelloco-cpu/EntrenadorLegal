@@ -76,8 +76,8 @@ except ImportError:
 # 2. CONFIGURACIÓN VISUAL Y ESTILOS (TU CSS ORIGINAL INTACTO)
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="TITÁN v105 - Unobtanium", 
-    page_icon="⚖️", 
+    page_title="TITAN - Simulador de Realidad Técnica", 
+    page_icon="🦅", 
     layout="wide"
 )
 
@@ -1460,7 +1460,16 @@ def natural_sort_key(s):
             key.append((1, part))
     return key
 with st.sidebar:
-    st.title("🦅 TITÁN v105 - Unobtanium")
+    st.markdown("""
+        <div style='text-align: center;'>
+            <h1 style='margin-bottom: 0;'>🦅 TITAN</h1>
+            <p style='font-size: 0.85em; color: #666; font-style: italic;'>
+                Tecnología Inmersiva de Transferencia y Análisis Normativo
+            </p>
+            <hr style='margin-top: 5px;'>
+            <p style='font-weight: bold; color: #d35400;'>SIMULADOR DE REALIDAD TÉCNICA</p>
+        </div>
+    """, unsafe_allow_html=True)
     
     with st.expander("🔑 LLAVE MAESTRA", expanded=True):
         key = st.text_input("API Key (Cualquiera):", type="password")
