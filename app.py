@@ -1951,17 +1951,24 @@ def generar_sopa_letras(palabra):
 # EL LOBBY NARRATIVO (ANTES DEL JUEGO)
 # ==========================================
 if st.session_state.page == 'lobby':
+    if st.session_state.page == 'lobby':
     st.title("🕵️‍♂️ Sala de Instrucción: El Gran Caso")
-    st.write("Antes de entrar a la auditoría técnica, prepárate con un caso de estudio.")
     
-    genero = st.selectbox("🎬 Elige el género de tu expediente:", [
-        "Acción Exagerada (Un auditor resolviendo todo de un solo golpe maestro)", 
-        "Terror Slasher (Un asesino enmascarado acecha en el archivo municipal)", 
-        "Misterio/Crimen (Resolviendo pistas en callejones oscuros)", 
-        "Comedia (Un desastre total y absoluto en la alcaldía)"
-    ])
+    # --- CAMBIO PRECISO: Si hay capítulos en el backup, los pone en pantalla automáticamente ---
+    if st.session_state.get('capitulos_historia') and not st.session_state.historia_generada:
+        st.session_state.historia_generada = st.session_state.capitulos_historia[0].replace("[ESPACIO_PARA_RECUERDO]", "").strip()
 
-    if st.button("Generar Caso de Estudio", use_container_width=True):
+    # Solo muestra el selector y el botón si la memoria está vacía
+    if not st.session_state.get('capitulos_historia'):
+        st.write("Antes de entrar a la auditoría técnica, prepárate con un caso de estudio.")
+        genero = st.selectbox("🎬 Elige el género de tu expediente:", [
+            "Acción Exagerada (Un auditor resolviendo todo de un solo golpe maestro)", 
+            "Terror Slasher (Un asesino enmascarado acecha en el archivo municipal)", 
+            "Misterio/Crimen (Resolviendo pistas en callejones oscuros)", 
+            "Comedia (Un desastre total y absoluto en la alcaldía)"
+        ])
+
+        if st.button("Generar Caso de Estudio", use_container_width=True):
         with st.spinner("Titan está redactando un expediente largo y detallado..."):
             
             # 1. LECTURA INTELIGENTE TOTAL (El contexto real de lo que estás estudiando)
