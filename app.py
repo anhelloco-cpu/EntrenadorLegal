@@ -1397,26 +1397,27 @@ if 'momento_pelicula' not in st.session_state: st.session_state.momento_pelicula
 if 'historia_generada' not in st.session_state: st.session_state.historia_generada = ""
 # --------------------------------------------
 
-# --- 📖 BITÁCORA EVOLUTIVA (CON ESCUDO DE SEGURIDAD) ---
-# Solo se ejecuta si existe la historia Y si el motor 'engine' ya fue definido
-if st.session_state.get('capitulos_historia') and 'engine' in locals():
-    with st.sidebar.expander("📖 Bitácora del Expediente (Historia Completa)"):
-        try:
-            # Obtenemos el progreso desde el motor
-            p_actual = engine.get_stats()[0]
-            limite = min(9, int(p_actual / 10))
-            
-            texto_completo = ""
-            for i in range(limite + 1):
-                c_limpio = st.session_state.capitulos_historia[i].replace("[ESPACIO_PARA_RECUERDO]", "").strip()
+# --- 📖 BITÁCORA EVOLUTIVA (UBICACIÓN CORRECTA) ---
+if st.session_state.get('capitulos_historia'):
+    with st.sidebar.expander("📖 Bitácora del Expediente", expanded=False):
+        p_actual = engine.get_stats()[0]
+        # Forzamos a que el límite sea mínimo 0 para que SIEMPRE muestre la Escena 1
+        progreso_calculado = int(p_actual / 10)
+        limite_teorico = max(0, min(10, progreso_calculado)) 
+        
+        texto_completo = ""
+        total_escritos = len(st.session_state.capitulos_historia)
+        rango_real = min(limite_teorico + 1, total_escritos)
+
+        for i in range(rango_real):
+            cap_texto = st.session_state.capitulos_historia[i]
+            if cap_texto:
+                c_limpio = cap_texto.replace("[ESPACIO_PARA_RECUERDO]", "").strip()
                 texto_completo += f"**Escena {i+1}**\n\n{c_limpio}\n\n---\n\n"
-            
-            st.markdown(texto_completo)
-            
-            if 'audio_base_guardado' in st.session_state:
-                st.audio(st.session_state.audio_base_guardado, format='audio/mp3')
-        except Exception:
-            st.info("Cargando bitácora... (Inicia una pregunta para activar)")
+        
+        st.markdown(texto_completo)
+        if 'audio_base_guardado' in st.session_state:
+            st.audio(st.session_state.audio_base_guardado, format='audio/mp3')
 
 # --- 🛠️ ADICIÓN: VARIABLES DE PAUSA ACTIVA ---
 if 'hitos_vistos' not in st.session_state: st.session_state.hitos_vistos = set()
@@ -1992,100 +1993,75 @@ if st.session_state.page == 'lobby':
         ])
 
     if st.button("Generar Caso de Estudio", use_container_width=True):
-        with st.spinner("Titan está redactando un expediente largo y detallado..."):
-            
-            # 1. LECTURA INTELIGENTE TOTAL (El contexto real de lo que estás estudiando)
-            texto_contexto = ""
-            
-            # Si elegiste un Título, Capítulo o Artículo específico del menú:
-            if engine.active_section_name != "Todo el Documento" and engine.active_section_name in engine.sections_map:
-                texto_contexto = str(engine.sections_map[engine.active_section_name])
-            else:
-                # Si estás en modo global, mandamos los bloques principales
-                texto_contexto = "\n".join(engine.chunks)
+    with st.spinner("Titan está redactando un expediente largo y detallado..."):
+        
+        # 1. LECTURA INTELIGENTE TOTAL
+        texto_contexto = ""
+        if engine.active_section_name != "Todo el Documento" and engine.active_section_name in engine.sections_map:
+            texto_contexto = str(engine.sections_map[engine.active_section_name])
+        else:
+            texto_contexto = "\n".join(engine.chunks)
 
-            # Subimos el límite a 60,000 caracteres. Gemini puede leer esto sin problema.
-            # Garantiza que el guionista tenga el panorama completo del Título que elegiste.
-            texto_contexto = texto_contexto[:60000]
+        texto_contexto = texto_contexto[:60000]
 
-            # 2. EL SÚPER-PROMPT DE 10 CAPÍTULOS (VERSIÓN EXTENSA Y MULTI-PÁRRAFO)
-            prompt_historia = f"""
-            Actúa como un aclamado guionista de cine y novelista de Thriller. 
-            Escribe una historia INMERSIVA, CONTINUA Y MUY DETALLADA dividida EXACTAMENTE en 10 capítulos.
-            
-            MAPA INSTITUCIONAL (EL ESCENARIO OBLIGATORIO):
-            '''{getattr(engine, 'institucion_text', engine.entity)}'''
+        # 2. EL SÚPER-PROMPT ACTUALIZADO (11 CAPÍTULOS)
+        prompt_historia = f"""
+        Actúa como un aclamado guionista de cine y novelista de Thriller. 
+        Escribe una historia INMERSIVA, CONTINUA Y MUY DETALLADA dividida EXACTAMENTE en 11 capítulos.
+        
+        MAPA INSTITUCIONAL (EL ESCENARIO OBLIGATORIO):
+        '''{getattr(engine, 'institucion_text', engine.entity)}'''
 
-            TEMA TÉCNICO INICIAL: {engine.thematic_axis}
-            TEXTO DE REFERENCIA (Inspiración):
-            '''{texto_contexto}'''
+        TEMA TÉCNICO INICIAL: {engine.thematic_axis}
+        TEXTO DE REFERENCIA (Inspiración):
+        '''{texto_contexto}'''
+        
+        REGLAS DE ORO Y FORMATO ESTRICTO:
+        1. ADN DEL PROTAGONISTA: Usa este perfil: '{engine.job_functions}'. Dale un nombre propio (Ej. Elara, Carlos) y úsalo siempre.
+        2. 📈 ESTRUCTURA NARRATIVA (CURVA DE TENSIÓN):
+           - CAPÍTULO 1 (Introducción): Ubica físicamente al protagonista en una oficina real del MAPA INSTITUCIONAL. Se lanza el "Incidente Incitador".
+           - CAPÍTULOS 2 al 9 (Desarrollo): El protagonista investiga, enfrenta obstáculos y descubre pistas.
+           - CAPÍTULO 10 (Clímax): El momento de máxima tensión técnica antes del desenlace.
+           - CAPÍTULO 11 (Victoria): El protagonista logra cerrar el caso con éxito y es nombrado oficialmente en el cargo por su excelencia técnica.
+        3. 🏛️ EXPLORACIÓN: Desplázate a una oficina DIFERENTE en cada capítulo.
+        4. VETO: PROHIBIDO usar "Artículo", "Ley" o "Decreto". 
+        5. GÉNERO: {genero}.
+        
+        FORMATO TÉCNICO:
+        - Separador exacto entre capítulos: |||
+        - El último párrafo de CADA capítulo debe ser SOLAMENTE: [ESPACIO_PARA_RECUERDO]
+        """
+        
+        # Llamada a la IA
+        res = engine.model.generate_content(prompt_historia)
+        historia_bruta = res.text.strip().replace("*", "").replace("#", "")
+        
+        if "|||" in historia_bruta:
+            if not historia_bruta.startswith("[") and not historia_bruta[0].isalnum():
+                historia_bruta = historia_bruta[historia_bruta.find("|||")-50:]
+                
+        capitulos_crudos = historia_bruta.split("|||")
+        
+        # Limpieza de capítulos
+        capitulos_limpios = []
+        for cap in capitulos_crudos:
+            cap_limpio = cap.strip()
+            if len(cap_limpio) > 50:
+                import re
+                cap_limpio = re.sub(r'\s*\([^)]*\)', '', cap_limpio) 
+                cap_limpio = re.sub(r'(?i)\bart[íi]culos?\s*\d+[º°\.\w]*\b', 'la norma', cap_limpio)
+                capitulos_limpios.append(cap_limpio)
+        
+        # 💾 GUARDADO EN MEMORIA Y REFRESRCO TOTAL
+        if len(capitulos_limpios) >= 1:
+            st.session_state.capitulos_historia = capitulos_limpios
+            # Registramos la historia base (Escena 1)
+            st.session_state.historia_generada = capitulos_limpios[0].replace("[ESPACIO_PARA_RECUERDO]", "").strip()
+            st.session_state.historia_base = st.session_state.historia_generada 
+            st.session_state.ultimo_suceso = "Misión iniciada. El expediente está en tus manos."
             
-            REGLAS DE ORO Y FORMATO ESTRICTO:
-            1. ADN DEL PROTAGONISTA: Usa este perfil: '{engine.job_functions}'. Dale un nombre propio (Ej. Elara, Carlos) y úsalo siempre.
-            2. 📈 ESTRUCTURA NARRATIVA (CURVA DE TENSIÓN):
-               - CAPÍTULO 1 (Introducción): ¡REGLA DE CÁMARA! La primera oración debe ubicar físicamente al protagonista en una oficina real del MAPA INSTITUCIONAL. Aquí se lanza el "Incidente Incitador" (el gran fraude o amenaza).
-               - CAPÍTULOS 2 al 9 (Desarrollo): El protagonista investiga, enfrenta obstáculos intermedios y descubre pistas moviéndose por el edificio. La tensión sube.
-               - CAPÍTULO 10 (Clímax): Resolución técnica magistral y cierre épico.
-            3. 🏛️ EXPLORACIÓN TOTAL: En cada capítulo, el personaje DEBE desplazarse a una oficina DIFERENTE del MAPA INSTITUCIONAL. Nómbralas con su nombre oficial.
-            4. VETO DE JERGA BÁSICA: PROHIBIDO usar "Artículo", "Ley" o "Decreto". 
-            5. 🎙️ NARRATIVA PURA (CERO DIÁLOGOS): Sin guiones ni comillas. Todo es acción, descripción de la atmósfera y monólogo interno.
-            6. 🖋️ ESTRUCTURA DE PÁRRAFOS (OBLIGATORIO): Tienes PROHIBIDO entregar un solo bloque de texto por capítulo. Cada capítulo DEBE tener entre 3 y 5 párrafos bien definidos. Usa descripciones sensoriales (sonidos, olores, ambiente) para darle cuerpo a la narración.
-            7. GÉNERO: {genero}.
-            
-            FORMATO TÉCNICO INQUEBRANTABLE (CERO FALLOS):
-            - Prohibido usar títulos como "Capítulo 1". 
-            - Prohibido usar intros o saludos.
-            - Separador exacto entre capítulos: |||
-            - El último párrafo de CADA capítulo debe ser SOLAMENTE: [ESPACIO_PARA_RECUERDO]
-            
-            Ejemplo de cómo debe verse tu salida técnica (Fíjate en los saltos de línea):
-            Párrafo 1 (La ambientación)...
-            
-            Párrafo 2 (La acción)...
-            
-            Párrafo 3 (La duda interna)...
-            
-            [ESPACIO_PARA_RECUERDO]
-            |||
-            Párrafo 1 del siguiente capítulo...
-            
-            Párrafo 2...
-            
-            [ESPACIO_PARA_RECUERDO]
-            |||
-            (Y así hasta el 10)
-            """
-            
-            # Llamamos a Gemini con el súper-prompt
-            res = engine.model.generate_content(prompt_historia)
-            historia_bruta = res.text.strip().replace("*", "").replace("#", "")
-            
-            # 🛡️ EL BISTURÍ (Corta los 10 capítulos)
-            # Primero quitamos preámbulos de la IA si los puso (como "Aquí tienes la historia...")
-            if "|||" in historia_bruta:
-                if not historia_bruta.startswith("[") and not historia_bruta[0].isalnum():
-                    historia_bruta = historia_bruta[historia_bruta.find("|||")-50:]
-                    
-            capitulos_crudos = historia_bruta.split("|||")
-            
-            # Limpieza de cada capítulo
-            capitulos_limpios = []
-            for cap in capitulos_crudos:
-                cap_limpio = cap.strip()
-                if len(cap_limpio) > 50: # Ignorar cortes vacíos si la IA puso "|||" de más
-                    import re
-                    cap_limpio = re.sub(r'\s*\([^)]*\)', '', cap_limpio) 
-                    cap_limpio = re.sub(r'(?i)\bart[íi]culos?\s*\d+[º°\.\w]*\b', 'la norma', cap_limpio)
-                    capitulos_limpios.append(cap_limpio)
-            
-            # 💾 GUARDADO EN MEMORIA
-            if len(capitulos_limpios) > 0:
-                st.session_state.capitulos_historia = capitulos_limpios
-                # El capítulo 1 será la "historia base" que se muestra en el lobby y se lee en voz alta
-                # Le quitamos la etiqueta de recuerdo para que no salga en el texto del Lobby
-                st.session_state.historia_generada = capitulos_limpios[0].replace("[ESPACIO_PARA_RECUERDO]", "").strip() 
-            else:
-                st.session_state.historia_generada = "Error de descompresión narrativa. Por favor, regenera el caso."
+            # 🔥 LA PIEZA MAESTRA: El rerun fuerza al Sidebar a mostrar la Escena 1 de inmediato
+            st.rerun()
                 
             # 🔗 CONEXIÓN CINEMATOGRÁFICA
             st.session_state.genero_pelicula = genero 
@@ -2446,9 +2422,24 @@ if st.session_state.page == 'game':
                 st.rerun()
             else:
                 err = data.get('error', 'Desconocido')
-                st.error(f"Error: {err}")
-                st.button("Reintentar", on_click=st.rerun)
-                st.stop()
+                if "DOMINADA" in err.upper():
+                    st.balloons()
+                    # Mostramos el capítulo 11 (índice 10)
+                    final_txt = st.session_state.capitulos_historia[10].replace("[ESPACIO_PARA_RECUERDO]", "") if len(st.session_state.capitulos_historia) > 10 else "¡Felicidades, Agente!"
+                    st.markdown(f"""
+                        <div style="background-color: #f0fff4; border: 3px solid #27ae60; padding: 30px; border-radius: 20px; text-align: center;">
+                            <h1 style="color: #27ae60;">🏆 ¡MISIÓN CUMPLIDA AL 100%!</h1>
+                            <p style="font-size: 1.4em; color: #2c3e50; font-style: italic;">{final_txt}</p>
+                            <h3 style="color: #1e8449;">Has ganado el concurso de méritos.</h3>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    if st.button("🔄 ESTUDIAR OTRA LEY"):
+                        st.session_state.raw_text_study = ""
+                        st.session_state.current_data = None
+                        st.rerun()
+                else:
+                    st.error(f"Error: {err}")
+                    st.stop()
 
     # 2. MOSTRAR NARRATIVA Y PREGUNTA
     data = st.session_state.current_data
