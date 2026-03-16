@@ -1398,15 +1398,23 @@ if 'historia_generada' not in st.session_state: st.session_state.historia_genera
 # --------------------------------------------
 
 # --- 📖 BITÁCORA EVOLUTIVA (UBICACIÓN CORRECTA) ---
-if st.session_state.get('capitulos_historia'):
+# 🔥 Rescatamos el motor de la memoria para que NO salga el NameError
+engine_bitacora = st.session_state.get('engine')
+
+# Validamos que exista la historia Y que el motor ya esté cargado
+if st.session_state.get('capitulos_historia') and engine_bitacora:
     with st.sidebar.expander("📖 Bitácora del Expediente", expanded=False):
-        p_actual = engine.get_stats()[0]
-        # Forzamos a que el límite sea mínimo 0 para que SIEMPRE muestre la Escena 1
+        # Usamos el motor rescatado
+        p_actual = engine_bitacora.get_stats()[0]
+        
+        # Matemática: El progreso va de 0 a 10 (que son los 11 capítulos)
         progreso_calculado = int(p_actual / 10)
         limite_teorico = max(0, min(10, progreso_calculado)) 
         
         texto_completo = ""
         total_escritos = len(st.session_state.capitulos_historia)
+        
+        # Le sumamos 1 porque la función 'range' se detiene un número antes
         rango_real = min(limite_teorico + 1, total_escritos)
 
         for i in range(rango_real):
