@@ -2358,32 +2358,39 @@ if st.session_state.page == 'game':
 
         with col4:
             if st.button("🎬 MI HISTORIA", use_container_width=True):
-                # Limpiamos audios viejos
                 for k in list(st.session_state.keys()):
                     if k.startswith("aud_"): del st.session_state[k]
                 
                 st.session_state.voz_chisme = "es-CO-SalomeNeural"
                 
-                # Calculamos qué capítulo toca según el progreso
                 progreso_actual = engine.get_stats()[0] 
                 idx_capitulo = min(9, int(progreso_actual / 10))
                 
-                # 1. Recuperamos el capítulo completo que generó el Lobby
                 if 'capitulos_historia' in st.session_state and len(st.session_state.capitulos_historia) > idx_capitulo:
                     texto_capitulo = st.session_state.capitulos_historia[idx_capitulo]
                 else:
-                    texto_capitulo = "Los archivos se han corrompido. El protagonista debe improvisar...\n[ESPACIO_PARA_RECUERDO]"
+                    texto_capitulo = "Los archivos se han corrompido...\n[ESPACIO_PARA_RECUERDO]"
                 
-                # 2. Generamos el "Recuerdo Técnico" (1 solo párrafo)
-                articulo_objetivo = engine.current_article_label 
+                # --- 🎯 CIRUGÍA DE MEMORIA (RECUERDO ALEATORIO DE FALLADOS) ---
+                # 1. Prioridad: Artículos que tienes en ROJO (fallados)
+                pool_recuerdos = list(engine.failed_articles)
+                
+                # 2. Si no hay fallados aún, tomamos de los que ya has visto
+                if not pool_recuerdos:
+                    pool_recuerdos = list(engine.seen_articles)
+                
+                # 3. Si hay algo que recordar, elegimos uno al azar que no sea siempre el mismo
+                if pool_recuerdos:
+                    articulo_objetivo = random.choice(pool_recuerdos)
+                else:
+                    articulo_objetivo = engine.current_article_label 
+
+                # Generamos el monólogo con ese artículo del pasado
                 texto_recuerdo = engine.generar_chisme_ia(articulo_objetivo, tipo="historia_seguida")
                 
-                # 3. Ensamblamos: Metemos el recuerdo en el hueco del capítulo
-                texto_ensamblado = texto_capitulo.replace("[ESPACIO_PARA_RECUERDO]", f"\n\n**💭 Recuerdo Técnico:** *«{texto_recuerdo}»*")
+                # Ensamblamos sin etiquetas, como pediste
+                texto_ensamblado = texto_capitulo.replace("[ESPACIO_PARA_RECUERDO]", f"\n\n{texto_recuerdo}")
                 
-                # --- EL CAMBIO CLAVE AQUÍ ---
-                # No hacemos split. Ponemos todo el texto ensamblado antes del primer "|||"
-                # Así el sistema lo muestra completo en el cuadro naranja sin esconder nada.
                 st.session_state.chisme_actual = f"{texto_ensamblado} |||  ||| "
                 st.rerun()
         with col5:
