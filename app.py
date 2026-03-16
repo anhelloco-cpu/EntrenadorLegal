@@ -1951,14 +1951,13 @@ def generar_sopa_letras(palabra):
 # EL LOBBY NARRATIVO (ANTES DEL JUEGO)
 # ==========================================
 if st.session_state.page == 'lobby':
-    if st.session_state.page == 'lobby':
     st.title("🕵️‍♂️ Sala de Instrucción: El Gran Caso")
     
-    # --- CAMBIO PRECISO: Si hay capítulos en el backup, los pone en pantalla automáticamente ---
+    # --- SINCRONIZACIÓN CON BACKUP ---
     if st.session_state.get('capitulos_historia') and not st.session_state.historia_generada:
         st.session_state.historia_generada = st.session_state.capitulos_historia[0].replace("[ESPACIO_PARA_RECUERDO]", "").strip()
 
-    # Solo muestra el selector y el botón si la memoria está vacía
+    # El generador solo aparece si la memoria está vacía
     if not st.session_state.get('capitulos_historia'):
         st.write("Antes de entrar a la auditoría técnica, prepárate con un caso de estudio.")
         genero = st.selectbox("🎬 Elige el género de tu expediente:", [
