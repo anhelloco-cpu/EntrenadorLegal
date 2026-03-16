@@ -1397,22 +1397,12 @@ if 'momento_pelicula' not in st.session_state: st.session_state.momento_pelicula
 if 'historia_generada' not in st.session_state: st.session_state.historia_generada = ""
 # --------------------------------------------
 
-# --- 📖 BITÁCORA EVOLUTIVA (NUEVO SIDEBAR) ---
-if st.session_state.get('capitulos_historia'):
-    with st.sidebar.expander("📖 Bitácora del Expediente (Historia Completa)"):
-        # Calculamos cuántas escenas mostrar según tu avance (10%, 20%, etc.)
-        p_actual = engine.get_stats()[0]
-        limite = min(9, int(p_actual / 10))
+# --- BOTÓN DE SALVAVIDAS NARRATIVO ---
+if st.session_state.get('historia_base'):
+    with st.sidebar.expander("🎬 Escuchar el inicio de la historia"):
+        st.markdown(st.session_state.historia_base)
         
-        texto_completo = ""
-        for i in range(limite + 1):
-            # Limpiamos etiquetas técnicas para que el sidebar sea pura novela
-            c_limpio = st.session_state.capitulos_historia[i].replace("[ESPACIO_PARA_RECUERDO]", "").strip()
-            texto_completo += f"**Escena {i+1}**\n\n{c_limpio}\n\n---\n\n"
-        
-        st.markdown(texto_completo)
-        
-        # Mantenemos tu audio original del Lobby
+        # Reproductor mágico en la barra lateral
         if 'audio_base_guardado' in st.session_state:
             st.audio(st.session_state.audio_base_guardado, format='audio/mp3')
 
