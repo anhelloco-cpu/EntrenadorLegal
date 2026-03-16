@@ -1992,7 +1992,7 @@ if st.session_state.page == 'lobby':
             "Comedia (Un desastre total y absoluto en la alcaldía)"
         ])
 
-if st.button("Generar Caso de Estudio", use_container_width=True):
+    if st.button("Generar Caso de Estudio", use_container_width=True):
         # 4 espacios de sangría para que Python sea feliz
         with st.spinner("Titan está redactando un expediente largo y detallado..."):
             
