@@ -2210,9 +2210,9 @@ if st.session_state.page == 'game':
                     
                     st.session_state.voz_chisme = "es-CO-SalomeNeural"
                     
-                    # 1. Calcular el índice del capítulo (10% = Cap 2, 20% = Cap 3... 100% = Cap 10)
+                    # 1. Calcular el índice (Ajustado a 10 para soportar los 11 capítulos)
                     progreso_actual = engine.get_stats()[0] 
-                    idx_capitulo = min(9, int(progreso_actual / 10))
+                    idx_capitulo = min(10, int(progreso_actual / 10))
                     
                     # 2. Extraer el capítulo guardado en el Lobby
                     if 'capitulos_historia' in st.session_state and len(st.session_state.capitulos_historia) > idx_capitulo:
@@ -2227,16 +2227,8 @@ if st.session_state.page == 'game':
                     # 4. El Ensamblaje Perfecto (Pega el recuerdo en el hueco)
                     texto_ensamblado = texto_capitulo.replace("[ESPACIO_PARA_RECUERDO]", f"\n\n**💭 Recuerdo Técnico:** *«{texto_recuerdo}»*")
                     
-                    # 5. Formato para la Pantalla (Gancho ||| Desarrollo)
-                    parrafos = texto_ensamblado.split('\n', 1)
-                    if len(parrafos) > 1:
-                        gancho = parrafos[0].strip()
-                        desarrollo = parrafos[1].strip()
-                    else:
-                        gancho = texto_ensamblado
-                        desarrollo = ""
-                        
-                    st.session_state.chisme_actual = f"{gancho} ||| {desarrollo} ||| "
+                    # 5. Formato para la Pantalla (¡SIN TIJERAS! Todo va al cuadro principal)
+                    st.session_state.chisme_actual = f"{texto_ensamblado}||| ||| "
                     st.rerun()
                     
             st.write("")
