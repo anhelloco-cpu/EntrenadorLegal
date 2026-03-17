@@ -2210,7 +2210,7 @@ if st.session_state.page == 'game':
                     
                     st.session_state.voz_chisme = "es-CO-SalomeNeural"
                     
-                    # 1. Calcular el índice del capítulo (10% = Cap 2... 100% = Cap 11)
+                    # 1. Calcular el índice del capítulo
                     progreso_actual = engine.get_stats()[0] 
                     idx_capitulo = min(10, int(progreso_actual / 10))
                     
@@ -2220,15 +2220,20 @@ if st.session_state.page == 'game':
                     else:
                         texto_capitulo = "Los archivos se han corrompido. El protagonista debe improvisar...\n[ESPACIO_PARA_RECUERDO]"
                     
-                    # 3. El Francotirador (Pide solo 1 párrafo recordando el error)
+                    # 3. El Francotirador
                     articulo_objetivo = engine.current_article_label 
                     texto_recuerdo = engine.generar_chisme_ia(articulo_objetivo, tipo="historia_seguida")
                     
-                    # 4. El Ensamblaje Perfecto (Pega el recuerdo en el hueco)
-                    texto_ensamblado = texto_capitulo.replace("[ESPACIO_PARA_RECUERDO]", f"\n\n**💭 Recuerdo Técnico:** *«{texto_recuerdo}»*")
+                    # 4. 🔥 FILTRO ANTIBOT (Igual que en "Mi Historia")
+                    basura = ["Recuerdo Técnico:", "💭", "«", "»", "Espera un momento...", "Congelación temporal"]
+                    for b in basura:
+                        texto_recuerdo = texto_recuerdo.replace(b, "")
+                    texto_recuerdo = texto_recuerdo.strip()
                     
-                    # 5. Formato para la Pantalla (¡AQUÍ QUITAMOS LA TIJERA!)
-                    # Mandamos TODO el texto ensamblado directamente a la caja principal
+                    # 5. ENSAMBLE TIPO NOVELA (Texto fluido, sin negritas ni emojis)
+                    texto_ensamblado = texto_capitulo.replace("[ESPACIO_PARA_RECUERDO]", f"\n\n{texto_recuerdo}")
+                    
+                    # 6. Formato para la Pantalla (Directo a la caja principal)
                     st.session_state.chisme_actual = f"{texto_ensamblado}||| ||| "
                     st.rerun()
                     
