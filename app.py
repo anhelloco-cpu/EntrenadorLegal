@@ -1424,8 +1424,23 @@ if st.session_state.get('capitulos_historia') and engine_bitacora:
                 texto_completo += f"**Escena {i+1}**\n\n{c_limpio}\n\n---\n\n"
         
         st.markdown(texto_completo)
-        if 'audio_base_guardado' in st.session_state:
-            st.audio(st.session_state.audio_base_guardado, format='audio/mp3')
+        # 🔥 AQUÍ PEGAS EL NUEVO REPRODUCTOR A DEMANDA:
+        if st.button("🎧 Escuchar Expediente Completo", key="btn_audio_bitacora"):
+            with st.spinner("🎙️ Salomé está leyendo todo el caso..."):
+                # Mandamos a grabar TODO el texto acumulado
+                audio_fp = generar_audio_texto(texto_completo)
+                
+                try:
+                    if hasattr(audio_fp, 'read'):
+                        audio_fp.seek(0)
+                        audio_bytes = audio_fp.read()
+                    else:
+                        with open(audio_fp, 'rb') as f:
+                            audio_bytes = f.read()
+                    
+                    st.audio(audio_bytes, format='audio/mp3', autoplay=True)
+                except Exception as e:
+                    st.error(f"Error al generar el audio de la bitácora: {e}")
 
 # --- 🛠️ ADICIÓN: VARIABLES DE PAUSA ACTIVA ---
 if 'hitos_vistos' not in st.session_state: st.session_state.hitos_vistos = set()
