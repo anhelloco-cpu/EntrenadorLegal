@@ -42,7 +42,7 @@ def generar_audio_texto(texto, voz="es-CO-SalomeNeural", rate="+0%", pitch="+0Hz
 
 # ==============================================================================
 # ==============================================================================
-#  TITÁN v105: Unobtanium
+#  TITÁN v2: Unobtanium
 #  ----------------------------------------------------------------------------
 #  ESTA VERSIÓN INCLUYE:
 #  1. CEREBRO INSTITUCIONAL: Personalidad de Auditor, Fiscal, etc.
@@ -1036,25 +1036,36 @@ class LegalEngineTITAN:
         
         MISION: Genera {self.questions_per_case} preguntas de NIVEL ELITE (ROMPE-RANKING) basándote EXCLUSIVAMENTE en el texto proporcionado abajo.
         
-        REGLAS DE ORO (LOS 11 CAPITANES - BLINDAJE EXTREMO):
-        1. 🚫 CAPITÁN ANTI-LORO: PROHIBIDO iniciar la respuesta con "Según el artículo...", "De acuerdo a la ley..." o similar. La respuesta debe ser una CONSECUENCIA JURÍDICA o TÉCNICA autónoma (Ej: "Se declara la nulidad...", "Opera el silencio administrativo...").
-        2. 👯 CAPITÁN GEMELOS (MODO HOSTIL EXTREMO): Las opciones incorrectas DEBEN ser "Gemelos Legales": fragmentos literales de la norma que regulen situaciones parecidas. OBLIGATORIO: Deben provenir del MISMO ARTÍCULO o de artículos contiguos para eliminar el descarte por tema.
-        3. ⚖️ CAPITÁN ECUALIZADOR (SIMETRÍA LETAL Y CAMUFLAJE): Las IAs tienen el grave defecto de hacer la respuesta correcta más larga. ¡TIENES PROHIBIDO CAER EN ESTE SESGO! Regla inquebrantable: Las 4 opciones (A, B, C, D) DEBEN tener EXACTAMENTE la misma extensión visual. Si por necesidad técnica la respuesta correcta es la más larga, OBLIGATORIAMENTE por lo menos otra opción (distractor) debe medir exactamente lo mismo o más para camuflarla. En TODAS las opciones, limítate a dar la consecuencia jurídica directa, seca y sin rodeos. ¡ATENCIÓN! Tienes ESTRICTAMENTE PROHIBIDO inventar "relleno administrativo", procedimientos falsos o palabras vacías para engordar los distractores. Para lograr que los distractores tengan el mismo tamaño que la correcta, DEBES usar "Gemelos Legales" (es decir, extraer condiciones, principios o excepciones REALES de artículos contiguos del texto proporcionado). Todas las opciones deben ser texto técnico puro. NADIE DEBE ADIVINAR POR EL TAMAÑO NI POR DESCARTAR RELLENO INVENTADO.
-        4. 🧠 CAPITÁN ANTI-OBVIEDAD (Prueba del 50/50): PROHIBIDO usar "Todas las anteriores" o respuestas de sentido común moral. La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un "podrá" vs "deberá", un plazo, una competencia).
-        5. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente. No preguntes sobre leyes muertas.
-        6. 🔗 CAPITÁN CONTEXTO (DEPENDENCIA LÓGICA TOTAL): La pregunta debe ser TÉCNICAMENTE IRRESOLUBLE sin los datos del caso narrado. El enunciado debe plantear un problema de procedibilidad o competencia donde la respuesta correcta sea una excepción o un requisito específico.
-        7. 🧨 CAPITÁN ANTI-ANCLA (PROHIBICIÓN SEMÁNTICA): PROHIBIDO nombrar explícitamente el concepto central evaluado en el enunciado o las opciones (ej: no digas "control fiscal", describe la "vigilancia de los recursos"). El concepto debe inferirse por sus efectos.
-        8. 🔀 CAPITÁN CONDICIONALIDAD: La opción correcta debe serlo SOLO si se identifica una condición fáctica implícita en el caso narrado (paradoja de corrección condicionada).
-        9. 💥 CAPITÁN COLISIÓN: Obliga al usuario a decidir entre dos principios constitucionales en tensión (ej. Eficacia vs Legalidad) o normas que parecen chocar.
-        10. ⚓ CAPITÁN ANCLA (FIDELIDAD ABSOLUTA): Tienes PROHIBIDO citar, mencionar o basar la respuesta en leyes, decretos o códigos que NO estén explícitamente en el texto proporcionado (fuente técnica). Si el nivel es Profesional, la dificultad DEBE nacer de analizar los matices, plazos y excepciones que el texto SÍ menciona, no de traer información de otros libros externos. Si inventas una ley ajena al PDF, tu proceso de generación será invalidado.
-        11. 🎭 CAPITÁN ESPEJISMO (TRAMPA DE COINCIDENCIA): ¡REGLA DE HIERRO!
+        REGLAS DE ORO (LOS 15 CAPITANES - BLINDAJE EXTREMO):
+
+
+
+        1. 🛑 CAPITÁN 1: CERO ALUCINACIÓN Y AISLAMIENTO TOTAL (EL DICTADOR DEL TEXTO): ¡ESTA ES LA REGLA SUPREMA! 
+        - REGLA DE CONFINAMIENTO DE ARTÍCULO: Es OBLIGATORIO que el contenido del caso y la respuesta correcta correspondan ÚNICA Y EXCLUSIVAMENTE al artículo específico que se te entrega como objetivo. Si el fragmento a evaluar es el "Artículo 43", tienes terminantemente PROHIBIDO usar información, plazos o procedimientos de otros artículos (como el 39 o el 40) para armar la pregunta. Tu universo nace y muere en las líneas de ese artículo objetivo.
+        - PARA EL CASO Y LA RESPUESTA CORRECTA (EL SANTUARIO): Tienes ESTRICTAMENTE PROHIBIDO inventar, deducir o alterar leyes, plazos, días, meses, cifras o consecuencias jurídicas. La narrativa del caso y la OPCIÓN VERDADERA deben ser 100% fieles a la literalidad del texto fuente proporcionado. No inventes matemáticas legales ni plazos que no existan.
+        - PARA LAS OPCIONES INCORRECTAS (EL CAMPO MINADO): ¡AQUÍ SÍ TIENES PERMISO PARA MENTIR Y MUTAR! Para crear los distractores perfectos, DEBES alterar sutilmente las cifras reales (ej. cambiar 10 días por 5), inventar excepciones falsas, o aplicar mal el procedimiento del texto. La trampa consiste exactamente en que el usuario debe detectar cuál opción tiene el dato adulterado y cuál es la pura verdad del texto.
+                2. 🚫 CAPITÁN ANTI-LORO: PROHIBIDO iniciar la respuesta con "Según el artículo...", "De acuerdo a la ley..." o similar. La respuesta debe ser una CONSECUENCIA JURÍDICA o TÉCNICA autónoma (Ej: "Se declara la nulidad...", "Opera el silencio administrativo...").
+        3. 👯 CAPITÁN GEMELOS (EL GEMELO ENVENENADO): Tu objetivo es que el usuario dude de su propia memoria.
+LA TRAMPA DE LA VERDAD INAPLICABLE: Los distractores no deben ser mentiras inventadas. DEBES usar fragmentos reales y literales del mismo artículo que regulen situaciones distintas a la planteada en el caso. El usuario debe elegir la opción correcta no porque la otra sea "falsa", sino porque es "inaplicable" al problema narrado.
+EL CLON CON SINÓNIMOS: Obligatoriamente, crea una opción que sea un parafraseo elegante de la respuesta correcta usando sinónimos. Esta opción debe parecer la verdadera, pero debe incluir un "veneno": un detalle técnico corto que la invalide (ej: cambiar "podrá" por "deberá").
+        4. ⚖️ CAPITÁN ECUALIZADOR (SIMETRÍA Y CONCISIÓN LETAL): ¡ENTRE MENOS PALABRAS, MEJOR! Las cuatro opciones (A, B, C, D) DEBEN ser EXTREMADAMENTE CORTAS (idealmente entre 10 y 15 palabras) y tener EXACTAMENTE la misma extensión visual (margen de error máximo de +/- 2 palabras entre ellas). Tienes PROHIBIDO hacer opciones largas o explicativas. Si la consecuencia jurídica es compleja, SINTETÍZALA a su mínima expresión de forma directa, seca y sin rodeos. ¡ATENCIÓN! Tienes ESTRICTAMENTE PROHIBIDO inventar "relleno administrativo", procedimientos falsos o palabras vacías para engordar los distractores. Para lograr la simetría en ese espacio tan reducido, DEBES usar "Gemelos Legales" (extraer condiciones, principios o excepciones REALES y precisas de artículos contiguos). Todas las opciones deben ser texto técnico puro, minimalista y simétrico. NADIE DEBE ADIVINAR POR EL TAMAÑO NI CANSARSE LEYENDO.
+        5. 🧠 CAPITÁN ANTI-OBVIEDAD (Prueba del 50/50): PROHIBIDO usar "Todas las anteriores" o respuestas de sentido común moral. La diferencia entre la correcta y la distractor más fuerte debe ser un matiz técnico (un "podrá" vs "deberá", un plazo, una competencia).
+        6. 🗑️ CAPITÁN JUSTICIA: Si el fragmento de texto contiene "INEXEQUIBLE", "DEROGADO" o "NULO", IGNÓRALO COMPLETAMENTE y busca otro parágrafo vigente. No preguntes sobre leyes muertas.
+        7. 🔗 CAPITÁN CONTEXTO (DEPENDENCIA LÓGICA TOTAL): La pregunta debe ser TÉCNICAMENTE IRRESOLUBLE sin los datos del caso narrado. El enunciado debe plantear un problema de procedibilidad o competencia donde la respuesta correcta sea una excepción o un requisito específico.
+        8. 🧨 CAPITÁN ANTI-ANCLA (PROHIBICIÓN SEMÁNTICA): PROHIBIDO nombrar explícitamente el concepto central evaluado en el enunciado o las opciones (ej: no digas "control fiscal", describe la "vigilancia de los recursos"). El concepto debe inferirse por sus efectos.
+        9. 🔀 CAPITÁN CONDICIONALIDAD: La opción correcta debe serlo SOLO si se identifica una condición fáctica implícita en el caso narrado (paradoja de corrección condicionada).
+        10. 💥 CAPITÁN COLISIÓN: Obliga al usuario a decidir entre dos principios constitucionales en tensión (ej. Eficacia vs Legalidad) o normas que parecen chocar.
+        11. ⚓ CAPITÁN ANCLA (FIDELIDAD Y CONFINAMIENTO ABSOLUTO): Tienes PROHIBIDO citar, mencionar o basar la respuesta en leyes, decretos o artículos que NO sean el objetivo principal del texto proporcionado. Si el artículo a evaluar es corto, la dificultad DEBE nacer de analizar sus palabras exactas, no de traer información de otros artículos para "rellenar" o hacerlo difícil. Si inventas o traes una regla de un artículo ajeno al fragmento específico, tu proceso será invalidado.
+        12. 🎭 CAPITÁN ESPEJISMO (TRAMPA DE COINCIDENCIA): ¡REGLA DE HIERRO!
             - Si usas un sustantivo técnico en el enunciado (ej: "PATRIMONIO", "COMPETENCIA", "CADUCIDAD"), esa palabra queda VETADA en la respuesta correcta.
             - OBLIGATORIO: Usa esas palabras clave ÚNICAMENTE en las opciones INCORRECTAS (B, C o D) para atraer al usuario que intenta adivinar por parecido visual.
             - La respuesta CORRECTA debe escribirse usando PARÁFRASIS o CONSECUENCIAS (Ej: en lugar de 'Patrimonio', usa 'integridad del erario' o 'activos de la nación'). 
             - SI EL USUARIO ELIGE LA OPCIÓN QUE "RIMA" CON LA PREGUNTA, DEBE ESTAR EQUIVOCADO.
-        12. 🚫 CAPITÁN ANTI-FANTASMA (CERO REFERENCIAS): Tienes ESTRICTAMENTE PROHIBIDO generar preguntas sobre artículos, leyes o incisos que solo se mencionan como referencia dentro de un párrafo (Ej: "según lo dispuesto en el art. 267 de la Constitución"). Enfócate ÚNICAMENTE en el mandato directo del artículo principal que rige el fragmento.
-        13. 🛟 CAPITÁN SALVAVIDAS (REGLA DE RESCATE): Si el texto proporcionado es pura introducción ("Considerandos") y no contiene ningún artículo normativo propio, ¡NO ENTRES EN PÁNICO NI INVENTES PREGUNTAS SOBRE OTRAS LEYES! Genera una pregunta sobre el OBJETIVO GENERAL, propósito o motivación del documento basándote en esa introducción.
-        14. 🎬 CAPITÁN CONTINUIDAD (INMERSIÓN NARRATIVA TOTAL): ¡ESTRICTAMENTE PROHIBIDO hacer "preguntas de examen" al final del caso! NO uses signos de interrogación ni hagas preguntas separadas (Ej: JAMÁS pongas "¿Cómo debe proceder...?" ni "¿Qué acción tomaría...?"). 
+        13. 🚫 CAPITÁN ANTI-FANTASMA (CERO REMISIONES Y NOTAS EDITORIALES): 
+        - BASURA ADMINISTRATIVA: Tienes ESTRICTAMENTE PROHIBIDO generar preguntas sobre el historial legislativo, notas de vigencia, viñetas o marcas de editor que estén entre paréntesis o corchetes (Ej: "(Modificado por el artículo...)", "(Adicionado por...)"). ¡IGNORA ESOS TEXTOS POR COMPLETO!
+        - REGLA DE NO SALTO: Si el artículo que estás evaluando menciona a otro artículo (Ej: "se aplicará lo dispuesto en el Art. 40"), NO preguntes sobre el contenido de ese otro artículo. Enfócate exclusivamente en el mandato directo del artículo actual. ¡No saltes de un artículo a otro como un fantasma!
+        14. 🛟 CAPITÁN SALVAVIDAS (REGLA DE RESCATE): Si el texto proporcionado es pura introducción ("Considerandos") y no contiene ningún artículo normativo propio, ¡NO ENTRES EN PÁNICO NI INVENTES PREGUNTAS SOBRE OTRAS LEYES! Genera una pregunta sobre el OBJETIVO GENERAL, propósito o motivación del documento basándote en esa introducción.
+        15. 🎬 CAPITÁN CONTINUIDAD (INMERSIÓN NARRATIVA TOTAL): ¡ESTRICTAMENTE PROHIBIDO hacer "preguntas de examen" al final del caso! NO uses signos de interrogación ni hagas preguntas separadas (Ej: JAMÁS pongas "¿Cómo debe proceder...?" ni "¿Qué acción tomaría...?"). 
     - OBLIGATORIO: El caso debe terminar de forma fluida en un "cliffhanger" o frase incompleta (terminada en dos puntos) que conecte directamente con las opciones de respuesta.
     - EJEMPLO DE CIERRE CORRECTO: "...Ante este inminente vencimiento de términos, la única actuación procesal válida que el auditor puede ejecutar es:"
     - Las opciones (A, B, C, D) deben redactarse como la CONTINUACIÓN LÓGICA Y DIRECTA de esa última frase, siendo todas acciones técnicas precisas para resolver el caso.
@@ -1500,7 +1511,7 @@ with st.sidebar:
         <div style='text-align: center;'>
             <h1 style='margin-bottom: 0;'>🦅 TITAN</h1>
             <p style='font-size: 0.85em; color: #666; font-style: italic;'>
-                Tecnología Inmersiva de Transferencia y Análisis Normativo
+                Tecnología Inmersiva de Transferencia y Análisis Neuronal
             </p>
             <hr style='margin-top: 5px;'>
             <p style='font-weight: bold; color: #d35400;'>SIMULADOR DE REALIDAD TÉCNICA</p>
@@ -2041,22 +2052,25 @@ if st.session_state.page == 'lobby':
             '''{texto_contexto}'''
             
             REGLAS DE ORO Y FORMATO ESTRICTO:
-            1. ADN DEL PROTAGONISTA: Usa este perfil: '{engine.job_functions}'. Dale un nombre propio (Ej. Elara, Carlos) y úsalo siempre.
-            2. 📈 ESTRUCTURA NARRATIVA (CURVA DE TENSIÓN):
-               - CAPÍTULO 1 (Introducción): ¡REGLA DE CÁMARA! Ubica físicamente al protagonista en una oficina real del MAPA INSTITUCIONAL. Aquí se lanza el "Incidente Incitador".
-               - CAPÍTULOS 2 al 9 (Desarrollo): El protagonista investiga, enfrenta obstáculos intermedios y descubre pistas.
-               - CAPÍTULO 10 (Clímax): El momento de máxima tensión técnica antes del cierre.
-               - CAPÍTULO 11 (Final Victoria): El protagonista resuelve el caso magistralmente y es nombrado oficialmente por su excelencia.
-            3. 🏛️ EXPLORACIÓN TOTAL: En cada capítulo, el personaje DEBE desplazarse a una oficina DIFERENTE del MAPA.
-            4. VETO DE JERGA BÁSICA: PROHIBIDO usar "Artículo", "Ley" o "Decreto". 
-            5. 🎙️ NARRATIVA PURA (CERO DIÁLOGOS): Sin guiones ni comillas. Todo es acción y monólogo interno.
-            6. 🖋️ ESTRUCTURA DE PÁRRAFOS: Cada capítulo DEBE tener entre 3 y 5 párrafos bien definidos.
-            7. GÉNERO: {genero}.
+            1. ADN DEL PROTAGONISTA Y BASE DE OPERACIONES: Usa este perfil: '{engine.job_functions}'. Dale un nombre propio (Ej. Lowi, Miguel, Elara, Carlos) y, desde la primera línea, INSTÁLALO físicamente en su dependencia oficial (su base de operaciones).
+            2. 📈 ESTRUCTURA NARRATIVA (CURVA DE TENSIÓN Y DOSIFICACIÓN LEGAL):
+               - CAPÍTULO 1 (Introducción): ¡REGLA DE CÁMARA! Ubica al protagonista en su oficina real dentro del MAPA. Aquí estalla el "Incidente Incitador" mientras ejecuta una de sus funciones literales.
+               - CAPÍTULOS 2 al 9 (Desarrollo): El protagonista investiga el caso enfrentando barreras burocráticas derivadas DIRECTAMENTE del TEXTO DE REFERENCIA. 
+                 * REGLA DE DOSIFICACIÓN: Divide la información de la norma cargada y revela una fracción distinta en cada capítulo. El avance de la trama debe ser el vehículo para explicar, paso a paso, todo el contenido de la norma sin que parezca una clase teórica.
+               - CAPÍTULO 10 (Clímax): El momento de máxima tensión técnica institucional, aplicando el núcleo más crítico de la norma antes del cierre.
+               - CAPÍTULO 11 (Final Victoria): Resuelve el caso magistralmente aplicando la ley a la perfección, blindando a la entidad, y es reconocido.
+            3. 🏛️ ECOSISTEMA BUROCRÁTICO (MÍNIMO 2 DEPENDENCIAS POR CAPÍTULO): El personaje no hace turismo, hace gestión pública. En CADA capítulo, OBLIGATORIAMENTE debes nombrar y justificar la interacción entre al menos DOS (2) dependencias reales del MAPA (la oficina del protagonista cuenta como una). Puede ser enviando un requerimiento, auditando un área, recibiendo un expediente de otra jefatura o coordinando una acción conjunta.
+            4. ⚙️ LÓGICA FUNCIONAL ESTRICTA (CERO INVENTOS): Las interacciones deben tener sentido institucional. Si requiere un dato de control territorial, acude a una Gerencia Departamental; si es vigilancia, interactúa con la Dirección respectiva. PROHIBIDO inventar dependencias que no estén en el MAPA o asignarles tareas que no les corresponden lógicamente.
+            5. VETO DE JERGA BÁSICA: PROHIBIDO usar "Artículo", "Ley" o "Decreto". 
+            6. 🎙️ NARRATIVA PURA (CERO DIÁLOGOS): Sin guiones ni comillas. Todo es acción, trámite, tensión burocrática y monólogo interno.
+            7. 🖋️ ESTRUCTURA DE PÁRRAFOS: Cada capítulo DEBE tener entre minimo 3 parrafos y maximo 5 párrafos bien definidos.
+            8. GÉNERO: {genero}.
             
             FORMATO TÉCNICO:
             - Separador exacto entre capítulos: |||
             - El último párrafo de CADA capítulo debe ser SOLAMENTE: [ESPACIO_PARA_RECUERDO]
             """
+
             
             res = engine.model.generate_content(prompt_historia)
             historia_bruta = res.text.strip().replace("*", "").replace("#", "")
@@ -2115,6 +2129,41 @@ if st.session_state.page == 'lobby':
             
         except Exception as e:
             st.error(f"Error interno con el audio: {e}")        
+
+
+# --- NUEVA OPCIÓN: CARGAR HISTORIA COMPLETA CON PALACIO MENTAL ---
+        if len(st.session_state.capitulos_historia) > 1:
+            if st.button("🎧 Mostrar y Escuchar Historia Completa", use_container_width=True):
+                with st.spinner("🧠 Construyendo tu Palacio Mental para cada capítulo... (Tardará unos segundos)"):
+                    historia_ensamblada = []
+                    
+                    # Extraemos los artículos disponibles en el mapa para usarlos como base
+                    articulos_base = list(engine.sections_map.keys())
+                    if "TODO EL DOCUMENTO" in articulos_base: articulos_base.remove("TODO EL DOCUMENTO")
+                    
+                    for capitulo in st.session_state.capitulos_historia:
+                        # Seleccionamos un tema al azar del documento para la pausa de este capítulo
+                        art_objetivo = random.choice(articulos_base) if articulos_base else "Norma General"
+                        
+                        # Disparamos la IA para crear el monólogo/recuerdo
+                        recuerdo = engine.generar_chisme_ia(art_objetivo, tipo="historia_seguida")
+                        
+                        # Limpiamos cualquier basura de formato de la IA
+                        basura = ["Recuerdo Técnico:", "💭", "«", "»", "Espera un momento...", "Congelación temporal"]
+                        for b in basura:
+                            recuerdo = recuerdo.replace(b, "")
+                        
+                        # Formato visual distintivo que sobrevive a tu renderizado actual
+                        texto_palacio = f"🧠 <i><b>PALACIO MENTAL:</b> {recuerdo.strip()}</i>"
+                        
+                        # Lo inyectamos en su espacio correspondiente
+                        cap_final = capitulo.replace("[ESPACIO_PARA_RECUERDO]", texto_palacio)
+                        historia_ensamblada.append(cap_final)
+
+                    # Unimos toda la novela y recargamos
+                    st.session_state.historia_generada = "\n\n---\n\n".join(historia_ensamblada)
+                    st.rerun()
+        # ----------------------------------------------
 
         st.markdown("---")
         if st.button("🔥 Entendido, ¡A las preguntas!", type="primary", use_container_width=True):
